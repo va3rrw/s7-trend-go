@@ -1,0 +1,19 @@
+{
+  "name": "s7-trend-go",
+  "outputfilename": "s7-trend-go-v1.1.0",
+  "frontend:install": "pnpm install",
+  "frontend:build": "pnpm run build",
+  "frontend:dev:watcher": "pnpm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Ken Wang",
+    "email": "ken@cetus.ca"
+  },
+  "info": {
+    "companyName": "Ken Wang",
+    "productName": "S7 Trend Go",
+    "productVersion": "1.1.0",
+    "copyright": "Copyright",
+    "comments": "S7 PLC Trend App built with Go and Wails"
+  }
+}

@@ -1,0 +1,64 @@
+name: Release Windows App
+
+on:
+    push:
+        tags:
+            - 'v*' # Triggers the workflow when you push a tag like v1.0.0
+
+permissions:
+    contents: write # Required to create the GitHub release and upload assets
+
+jobs:
+    build-and-release:
+        name: Build & Publish Release
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: '1.25'
+                  cache-dependency-path: src/go.sum
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: 10
+
+            - name: Setup Node.js (for Vue frontend)
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
+                  cache: 'pnpm'
+                  cache-dependency-path: src/frontend/pnpm-lock.yaml
+
+            - name: Install Wails CLI
+              run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+            - name: Build Application
+              shell: bash
+              run: ./build.sh
+
+            - name: Archive Production Artifact
+              shell: pwsh
+              run: |
+                  Compress-Archive -Path dist\*.exe -DestinationPath .\s7-trend-go-win-x64.zip
+
+            - name: Generate Changelog
+              id: github_release
+              uses: mikepenz/release-changelog-builder-action@v5
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  body: ${{ steps.github_release.outputs.changelog }}
+                  files: .\s7-trend-go-win-x64.zip
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

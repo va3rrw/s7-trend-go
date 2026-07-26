@@ -1,0 +1,26 @@
+# Published artifacts
+dist/
+
+# Legacy reference files
+s7-trend-values/
+
+# Go & Wails build output
+build/bin/
+build/obj/
+wails.json.user
+frontend/dist/
+
+# Node & pnpm
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# agent files
+.agents
+.codex
+
