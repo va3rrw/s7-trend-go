@@ -90,11 +90,8 @@ func TestModels_JSONSerialization(t *testing.T) {
 		DataType:     DataTypeReal,
 		StringLength: 0,
 		YAxis:        "Y-Axis 1",
-		LowLimit:     10.0,
-		HighLimit:    90.0,
 		Color:        "#FF0000",
 		Enabled:      true,
-		Notification: NotificationAnalogHigh,
 	}
 
 	settings := AppSettings{
@@ -136,9 +133,6 @@ func TestModels_JSONSerialization(t *testing.T) {
 	}
 	if restored.Tags[0].DataType != DataTypeReal {
 		t.Errorf("restored tag DataType = %s, expected Real", restored.Tags[0].DataType)
-	}
-	if restored.Tags[0].Notification != NotificationAnalogHigh {
-		t.Errorf("restored tag Notification = %s, expected AnalogHigh", restored.Tags[0].Notification)
 	}
 
 	// Test PollUpdate serialization

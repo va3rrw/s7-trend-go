@@ -4,7 +4,7 @@ Siemens S7 PLC data acquisition and trend visualization desktop application buil
 
 ## Overview
 
-S7 Trend Go connects to Siemens S7 PLCs (S7-300, S7-400, S7-1200, S7-1500) over Ethernet using native S7 protocol communication. It records real-time tag data, plots multi-axis trend charts, and triggers threshold or edge notifications.
+S7 Trend Go connects to Siemens S7 PLCs (S7-300, S7-400, S7-1200, S7-1500) over Ethernet using native S7 protocol communication. It records real-time tag data and plots multi-axis trend charts.
 
 Based on a very old but useful tool **S7 Trend Values**.
 
@@ -15,7 +15,6 @@ Based on a very old but useful tool **S7 Trend Values**.
 - **High-Performance Real-Time Charting**: High-frequency polling (10ms to 60,000ms) with customizable time windows (30s to 3,600s).
 - **Multi-Axis Y Scaling**: Configure independent Y-axes with automatic scaling or explicit minimum and maximum range bounds.
 - **Sample Interpolation**: Choose between `Line` and `Differential` interpolation modes for trend visualization.
-- **Trigger Notifications**: Detect positive/negative edges for binary signals and low/high threshold crossings for analog values.
 - **Import & Export**: Save and reload PLC configurations, tag lists, Y-axes setups, and exported sample records.
 - **Localization**: Built-in support for English (`en`) and Simplified Chinese (`zh`).
 

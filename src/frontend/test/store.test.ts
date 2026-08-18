@@ -65,11 +65,8 @@ describe('store.ts', () => {
             dataType: 'Real',
             stringLength: 0,
             yAxis: 'Y-Axis 1',
-            lowLimit: 0,
-            highLimit: 100,
             color: '#FF0000',
             enabled: true,
-            notification: 'None',
         };
         state.settings.tags.push(tag);
 
@@ -86,11 +83,8 @@ describe('store.ts', () => {
             dataType: 'Real',
             stringLength: 0,
             yAxis: 'Y-Axis 1',
-            lowLimit: 0,
-            highLimit: 100,
             color: '#FF0000',
             enabled: true,
-            notification: 'None',
         };
         state.settings.tags.push(tag);
 

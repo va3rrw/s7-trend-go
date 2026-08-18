@@ -3,7 +3,6 @@ import {
     newId,
     defaultSettings,
     DATA_TYPES,
-    NOTIFICATIONS,
     PALETTE,
 } from '../src/types';
 
@@ -52,17 +51,6 @@ describe('types.ts', () => {
         expect(DATA_TYPES).toContain('LReal');
         expect(DATA_TYPES).toContain('String');
         expect(DATA_TYPES).toHaveLength(9);
-    });
-
-    it('contains expected notification options', () => {
-        expect(NOTIFICATIONS).toContain('None');
-        expect(NOTIFICATIONS).toContain('BinaryPositiveEdge');
-        expect(NOTIFICATIONS).toContain('BinaryNegativeEdge');
-        expect(NOTIFICATIONS).toContain('BinaryBothEdges');
-        expect(NOTIFICATIONS).toContain('AnalogLow');
-        expect(NOTIFICATIONS).toContain('AnalogHigh');
-        expect(NOTIFICATIONS).toContain('AnalogBoth');
-        expect(NOTIFICATIONS).toHaveLength(7);
     });
 
     it('contains predefined color palette', () => {

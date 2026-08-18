@@ -66,17 +66,6 @@
                     type="color" />
             </div>
             <div class="form-row">
-                <label>Notification</label>
-                <select v-model="form.notification">
-                    <option
-                        v-for="n in NOTIFICATIONS"
-                        :key="n"
-                        :value="n">
-                        {{ n }}
-                    </option>
-                </select>
-            </div>
-            <div class="form-row">
                 <label />
                 <label class="checkbox-label">
                     <input
@@ -106,7 +95,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
 import type { TagSettings } from '../types';
-import { DATA_TYPES, NOTIFICATIONS, PALETTE } from '../types';
+import { DATA_TYPES, PALETTE } from '../types';
 import { state, showMessage } from '../store';
 import { useI18n } from 'vue-i18n';
 import AppDialog from './AppDialog.vue';
@@ -128,11 +117,8 @@ const form = ref<TagSettings>({
     dataType: 'Real',
     stringLength: 20,
     yAxis: '',
-    lowLimit: -10,
-    highLimit: 10,
     color: PALETTE[0],
     enabled: true,
-    notification: 'None',
 });
 
 watch(

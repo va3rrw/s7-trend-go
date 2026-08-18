@@ -14,11 +14,8 @@ export interface TagSettings {
     dataType: string;
     stringLength: number;
     yAxis: string;
-    lowLimit: number;
-    highLimit: number;
     color: string;
     enabled: boolean;
-    notification: string;
 }
 
 export interface YAxisSettings {
@@ -54,16 +51,6 @@ export const DATA_TYPES = [
     'Real',
     'LReal',
     'String',
-] as const;
-
-export const NOTIFICATIONS = [
-    'None',
-    'BinaryPositiveEdge',
-    'BinaryNegativeEdge',
-    'BinaryBothEdges',
-    'AnalogLow',
-    'AnalogHigh',
-    'AnalogBoth',
 ] as const;
 
 export const PALETTE = [

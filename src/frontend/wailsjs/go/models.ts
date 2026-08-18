@@ -26,11 +26,8 @@ export namespace backend {
 	    dataType: string;
 	    stringLength: number;
 	    yAxis: string;
-	    lowLimit: number;
-	    highLimit: number;
 	    color: string;
 	    enabled: boolean;
-	    notification: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new TagSettings(source);
@@ -45,11 +42,8 @@ export namespace backend {
 	        this.dataType = source["dataType"];
 	        this.stringLength = source["stringLength"];
 	        this.yAxis = source["yAxis"];
-	        this.lowLimit = source["lowLimit"];
-	        this.highLimit = source["highLimit"];
 	        this.color = source["color"];
 	        this.enabled = source["enabled"];
-	        this.notification = source["notification"];
 	    }
 	}
 	export class PlcLinkSettings {

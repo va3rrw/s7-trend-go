@@ -35,31 +35,16 @@ const (
 	DataTypeString TagDataType = "String"
 )
 
-type NotificationMode string
-
-const (
-	NotificationNone               NotificationMode = "None"
-	NotificationBinaryPositiveEdge NotificationMode = "BinaryPositiveEdge"
-	NotificationBinaryNegativeEdge NotificationMode = "BinaryNegativeEdge"
-	NotificationBinaryBothEdges    NotificationMode = "BinaryBothEdges"
-	NotificationAnalogLow          NotificationMode = "AnalogLow"
-	NotificationAnalogHigh         NotificationMode = "AnalogHigh"
-	NotificationAnalogBoth         NotificationMode = "AnalogBoth"
-)
-
 type TagSettings struct {
-	Id           uuid.UUID        `json:"id"`
-	Name         string           `json:"name"`
-	PlcLink      string           `json:"plcLink"`
-	Address      string           `json:"address"`
-	DataType     TagDataType  `json:"dataType"`
-	StringLength int              `json:"stringLength"`
-	YAxis        string           `json:"yAxis"`
-	LowLimit     float64          `json:"lowLimit"`
-	HighLimit    float64          `json:"highLimit"`
-	Color        string           `json:"color"`
-	Enabled      bool             `json:"enabled"`
-	Notification NotificationMode `json:"notification"`
+	Id           uuid.UUID   `json:"id"`
+	Name         string      `json:"name"`
+	PlcLink      string      `json:"plcLink"`
+	Address      string      `json:"address"`
+	DataType     TagDataType `json:"dataType"`
+	StringLength int         `json:"stringLength"`
+	YAxis        string      `json:"yAxis"`
+	Color        string      `json:"color"`
+	Enabled      bool        `json:"enabled"`
 }
 
 type YAxisSettings struct {

@@ -140,11 +140,8 @@ function addTag() {
               dataType: 'Real',
               stringLength: 20,
               yAxis: state.settings.yAxes[0]?.name ?? 'Y-Axis 1',
-              lowLimit: -10,
-              highLimit: 10,
               color: PALETTE[tags.value.length % PALETTE.length],
               enabled: true,
-              notification: 'None',
           };
 
     tags.value.push(tag);

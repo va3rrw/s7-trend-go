@@ -34,11 +34,8 @@ describe('TagEditorDialog.vue', () => {
             dataType: 'Real',
             stringLength: 0,
             yAxis: 'Y-Axis 1',
-            lowLimit: 0,
-            highLimit: 100,
             color: '#FF0000',
             enabled: true,
-            notification: 'None',
         };
 
         const wrapper = await mountOpenEditor(tag);
@@ -55,11 +52,8 @@ describe('TagEditorDialog.vue', () => {
             dataType: 'String',
             stringLength: 25,
             yAxis: 'Y-Axis 1',
-            lowLimit: 0,
-            highLimit: 100,
             color: '#FF0000',
             enabled: true,
-            notification: 'None',
         };
 
         const wrapper = await mountOpenEditor(tag);
@@ -75,11 +69,8 @@ describe('TagEditorDialog.vue', () => {
             dataType: 'Real',
             stringLength: 0,
             yAxis: 'Y-Axis 1',
-            lowLimit: 0,
-            highLimit: 100,
             color: '#FF0000',
             enabled: true,
-            notification: 'None',
         };
 
         const wrapper = await mountOpenEditor(tag);
@@ -103,11 +94,8 @@ describe('TagEditorDialog.vue', () => {
             dataType: 'Bool',
             stringLength: 0,
             yAxis: 'Y-Axis 1',
-            lowLimit: 0,
-            highLimit: 1,
             color: '#FF0000',
             enabled: true,
-            notification: 'None',
         };
 
         const wrapper = await mountOpenEditor(tag);
