@@ -3,8 +3,8 @@
     <div class="chart-plot">
       <canvas ref="canvasRef" />
     </div>
-    <div ref="boolBandRef" class="boolean-band hidden" />
-    <div ref="timeAxisRef" class="time-axis-row" />
+    <canvas ref="boolBandRef" class="boolean-band hidden" />
+    <canvas ref="timeAxisRef" class="time-axis-row" />
   </div>
 </template>
 
@@ -23,8 +23,8 @@ const props = defineProps<{
 const emit = defineEmits<{ dragStart: [] }>()
 
 const canvasRef = ref<HTMLCanvasElement>()
-const boolBandRef = ref<HTMLElement>()
-const timeAxisRef = ref<HTMLElement>()
+const boolBandRef = ref<HTMLCanvasElement>()
+const timeAxisRef = ref<HTMLCanvasElement>()
 let chart: TrendChart | null = null
 
 onMounted(() => {

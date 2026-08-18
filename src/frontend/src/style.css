@@ -189,7 +189,7 @@ select:focus {
   min-height: 100px;
 }
 .chart-plot { flex: 1; min-height: 80px; position: relative; }
-canvas {
+.chart-plot canvas {
   width: 100% !important;
   height: 100% !important;
   /* Keep OS cursor visible over the chart (WebView2 + canvas often drops it) */
@@ -199,92 +199,20 @@ canvas {
 .boolean-band {
   flex: 0 0 auto;
   max-height: 260px;
+  width: 100% !important;
   border-top: 1px solid #8EA1B0;
   background: #101820;
-  overflow: hidden;
+  display: block;
 }
-.boolean-band.hidden { display: none; }
-.boolean-grid { width: 100%; }
-.boolean-row {
-  height: 24px;
-  display: flex;
-  align-items: stretch;
-  border-bottom: 1px solid #536572;
-  color: #CBD5E1;
-  font-size: 11px;
-}
-.boolean-name {
-  display: flex;
-  align-items: center;
-  padding: 0 6px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  box-sizing: border-box;
-}
-.boolean-right-pad {
-  box-sizing: border-box;
-}
-.boolean-track {
-  position: relative;
-  align-self: stretch;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-/* Same X-grid as trend plot (absolute times, scrolls with window) */
-.boolean-vgrid {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  border-left: 1px solid #31414E;
-  pointer-events: none;
-  z-index: 0;
-}
-.boolean-vgrid.major {
-  border-left-color: #5B7182;
-}
-.boolean-vgrid.minor {
-  border-left-style: dashed;
-  opacity: 0.85;
-}
-.boolean-high {
-  position: absolute;
-  top: 25%;
-  height: 50%;
-  min-width: 1px;
-  opacity: 0.9;
-  z-index: 1;
-}
+.boolean-band.hidden { display: none !important; }
 
-/* Time labels under boolean band — fixed-width HH:mm:ss, scrolls with grid */
 .time-axis-row {
   flex: 0 0 22px;
-  display: flex;
-  align-items: stretch;
+  height: 22px !important;
+  width: 100% !important;
   background: #0C1118;
   border-top: 1px solid #31414E;
-  overflow: hidden;
-  user-select: none;
-}
-.time-axis-gutter {
-  box-sizing: border-box;
-}
-.time-axis-track {
-  position: relative;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-.time-axis-label {
-  position: absolute;
-  top: 4px;
-  transform: translateX(-50%);
-  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
-  font-size: 10px;
-  line-height: 1;
-  color: #CBD5E1;
-  white-space: nowrap;
-  pointer-events: none;
+  display: block;
 }
 
 /* Resizer */

@@ -76,4 +76,41 @@ describe('TrendChart', () => {
         expect(() => trend.clear()).not.toThrow();
         trend.destroy();
     });
+
+    it('renders with direct canvas elements for boolean band and time axis', () => {
+        const boolCanvas = document.createElement('canvas');
+        const timeCanvas = document.createElement('canvas');
+        const trend = new TrendChart(canvas, boolCanvas, timeCanvas);
+
+        const tags = [
+            {
+                id: 'bool-1',
+                name: 'Motor_Running',
+                color: '#86EFAC',
+                dataType: 'Bool',
+                yAxis: 'Y-Axis 1',
+                enabled: true,
+            },
+        ];
+        trend.setTags(tags, [{ name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true }]);
+
+        const now = new Date().toISOString();
+        trend.addDataPoint('bool-1', now, 1);
+
+        expect(() => trend.clear()).not.toThrow();
+        trend.destroy();
+    });
+
+    it('handles window resize events cleanly', () => {
+        const boolCanvas = document.createElement('canvas');
+        const timeCanvas = document.createElement('canvas');
+        const trend = new TrendChart(canvas, boolCanvas, timeCanvas);
+
+        expect(() => {
+            window.dispatchEvent(new Event('resize'));
+        }).not.toThrow();
+
+        trend.destroy();
+    });
 });
+

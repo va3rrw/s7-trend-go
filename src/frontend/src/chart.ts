@@ -109,8 +109,10 @@ const secondGridPlugin = {
 export class TrendChart {
     private chart: Chart | null = null;
     private readonly canvas: HTMLCanvasElement | null;
-    private readonly booleanBand: HTMLElement | null;
-    private readonly timeAxis: HTMLElement | null;
+    private boolCanvas: HTMLCanvasElement | null = null;
+    private boolContainer: HTMLElement | null = null;
+    private timeCanvas: HTMLCanvasElement | null = null;
+    private timeContainer: HTMLElement | null = null;
     private tags: ChartTag[] = [];
     private axes: ChartAxis[] = [];
     private history = new Map<string, Point[]>();
@@ -122,7 +124,11 @@ export class TrendChart {
     private paused = false;
     private differential = false;
     private renderPending = false;
+    private resizeObserver: ResizeObserver | null = null;
     private onDragStart?: () => void;
+    private handleWindowResize = () => {
+        this.render();
+    };
 
     constructor(
         canvasOrId: string | HTMLCanvasElement,
@@ -136,14 +142,41 @@ export class TrendChart {
                       canvasOrId,
                   ) as HTMLCanvasElement | null)
                 : canvasOrId;
-        this.booleanBand =
+
+        const rawBool =
             typeof boolBandOrId === 'string'
                 ? document.getElementById(boolBandOrId)
                 : boolBandOrId;
-        this.timeAxis =
+        if (rawBool instanceof HTMLCanvasElement) {
+            this.boolCanvas = rawBool;
+            this.boolContainer = rawBool;
+        } else if (rawBool) {
+            this.boolContainer = rawBool;
+            let c = rawBool.querySelector('canvas') as HTMLCanvasElement | null;
+            if (!c) {
+                c = document.createElement('canvas');
+                rawBool.appendChild(c);
+            }
+            this.boolCanvas = c;
+        }
+
+        const rawTime =
             typeof timeAxisOrId === 'string'
                 ? document.getElementById(timeAxisOrId)
                 : timeAxisOrId;
+        if (rawTime instanceof HTMLCanvasElement) {
+            this.timeCanvas = rawTime;
+            this.timeContainer = rawTime;
+        } else if (rawTime) {
+            this.timeContainer = rawTime;
+            let c = rawTime.querySelector('canvas') as HTMLCanvasElement | null;
+            if (!c) {
+                c = document.createElement('canvas');
+                rawTime.appendChild(c);
+            }
+            this.timeCanvas = c;
+        }
+
         this.onDragStart = onDragStart;
         if (!this.canvas) return;
 
@@ -158,6 +191,9 @@ export class TrendChart {
                 normalized: true,
                 parsing: false,
                 devicePixelRatio: 1,
+                onResize: () => {
+                    this.render();
+                },
                 layout: {
                     // Stable padding — X labels live outside Chart.js under the boolean band
                     padding: { top: 4, right: 4, bottom: 0, left: 4 },
@@ -206,6 +242,19 @@ export class TrendChart {
                 },
             } as any,
         });
+
+        if (typeof ResizeObserver !== 'undefined' && this.canvas) {
+            this.resizeObserver = new ResizeObserver(() => {
+                this.render();
+            });
+            this.resizeObserver.observe(this.canvas);
+            if (this.canvas.parentElement) {
+                this.resizeObserver.observe(this.canvas.parentElement);
+            }
+        }
+        if (typeof window !== 'undefined') {
+            window.addEventListener('resize', this.handleWindowResize);
+        }
 
         this.canvas.style.cursor = 'crosshair';
         this.canvas.addEventListener('pointerdown', (event) => {
@@ -304,6 +353,11 @@ export class TrendChart {
     }
 
     public destroy() {
+        this.resizeObserver?.disconnect();
+        this.resizeObserver = null;
+        if (typeof window !== 'undefined') {
+            window.removeEventListener('resize', this.handleWindowResize);
+        }
         this.chart?.destroy();
         this.chart = null;
     }
@@ -481,95 +535,154 @@ export class TrendChart {
         };
     }
 
+    private getCanvasContext(
+        canvas: HTMLCanvasElement,
+        width: number,
+        height: number,
+    ): CanvasRenderingContext2D | null {
+        const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+        const targetW = Math.max(1, Math.round(width * dpr));
+        const targetH = Math.max(1, Math.round(height * dpr));
+
+        if (canvas.width !== targetW || canvas.height !== targetH) {
+            canvas.width = targetW;
+            canvas.height = targetH;
+        }
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return ctx;
+    }
+
     private renderBooleanBand(
         start: number,
         end: number,
         area: { left: number; right: number; width: number } | undefined,
     ) {
-        if (!this.booleanBand) return;
+        if (!this.boolCanvas) return;
         const tags = this.tags
             .filter((tag) => tag.dataType === 'Bool')
             .slice(0, 8);
-        this.booleanBand.innerHTML = '';
-        this.booleanBand.classList.toggle('hidden', tags.length === 0);
-        if (tags.length === 0) return;
 
+        const isHidden = tags.length === 0;
+        this.boolCanvas.classList.toggle('hidden', isHidden);
+        if (this.boolContainer && this.boolContainer !== this.boolCanvas) {
+            this.boolContainer.classList.toggle('hidden', isHidden);
+        }
+        if (isHidden) return;
+
+        const rowHeight = 24;
+        const totalHeight = tags.length * rowHeight;
         const layout = this.plotLayout(area);
+        const canvasW = layout.canvasW || this.canvas?.clientWidth || 800;
+
+        this.boolCanvas.style.height = `${totalHeight}px`;
+        const ctx = this.getCanvasContext(this.boolCanvas, canvasW, totalHeight);
+        if (!ctx) return;
+
+        ctx.clearRect(0, 0, canvasW, totalHeight);
+
+        // Background
+        ctx.fillStyle = '#101820';
+        ctx.fillRect(0, 0, canvasW, totalHeight);
+
         const span = Math.max(1, end - start);
         const spanSeconds = span / 1000;
         const { stepMs, majorMs } = chooseXGridIntervals(spanSeconds);
+        const firstGrid = Math.ceil(start / stepMs) * stepMs;
 
-        const grid = document.createElement('div');
-        grid.className = 'boolean-grid';
+        tags.forEach((tag, index) => {
+            const topY = index * rowHeight;
 
-        tags.forEach((tag) => {
-            const row = document.createElement('div');
-            row.className = 'boolean-row';
+            // Bottom border for each row
+            ctx.strokeStyle = '#536572';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(0, topY + rowHeight - 0.5);
+            ctx.lineTo(canvasW, topY + rowHeight - 0.5);
+            ctx.stroke();
 
-            // Name sits in the left Y-axis gutter so the track aligns with the plot
-            const name = document.createElement('span');
-            name.className = 'boolean-name';
-            name.style.width = `${layout.left}px`;
-            name.style.flex = `0 0 ${layout.left}px`;
-            name.textContent = tag.name;
-            row.appendChild(name);
-
-            const track = document.createElement('div');
-            track.className = 'boolean-track';
-            track.style.width = `${layout.width}px`;
-            track.style.flex = `0 0 ${layout.width}px`;
-
-            // Vertical grid lines — same absolute times as the main chart
-            const first = Math.ceil(start / stepMs) * stepMs;
-            for (let timestamp = first; timestamp <= end; timestamp += stepMs) {
-                const pct = ((timestamp - start) / span) * 100;
-                if (pct < 0 || pct > 100) continue;
-                const line = document.createElement('span');
-                const major = isMajorTick(timestamp, majorMs, stepMs);
-                line.className = major
-                    ? 'boolean-vgrid major'
-                    : 'boolean-vgrid minor';
-                line.style.left = `${pct}%`;
-                track.appendChild(line);
+            // Tag Name in left gutter
+            if (layout.left > 0) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(0, topY, layout.left, rowHeight);
+                ctx.clip();
+                ctx.font =
+                    '11px "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif';
+                ctx.fillStyle = '#CBD5E1';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(tag.name, 6, topY + rowHeight / 2);
+                ctx.restore();
             }
 
-            const points = this.history.get(tag.id) ?? [];
-            points.forEach((point, index) => {
-                const next = points[index + 1]?.timestamp ?? end;
-                if (
-                    point.value <= 0.5 ||
-                    next <= start ||
-                    point.timestamp >= end
-                )
-                    return;
-                const block = document.createElement('span');
-                block.className = 'boolean-high';
-                block.style.backgroundColor = tag.color || '#93C5FD';
-                block.style.left = `${Math.max(0, ((point.timestamp - start) / span) * 100)}%`;
-                block.style.width = `${Math.max(
-                    0.15,
-                    Math.min(
-                        100,
-                        ((next - Math.max(point.timestamp, start)) / span) *
-                            100,
-                    ),
-                )}%`;
-                track.appendChild(block);
-            });
-            row.appendChild(track);
+            // Grid lines and data blocks in track area
+            if (layout.width > 0) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(layout.left, topY, layout.width, rowHeight);
+                ctx.clip();
 
-            // Right gutter matches right Y-axis space
-            if (layout.right > 0) {
-                const rightPad = document.createElement('span');
-                rightPad.className = 'boolean-right-pad';
-                rightPad.style.flex = `0 0 ${layout.right}px`;
-                rightPad.style.width = `${layout.right}px`;
-                row.appendChild(rightPad);
+                // Vertical grid lines
+                for (
+                    let timestamp = firstGrid;
+                    timestamp <= end;
+                    timestamp += stepMs
+                ) {
+                    const x =
+                        layout.left + ((timestamp - start) / span) * layout.width;
+                    if (x < layout.left || x > layout.left + layout.width) continue;
+
+                    const major = isMajorTick(timestamp, majorMs, stepMs);
+                    ctx.strokeStyle = major ? '#5B7182' : '#31414E';
+                    ctx.lineWidth = major ? 1 : 0.8;
+                    ctx.setLineDash(major ? [] : [4, 4]);
+
+                    ctx.beginPath();
+                    ctx.moveTo(Math.round(x) + 0.5, topY);
+                    ctx.lineTo(Math.round(x) + 0.5, topY + rowHeight);
+                    ctx.stroke();
+                }
+
+                // Data high state blocks
+                const points = this.history.get(tag.id) ?? [];
+                ctx.fillStyle = tag.color || '#93C5FD';
+                ctx.setLineDash([]);
+
+                const barTop = topY + 6;
+                const barHeight = 12;
+
+                points.forEach((point, pIndex) => {
+                    const next = points[pIndex + 1]?.timestamp ?? end;
+                    if (
+                        point.value <= 0.5 ||
+                        next <= start ||
+                        point.timestamp >= end
+                    ) {
+                        return;
+                    }
+
+                    const clampedStart = Math.max(point.timestamp, start);
+                    const clampedEnd = Math.min(next, end);
+
+                    const x1 =
+                        layout.left +
+                        ((clampedStart - start) / span) * layout.width;
+                    const x2 =
+                        layout.left +
+                        ((clampedEnd - start) / span) * layout.width;
+                    const blockWidth = Math.max(1, x2 - x1);
+
+                    ctx.fillRect(x1, barTop, blockWidth, barHeight);
+                });
+
+                ctx.restore();
             }
-
-            grid.appendChild(row);
         });
-        this.booleanBand.appendChild(grid);
     }
 
     private renderTimeAxis(
@@ -577,26 +690,46 @@ export class TrendChart {
         end: number,
         area: { left: number; right: number; width: number } | undefined,
     ) {
-        if (!this.timeAxis) return;
-        this.timeAxis.innerHTML = '';
-
+        if (!this.timeCanvas) return;
         const layout = this.plotLayout(area);
+        const canvasW = layout.canvasW || this.canvas?.clientWidth || 800;
+        const height = 22;
+
+        this.timeCanvas.style.height = `${height}px`;
+        const ctx = this.getCanvasContext(this.timeCanvas, canvasW, height);
+        if (!ctx) return;
+
+        ctx.clearRect(0, 0, canvasW, height);
+
+        // Background
+        ctx.fillStyle = '#0C1118';
+        ctx.fillRect(0, 0, canvasW, height);
+
+        // Top border line
+        ctx.strokeStyle = '#31414E';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(0, 0.5);
+        ctx.lineTo(canvasW, 0.5);
+        ctx.stroke();
+
         if (layout.width <= 0) return;
 
         const span = Math.max(1, end - start);
         const spanSeconds = span / 1000;
         const { majorMs } = chooseXGridIntervals(spanSeconds);
 
-        const gutter = document.createElement('div');
-        gutter.className = 'time-axis-gutter';
-        gutter.style.width = `${layout.left}px`;
-        gutter.style.flex = `0 0 ${layout.left}px`;
-        this.timeAxis.appendChild(gutter);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(layout.left, 0, layout.width, height);
+        ctx.clip();
 
-        const track = document.createElement('div');
-        track.className = 'time-axis-track';
-        track.style.width = `${layout.width}px`;
-        track.style.flex = `0 0 ${layout.width}px`;
+        ctx.font =
+            '10px ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace';
+        ctx.fillStyle = '#CBD5E1';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
 
         const first = Math.ceil(start / majorMs) * majorMs;
         for (
@@ -604,22 +737,14 @@ export class TrendChart {
             timestamp <= end + 0.5;
             timestamp += majorMs
         ) {
-            const pct = ((timestamp - start) / span) * 100;
-            if (pct < -2 || pct > 102) continue;
-            const label = document.createElement('span');
-            label.className = 'time-axis-label';
-            label.textContent = formatTickTime(timestamp);
-            label.style.left = `${pct}%`;
-            track.appendChild(label);
+            const x =
+                layout.left + ((timestamp - start) / span) * layout.width;
+            if (x < layout.left - 20 || x > layout.left + layout.width + 20)
+                continue;
+            const timeStr = formatTickTime(timestamp);
+            ctx.fillText(timeStr, x, height / 2);
         }
-        this.timeAxis.appendChild(track);
 
-        if (layout.right > 0) {
-            const rightPad = document.createElement('div');
-            rightPad.className = 'time-axis-gutter';
-            rightPad.style.width = `${layout.right}px`;
-            rightPad.style.flex = `0 0 ${layout.right}px`;
-            this.timeAxis.appendChild(rightPad);
-        }
+        ctx.restore();
     }
 }
