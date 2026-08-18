@@ -55,15 +55,22 @@ fi
 # ── Build Windows executable ────────────────────────────────────────
 echo "Building Windows executable ($EXE_NAME)..."
 cd "$ROOT/src"
-WAILS_BIN="${WAILS_BIN:-/tmp/go-bin/wails}"
-if [[ ! -x "$WAILS_BIN" ]]; then
-  if command -v wails >/dev/null 2>&1; then
-    WAILS_BIN=wails
-  else
-    echo "wails not found (set WAILS_BIN or install wails)" >&2
-    exit 1
-  fi
+# Locate wails binary
+if [[ -n "${WAILS_BIN:-}" && -x "$WAILS_BIN" ]]; then
+  : # Using user-provided WAILS_BIN
+elif command -v wails >/dev/null 2>&1; then
+  WAILS_BIN="$(command -v wails)"
+elif [[ -x "$(go env GOPATH 2>/dev/null)/bin/wails" ]]; then
+  WAILS_BIN="$(go env GOPATH)/bin/wails"
+elif [[ -x "$HOME/go/bin/wails" ]]; then
+  WAILS_BIN="$HOME/go/bin/wails"
+elif [[ -x "/tmp/go-bin/wails" ]]; then
+  WAILS_BIN="/tmp/go-bin/wails"
+else
+  echo "wails not found (set WAILS_BIN or install with 'go install github.com/wailsapp/wails/v2/cmd/wails@latest')" >&2
+  exit 1
 fi
+echo "Using Wails binary: $WAILS_BIN"
 
 "$WAILS_BIN" build -platform windows/amd64
 
