@@ -32,8 +32,8 @@ func (a *App) StartPolling(settings AppSettings) {
 	if interval < 10 {
 		interval = 10
 	}
-	if interval > 6000 {
-		interval = 6000
+	if interval > 60000 {
+		interval = 60000
 	}
 
 	tagsByPlc := make(map[string][]TagSettings)

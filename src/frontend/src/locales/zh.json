@@ -124,7 +124,7 @@
   },
   "prompt": {
     "sampling_interval": "采样间隔",
-    "ms_range": "毫秒 (10-6000):",
+    "ms_range": "毫秒 (10-60000):",
     "trend_window": "曲线窗口",
     "s_range": "秒 (30-86400):",
     "interpolation": "插值",

@@ -560,8 +560,8 @@ async function menuTimer() {
     );
     if (value === null) return;
     const interval = Number(value);
-    if (!Number.isInteger(interval) || interval < 10 || interval > 6000) {
-        showMessage(t('menu.set_timer_interval'), t('prompt.invalid_interval', ['10', '6000']));
+    if (!Number.isInteger(interval) || interval < 10 || interval > 60000) {
+        showMessage(t('menu.set_timer_interval'), t('prompt.invalid_interval', ['10', '60000']));
         return;
     }
     state.settings.pollIntervalMs = interval;

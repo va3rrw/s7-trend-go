@@ -124,7 +124,7 @@
   },
   "prompt": {
     "sampling_interval": "Sampling interval",
-    "ms_range": "Milliseconds (10-6000):",
+    "ms_range": "Milliseconds (10-60000):",
     "trend_window": "Trend window",
     "s_range": "Seconds (30-86400):",
     "interpolation": "Interpolation",
