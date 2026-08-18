@@ -235,7 +235,6 @@
                                     <th>{{ $t('grid.value') }}</th>
                                     <th>{{ $t('grid.min') }}</th>
                                     <th>{{ $t('grid.max') }}</th>
-                                    <th>{{ $t('grid.quality') }}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -263,7 +262,6 @@
                                     <td>{{ tagValue(tag.id) }}</td>
                                     <td>{{ tagMin(tag.id) }}</td>
                                     <td>{{ tagMax(tag.id) }}</td>
-                                    <td>{{ tagQuality(tag.id) }}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -281,7 +279,6 @@
                                     <th>{{ $t('grid.value') }}</th>
                                     <th>{{ $t('grid.min') }}</th>
                                     <th>{{ $t('grid.max') }}</th>
-                                    <th>{{ $t('grid.quality') }}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -309,7 +306,6 @@
                                     <td>{{ tagValue(tag.id) }}</td>
                                     <td>{{ tagMin(tag.id) }}</td>
                                     <td>{{ tagMax(tag.id) }}</td>
-                                    <td>{{ tagQuality(tag.id) }}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -489,9 +485,6 @@ function tagValue(id: string) {
     // We'll track live values in a separate reactive map
     return liveValues.value.get(id) ?? '-';
 }
-function tagQuality(id: string) {
-    return liveQuality.value.get(id) ?? 'Unknown';
-}
 function tagMin(id: string) {
     const r = state.sampledRange.get(id);
     return r ? formatNumber(r.min) : '-';
@@ -502,7 +495,6 @@ function tagMax(id: string) {
 }
 
 const liveValues = ref(new Map<string, string>());
-const liveQuality = ref(new Map<string, string>());
 
 // Calculate visible rows dynamically based on the tags area height
 const visibleRows = ref(4);
@@ -619,7 +611,6 @@ async function menuClear() {
     chartRef.value?.clear();
     resetStats();
     liveValues.value.clear();
-    liveQuality.value.clear();
     state.statusMessage = t('status.records_cleared');
 }
 
@@ -790,8 +781,7 @@ onMounted(async () => {
             const numVal = Number(update.numericValue);
 
             liveValues.value.set(update.tagId, valStr);
-            liveQuality.value.set(update.tagId, update.quality);
-            updateTagValue(update.tagId, valStr, update.quality, numVal);
+            updateTagValue(update.tagId, valStr, numVal);
             markPlcForTag(update.tagId, update.quality);
 
             if (
@@ -847,8 +837,7 @@ onMounted(async () => {
                     const value = Math.random() * 100;
                     chartRef.value?.addDataPoint(tag.id, now, value);
                     liveValues.value.set(tag.id, value.toFixed(2));
-                    liveQuality.value.set(tag.id, 'Good');
-                    updateTagValue(tag.id, value.toFixed(2), 'Good', value);
+                    updateTagValue(tag.id, value.toFixed(2), value);
                     state.recordsHistory.push({
                         timestamp: now,
                         tagName: tag.name,

@@ -48,7 +48,6 @@ export function formatNumber(value: number): string {
 export function updateTagValue(
     id: string,
     value: string,
-    quality: string,
     numericValue?: number,
 ) {
     if (numericValue !== undefined && Number.isFinite(numericValue)) {

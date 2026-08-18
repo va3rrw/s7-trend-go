@@ -51,8 +51,7 @@
     "plc": "PLC",
     "value": "Value",
     "min": "Min",
-    "max": "Max",
-    "quality": "Quality"
+    "max": "Max"
   },
   "dialog": {
     "plc_config": "PLC Configuration",

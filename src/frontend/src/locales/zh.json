@@ -51,8 +51,7 @@
     "plc": "PLC",
     "value": "数值",
     "min": "最小",
-    "max": "最大",
-    "quality": "质量"
+    "max": "最大"
   },
   "dialog": {
     "plc_config": "PLC 连接设置",
