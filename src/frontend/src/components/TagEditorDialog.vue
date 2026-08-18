@@ -27,7 +27,8 @@
                 <label>{{ $t('dialog.address') }}</label>
                 <input
                     v-model="form.address"
-                    type="text" />
+                    type="text"
+                    @input="onAddressInput" />
             </div>
             <div class="form-row">
                 <label>{{ $t('dialog.data_type') }}</label>
@@ -95,7 +96,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
 import type { TagSettings } from '../types';
-import { DATA_TYPES, PALETTE } from '../types';
+import { DATA_TYPES, PALETTE, inferDataType } from '../types';
 import { state, showMessage } from '../store';
 import { useI18n } from 'vue-i18n';
 import AppDialog from './AppDialog.vue';
@@ -129,6 +130,13 @@ watch(
         }
     },
 );
+
+function onAddressInput() {
+    const inferred = inferDataType(form.value.address, form.value.dataType);
+    if (inferred && inferred !== form.value.dataType) {
+        form.value.dataType = inferred;
+    }
+}
 
 const showStringLength = computed(() => form.value.dataType === 'String');
 

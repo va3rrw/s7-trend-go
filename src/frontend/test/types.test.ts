@@ -4,6 +4,7 @@ import {
     defaultSettings,
     DATA_TYPES,
     PALETTE,
+    inferDataType,
 } from '../src/types';
 
 describe('types.ts', () => {
@@ -59,4 +60,43 @@ describe('types.ts', () => {
             expect(color).toMatch(/^#[0-9A-Fa-f]{6}$/);
         }
     });
+
+    it('infers data type based on address pattern', () => {
+        // Bool
+        expect(inferDataType('DB1.DBX0.0')).toBe('Bool');
+        expect(inferDataType('db10.dbx4.7')).toBe('Bool');
+        expect(inferDataType('M0.0')).toBe('Bool');
+        expect(inferDataType('m10.5')).toBe('Bool');
+        expect(inferDataType('I31.1')).toBe('Bool');
+        expect(inferDataType('Q0.7')).toBe('Bool');
+        expect(inferDataType('MX0.1')).toBe('Bool');
+        expect(inferDataType('IX0.5')).toBe('Bool');
+        expect(inferDataType('QX2.0')).toBe('Bool');
+
+        // Byte
+        expect(inferDataType('DB1.DBB0')).toBe('Byte');
+        expect(inferDataType('MB10')).toBe('Byte');
+        expect(inferDataType('IB0')).toBe('Byte');
+        expect(inferDataType('QB4')).toBe('Byte');
+
+        // Word / Int
+        expect(inferDataType('DB1.DBW0')).toBe('Int');
+        expect(inferDataType('DB1.DBW0', 'Word')).toBe('Word');
+        expect(inferDataType('MW10')).toBe('Int');
+        expect(inferDataType('IW64')).toBe('Int');
+        expect(inferDataType('QW80')).toBe('Int');
+
+        // Double Word / Real
+        expect(inferDataType('DB1.DBD0')).toBe('Real');
+        expect(inferDataType('DB1.DBD0', 'DInt')).toBe('DInt');
+        expect(inferDataType('DB1.DBD0', 'DWord')).toBe('DWord');
+        expect(inferDataType('MD20')).toBe('Real');
+        expect(inferDataType('ID0')).toBe('Real');
+        expect(inferDataType('QD80')).toBe('Real');
+
+        // Empty or unrecognized
+        expect(inferDataType('')).toBeNull();
+        expect(inferDataType('invalid')).toBeNull();
+    });
 });
+

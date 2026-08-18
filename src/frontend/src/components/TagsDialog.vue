@@ -51,11 +51,13 @@
             </button>
             <button
                 class="btn btn-outline"
+                :disabled="!hasSelectedTag"
                 @click="editTag">
                 {{ $t('buttons.edit') }}
             </button>
             <button
                 class="btn btn-outline"
+                :disabled="!hasSelectedTag"
                 @click="removeTag">
                 {{ $t('buttons.remove') }}
             </button>
@@ -96,6 +98,10 @@ const emit = defineEmits<{ close: []; save: [] }>();
 const tags = ref<TagSettings[]>([]);
 const selectedIndex = ref(-1);
 
+const hasSelectedTag = computed(
+    () => selectedIndex.value >= 0 && selectedIndex.value < tags.value.length,
+);
+
 // Sub-dialog state
 const editorOpen = ref(false);
 const editorTag = ref<TagSettings | null>(null);
@@ -120,7 +126,7 @@ function addTag() {
     const id = newId();
     // Prefer selected row, else last tag, so successive adds keep previous field values
     const template =
-        (selectedIndex.value >= 0 ? tags.value[selectedIndex.value] : null) ??
+        (hasSelectedTag.value ? tags.value[selectedIndex.value] : null) ??
         tags.value[tags.value.length - 1] ??
         null;
 
@@ -151,23 +157,26 @@ function addTag() {
 }
 
 function editTag() {
-    if (selectedIndex.value >= 0) openEditor(selectedIndex.value);
+    if (hasSelectedTag.value) openEditor(selectedIndex.value);
 }
 
 function removeTag() {
-    if (selectedIndex.value < 0) return;
+    if (!hasSelectedTag.value) return;
     tags.value.splice(selectedIndex.value, 1);
     selectedIndex.value = -1;
 }
 
 function openEditor(index: number) {
+    if (index < 0 || index >= tags.value.length) return;
     editorIndex.value = index;
     editorTag.value = { ...tags.value[index] };
     editorOpen.value = true;
 }
 
 function onEditorSave(tag: TagSettings) {
-    tags.value[editorIndex.value] = tag;
+    if (editorIndex.value >= 0 && editorIndex.value < tags.value.length) {
+        tags.value[editorIndex.value] = tag;
+    }
     pendingNewId.value = null;
     editorOpen.value = false;
 }
@@ -181,6 +190,9 @@ function onEditorClose() {
         }
         pendingNewId.value = null;
     }
+    selectedIndex.value = -1;
+    editorIndex.value = -1;
+    editorTag.value = null;
     editorOpen.value = false;
 }
 

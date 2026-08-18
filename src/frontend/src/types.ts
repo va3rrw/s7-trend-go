@@ -94,3 +94,45 @@ export function defaultSettings(): AppSettings {
         })),
     };
 }
+
+export function inferDataType(address: string, currentType?: string): string | null {
+    const addr = address.trim().toUpperCase();
+    if (!addr) return null;
+
+    // Bit / Bool address
+    if (
+        /^DB\d+\.DBX\d+\.[0-7]$/i.test(addr) ||
+        /^[MIQ](?:X)?\d+\.[0-7]$/i.test(addr) ||
+        /^DB\d+\.DBX\d+$/i.test(addr)
+    ) {
+        return 'Bool';
+    }
+
+    // Byte address (8-bit)
+    if (
+        /^DB\d+\.DBB\d+$/i.test(addr) ||
+        /^[MIQ]B\d+$/i.test(addr)
+    ) {
+        return 'Byte';
+    }
+
+    // Word / Int address (16-bit)
+    if (
+        /^DB\d+\.DBW\d+$/i.test(addr) ||
+        /^[MIQ]W\d+$/i.test(addr)
+    ) {
+        if (currentType === 'Word') return 'Word';
+        return 'Int';
+    }
+
+    // Double Word / DInt / Real address (32-bit)
+    if (
+        /^DB\d+\.DBD\d+$/i.test(addr) ||
+        /^[MIQ]D\d+$/i.test(addr)
+    ) {
+        if (currentType === 'DInt' || currentType === 'DWord') return currentType;
+        return 'Real';
+    }
+
+    return null;
+}
