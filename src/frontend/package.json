@@ -6,14 +6,19 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@iconify/json": "2.2.504",
     "@unocss/vite": "^66.7.5",
+    "@vue/test-utils": "^2.4.11",
+    "jsdom": "^30.0.1",
     "typescript": "^5.0.2",
     "unocss": "^66.7.5",
     "vite": "^8.1.5",
+    "vitest": "^4.1.10",
     "vue-tsc": "^3.3.8"
   },
   "dependencies": {
