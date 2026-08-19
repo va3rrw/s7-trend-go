@@ -224,94 +224,329 @@
             <div
                 id="tagsArea"
                 class="tags-area">
-                <div class="tags-grids">
-                    <div class="tags-grid-container">
-                        <table
-                            class="datagrid"
-                            id="gridLeft">
-                            <thead>
-                                <tr>
-                                    <th>{{ $t('grid.on') }}</th>
-                                    <th>{{ $t('grid.tag') }}</th>
-                                    <th>{{ $t('grid.plc') }}</th>
-                                    <th>{{ $t('grid.value') }}</th>
-                                    <th>{{ $t('grid.min') }}</th>
-                                    <th>{{ $t('grid.max') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr
-                                    v-for="tag in leftTags"
-                                    :key="tag.id"
-                                    :style="{
-                                        backgroundColor:
-                                            tag.color || 'transparent',
-                                    }"
-                                    @dblclick="onRowDblClick(tag)">
-                                    <td>
+                <div class="tags-area-toolbar">
+                    <div class="tags-area-title">
+                        <span class="tags-count">{{ $t('grid.tags_count', [sortedTags.length, state.settings.tags.length]) }}</span>
+                    </div>
+                    <div class="tags-search-wrapper">
+                        <input
+                            v-model="searchQuery"
+                            type="text"
+                            :placeholder="$t('grid.search')"
+                            class="tags-search-input" />
+                        <button
+                            v-if="searchQuery"
+                            type="button"
+                            class="tags-search-clear"
+                            @click="searchQuery = ''">
+                            ✕
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tags-table-container">
+                    <table
+                        class="datagrid"
+                        id="gridTags">
+                        <thead>
+                            <tr>
+                                <!-- Col 1 headers -->
+                                <th class="col-checkbox no-sort">
+                                    <input
+                                        type="checkbox"
+                                        :checked="allTagsEnabled"
+                                        :title="$t('grid.on')"
+                                        @change="toggleAllTags" />
+                                </th>
+                                <th
+                                    class="col-text"
+                                    @click="toggleSort('name')">
+                                    {{ $t('grid.tag') }}
+                                    <span v-if="sortKey === 'name'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+                                <th
+                                    class="col-text"
+                                    @click="toggleSort('plcLink')">
+                                    {{ $t('grid.plc') }}
+                                    <span v-if="sortKey === 'plcLink'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+                                <th
+                                    class="col-numeric"
+                                    @click="toggleSort('value')">
+                                    {{ $t('grid.value') }}
+                                    <span v-if="sortKey === 'value'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+                                <th
+                                    class="col-numeric"
+                                    @click="toggleSort('min')">
+                                    {{ $t('grid.min') }}
+                                    <span v-if="sortKey === 'min'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+                                <th
+                                    class="col-numeric"
+                                    @click="toggleSort('max')">
+                                    {{ $t('grid.max') }}
+                                    <span v-if="sortKey === 'max'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+
+                                <!-- Center Divider 1 -->
+                                <th class="col-divider no-sort" />
+
+                                <!-- Col 2 headers -->
+                                <th class="col-checkbox no-sort">
+                                    <input
+                                        type="checkbox"
+                                        :checked="allTagsEnabled"
+                                        :title="$t('grid.on')"
+                                        @change="toggleAllTags" />
+                                </th>
+                                <th
+                                    class="col-text"
+                                    @click="toggleSort('name')">
+                                    {{ $t('grid.tag') }}
+                                    <span v-if="sortKey === 'name'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+                                <th
+                                    class="col-text"
+                                    @click="toggleSort('plcLink')">
+                                    {{ $t('grid.plc') }}
+                                    <span v-if="sortKey === 'plcLink'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+                                <th
+                                    class="col-numeric"
+                                    @click="toggleSort('value')">
+                                    {{ $t('grid.value') }}
+                                    <span v-if="sortKey === 'value'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+                                <th
+                                    class="col-numeric"
+                                    @click="toggleSort('min')">
+                                    {{ $t('grid.min') }}
+                                    <span v-if="sortKey === 'min'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+                                <th
+                                    class="col-numeric"
+                                    @click="toggleSort('max')">
+                                    {{ $t('grid.max') }}
+                                    <span v-if="sortKey === 'max'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+
+                                <!-- Center Divider 2 -->
+                                <th class="col-divider no-sort" />
+
+                                <!-- Col 3 headers -->
+                                <th class="col-checkbox no-sort">
+                                    <input
+                                        type="checkbox"
+                                        :checked="allTagsEnabled"
+                                        :title="$t('grid.on')"
+                                        @change="toggleAllTags" />
+                                </th>
+                                <th
+                                    class="col-text"
+                                    @click="toggleSort('name')">
+                                    {{ $t('grid.tag') }}
+                                    <span v-if="sortKey === 'name'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+                                <th
+                                    class="col-text"
+                                    @click="toggleSort('plcLink')">
+                                    {{ $t('grid.plc') }}
+                                    <span v-if="sortKey === 'plcLink'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+                                <th
+                                    class="col-numeric"
+                                    @click="toggleSort('value')">
+                                    {{ $t('grid.value') }}
+                                    <span v-if="sortKey === 'value'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+                                <th
+                                    class="col-numeric"
+                                    @click="toggleSort('min')">
+                                    {{ $t('grid.min') }}
+                                    <span v-if="sortKey === 'min'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+                                <th
+                                    class="col-numeric"
+                                    @click="toggleSort('max')">
+                                    {{ $t('grid.max') }}
+                                    <span v-if="sortKey === 'max'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-if="tripletTags.length === 0"
+                                class="empty-row">
+                                <td
+                                    colspan="20"
+                                    class="datagrid-empty">
+                                    {{ state.settings.tags.length === 0 ? $t('grid.no_tags') : $t('grid.no_matching_tags') }}
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="triplet in tripletTags"
+                                :key="triplet.c1.id">
+                                <!-- Col 1 Cell Group -->
+                                <td
+                                    class="col-checkbox"
+                                    :style="{ backgroundColor: triplet.c1.color || 'transparent' }"
+                                    @click.stop>
+                                    <input
+                                        type="checkbox"
+                                        :checked="triplet.c1.enabled"
+                                        @change="
+                                            triplet.c1.enabled = (
+                                                $event.target as HTMLInputElement
+                                            ).checked;
+                                            onSettingsChanged();
+                                        " />
+                                </td>
+                                <td
+                                    class="col-text font-medium"
+                                    :style="{ backgroundColor: triplet.c1.color || 'transparent' }"
+                                    @dblclick="onRowDblClick(triplet.c1)">
+                                    {{ triplet.c1.name }}
+                                </td>
+                                <td
+                                    class="col-text"
+                                    :style="{ backgroundColor: triplet.c1.color || 'transparent' }"
+                                    @dblclick="onRowDblClick(triplet.c1)">
+                                    {{ triplet.c1.plcLink }}
+                                </td>
+                                <td
+                                    class="col-numeric font-mono"
+                                    :style="{ backgroundColor: triplet.c1.color || 'transparent' }"
+                                    @dblclick="onRowDblClick(triplet.c1)">
+                                    {{ tagValue(triplet.c1.id) }}
+                                </td>
+                                <td
+                                    class="col-numeric font-mono"
+                                    :style="{ backgroundColor: triplet.c1.color || 'transparent' }"
+                                    @dblclick="onRowDblClick(triplet.c1)">
+                                    {{ tagMin(triplet.c1.id) }}
+                                </td>
+                                <td
+                                    class="col-numeric font-mono"
+                                    :style="{ backgroundColor: triplet.c1.color || 'transparent' }"
+                                    @dblclick="onRowDblClick(triplet.c1)">
+                                    {{ tagMax(triplet.c1.id) }}
+                                </td>
+
+                                <!-- Divider 1 -->
+                                <td class="col-divider" />
+
+                                <!-- Col 2 Cell Group -->
+                                <template v-if="triplet.c2">
+                                    <td
+                                        class="col-checkbox"
+                                        :style="{ backgroundColor: triplet.c2?.color || 'transparent' }"
+                                        @click.stop>
                                         <input
                                             type="checkbox"
-                                            :checked="tag.enabled"
+                                            :checked="triplet.c2?.enabled"
                                             @change="
-                                                tag.enabled = (
-                                                    $event.target as HTMLInputElement
-                                                ).checked;
-                                                onSettingsChanged();
+                                                if (triplet.c2) {
+                                                    triplet.c2.enabled = (
+                                                        $event.target as HTMLInputElement
+                                                    ).checked;
+                                                    onSettingsChanged();
+                                                }
                                             " />
                                     </td>
-                                    <td>{{ tag.name }}</td>
-                                    <td>{{ tag.plcLink }}</td>
-                                    <td>{{ tagValue(tag.id) }}</td>
-                                    <td>{{ tagMin(tag.id) }}</td>
-                                    <td>{{ tagMax(tag.id) }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="grid-splitter" />
-                    <div class="tags-grid-container">
-                        <table
-                            class="datagrid"
-                            id="gridRight">
-                            <thead>
-                                <tr>
-                                    <th>{{ $t('grid.on') }}</th>
-                                    <th>{{ $t('grid.tag') }}</th>
-                                    <th>{{ $t('grid.plc') }}</th>
-                                    <th>{{ $t('grid.value') }}</th>
-                                    <th>{{ $t('grid.min') }}</th>
-                                    <th>{{ $t('grid.max') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr
-                                    v-for="tag in rightTags"
-                                    :key="tag.id"
-                                    :style="{
-                                        backgroundColor:
-                                            tag.color || 'transparent',
-                                    }"
-                                    @dblclick="onRowDblClick(tag)">
-                                    <td>
+                                    <td
+                                        class="col-text font-medium"
+                                        :style="{ backgroundColor: triplet.c2?.color || 'transparent' }"
+                                        @dblclick="triplet.c2 && onRowDblClick(triplet.c2)">
+                                        {{ triplet.c2?.name }}
+                                    </td>
+                                    <td
+                                        class="col-text"
+                                        :style="{ backgroundColor: triplet.c2?.color || 'transparent' }"
+                                        @dblclick="triplet.c2 && onRowDblClick(triplet.c2)">
+                                        {{ triplet.c2?.plcLink }}
+                                    </td>
+                                    <td
+                                        class="col-numeric font-mono"
+                                        :style="{ backgroundColor: triplet.c2?.color || 'transparent' }"
+                                        @dblclick="triplet.c2 && onRowDblClick(triplet.c2)">
+                                        {{ triplet.c2 ? tagValue(triplet.c2.id) : '-' }}
+                                    </td>
+                                    <td
+                                        class="col-numeric font-mono"
+                                        :style="{ backgroundColor: triplet.c2?.color || 'transparent' }"
+                                        @dblclick="triplet.c2 && onRowDblClick(triplet.c2)">
+                                        {{ triplet.c2 ? tagMin(triplet.c2.id) : '-' }}
+                                    </td>
+                                    <td
+                                        class="col-numeric font-mono"
+                                        :style="{ backgroundColor: triplet.c2?.color || 'transparent' }"
+                                        @dblclick="triplet.c2 && onRowDblClick(triplet.c2)">
+                                        {{ triplet.c2 ? tagMax(triplet.c2.id) : '-' }}
+                                    </td>
+                                </template>
+                                <template v-else>
+                                    <td colspan="6" class="empty-cell" />
+                                </template>
+
+                                <!-- Divider 2 -->
+                                <td class="col-divider" />
+
+                                <!-- Col 3 Cell Group -->
+                                <template v-if="triplet.c3">
+                                    <td
+                                        class="col-checkbox"
+                                        :style="{ backgroundColor: triplet.c3?.color || 'transparent' }"
+                                        @click.stop>
                                         <input
                                             type="checkbox"
-                                            :checked="tag.enabled"
+                                            :checked="triplet.c3?.enabled"
                                             @change="
-                                                tag.enabled = (
-                                                    $event.target as HTMLInputElement
-                                                ).checked;
-                                                onSettingsChanged();
+                                                if (triplet.c3) {
+                                                    triplet.c3.enabled = (
+                                                        $event.target as HTMLInputElement
+                                                    ).checked;
+                                                    onSettingsChanged();
+                                                }
                                             " />
                                     </td>
-                                    <td>{{ tag.name }}</td>
-                                    <td>{{ tag.plcLink }}</td>
-                                    <td>{{ tagValue(tag.id) }}</td>
-                                    <td>{{ tagMin(tag.id) }}</td>
-                                    <td>{{ tagMax(tag.id) }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                                    <td
+                                        class="col-text font-medium"
+                                        :style="{ backgroundColor: triplet.c3?.color || 'transparent' }"
+                                        @dblclick="triplet.c3 && onRowDblClick(triplet.c3)">
+                                        {{ triplet.c3?.name }}
+                                    </td>
+                                    <td
+                                        class="col-text"
+                                        :style="{ backgroundColor: triplet.c3?.color || 'transparent' }"
+                                        @dblclick="triplet.c3 && onRowDblClick(triplet.c3)">
+                                        {{ triplet.c3?.plcLink }}
+                                    </td>
+                                    <td
+                                        class="col-numeric font-mono"
+                                        :style="{ backgroundColor: triplet.c3?.color || 'transparent' }"
+                                        @dblclick="triplet.c3 && onRowDblClick(triplet.c3)">
+                                        {{ triplet.c3 ? tagValue(triplet.c3.id) : '-' }}
+                                    </td>
+                                    <td
+                                        class="col-numeric font-mono"
+                                        :style="{ backgroundColor: triplet.c3?.color || 'transparent' }"
+                                        @dblclick="triplet.c3 && onRowDblClick(triplet.c3)">
+                                        {{ triplet.c3 ? tagMin(triplet.c3.id) : '-' }}
+                                    </td>
+                                    <td
+                                        class="col-numeric font-mono"
+                                        :style="{ backgroundColor: triplet.c3?.color || 'transparent' }"
+                                        @dblclick="triplet.c3 && onRowDblClick(triplet.c3)">
+                                        {{ triplet.c3 ? tagMax(triplet.c3.id) : '-' }}
+                                    </td>
+                                </template>
+                                <template v-else>
+                                    <td colspan="6" class="empty-cell" />
+                                </template>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -401,12 +636,12 @@ import MessageDialog from './components/MessageDialog.vue';
 import AboutDialog from './components/AboutDialog.vue';
 import TagEditorDialog from './components/TagEditorDialog.vue';
 
-// ── Chart ref ──────────────────────────────────────────────────────
 const { t, locale } = useI18n();
 
-const chartRef = ref<InstanceType<typeof TrendChartView>>();
+// ── Chart reference ────────────────────────────────────────────────
+const chartRef = ref<InstanceType<typeof TrendChartView> | null>(null);
 
-// ── Measurement Cursors ────────────────────────────────────────────
+// ── Cursors & Measurement ──────────────────────────────────────────
 const cursorsEnabled = ref(false);
 const measurementData = ref<CursorMeasurement | null>(null);
 
@@ -414,8 +649,8 @@ function toggleCursors() {
     cursorsEnabled.value = !cursorsEnabled.value;
 }
 
-function onCursorChange(meas: CursorMeasurement | null) {
-    measurementData.value = meas;
+function onCursorChange(m: CursorMeasurement | null) {
+    measurementData.value = m;
 }
 
 function fitCursors() {
@@ -442,32 +677,6 @@ const promptDefault = ref('');
 const promptOptions = ref<string[]>();
 let promptResolve: ((val: string | null) => void) | null = null;
 
-// Message/Confirm dialog logic moved to store.ts
-
-// Double-click edit on main grid – reuse TagEditorDialog directly
-const dblEditOpen = ref(false);
-const dblEditTag = ref<TagSettings | null>(null);
-const dblEditIndex = ref(-1);
-
-// ── Fallback timer for browser preview ─────────────────────────────
-let fallbackTimer: number | null = null;
-
-// ── Computed chart data ────────────────────────────────────────────
-const chartTags = computed<ChartTag[]>(() =>
-    state.settings.tags.map((t) => ({
-        id: t.id,
-        name: t.name,
-        color: t.color,
-        dataType: t.dataType,
-        yAxis: t.yAxis,
-        enabled: t.enabled,
-    })),
-);
-const chartAxes = computed<ChartAxis[]>(() =>
-    state.settings.yAxes.map((a) => ({ ...a })),
-);
-
-// ── Helpers ────────────────────────────────────────────────────────
 function showPrompt(
     title: string,
     text: string,
@@ -488,18 +697,70 @@ function showConfirm(title: string, message: string): Promise<boolean> {
     return showMessage(title, message, true);
 }
 
+// Double-click edit on main grid – reuse TagEditorDialog directly
+const dblEditOpen = ref(false);
+const dblEditTag = ref<TagSettings | null>(null);
+const dblEditIndex = ref(-1);
+
+function onRowDblClick(tag: TagSettings) {
+    const idx = state.settings.tags.findIndex((t) => t.id === tag.id);
+    if (idx < 0) return;
+    dblEditIndex.value = idx;
+    dblEditTag.value = { ...tag };
+    dblEditOpen.value = true;
+}
+
+function onDblEditSave(updatedTag: TagSettings) {
+    if (dblEditIndex.value >= 0 && dblEditIndex.value < state.settings.tags.length) {
+        state.settings.tags[dblEditIndex.value] = updatedTag;
+        onSettingsChanged();
+    }
+    dblEditOpen.value = false;
+}
+
+// Actual polling interval tracking
+const actualByPlc = ref(new Map<string, number>());
+const actualSamplingText = computed(() => {
+    if (!state.isSampling) return '-';
+    const entries = Array.from(actualByPlc.value.entries());
+    if (!entries.length) return '-';
+    return entries.map(([link, ms]) => `${link}: ${ms}ms`).join(', ');
+});
+
+function resetActualSampling() {
+    actualByPlc.value = new Map();
+}
+
+// Browser preview fallback timer (dev mode only)
+let fallbackTimer: number | null = null;
+
+// ── Settings sync ──────────────────────────────────────────────────
 async function saveSettingsAndRestart() {
-    const api = backend();
-    if (api?.SaveSettings) await api.SaveSettings(state.settings);
-    if (state.isSampling && api?.StartPolling) {
-        resetActualSampling();
-        await api.StartPolling(state.settings);
+    try {
+        await backend()?.UpdateSampling(state.settings);
+    } catch (err) {
+        console.error('Failed to update sampling settings', err);
     }
 }
 
 async function onSettingsChanged() {
     await saveSettingsAndRestart();
 }
+
+// ── Chart data ─────────────────────────────────────────────────────
+const chartTags = computed<ChartTag[]>(() =>
+    state.settings.tags.map((t) => ({
+        id: t.id,
+        name: t.name,
+        color: t.color,
+        dataType: t.dataType,
+        yAxis: t.yAxis,
+        enabled: t.enabled,
+    })),
+);
+const chartAxes = computed<ChartAxis[]>(() =>
+    state.settings.yAxes.map((a) => ({ ...a })),
+);
 
 // ── Tag value display helpers ──────────────────────────────────────
 const liveValues = reactive<Record<string, string>>({});
@@ -516,19 +777,125 @@ function tagMax(id: string) {
     return r ? formatNumber(r.max) : '-';
 }
 
-// Calculate visible rows dynamically based on the tags area height
-const visibleRows = ref(4);
+// ── Tag DataGrid state & helpers ───────────────────────────────────
+type SortKey =
+    | 'name'
+    | 'plcLink'
+    | 'value'
+    | 'min'
+    | 'max';
 
-// Split tags into left (up to visibleRows) and right (rest)
-const leftTags = computed(() =>
-    state.settings.tags.slice(0, visibleRows.value),
-);
-const rightTags = computed(() =>
-    state.settings.tags.slice(visibleRows.value),
-);
+interface TagTriplet {
+    c1: TagSettings;
+    c2?: TagSettings;
+    c3?: TagSettings;
+}
+
+const sortKey = ref<SortKey | null>(null);
+const sortAsc = ref(true);
+const searchQuery = ref('');
+
+function toggleSort(key: SortKey) {
+    if (sortKey.value === key) {
+        if (sortAsc.value) {
+            sortAsc.value = false;
+        } else {
+            sortKey.value = null;
+            sortAsc.value = true;
+        }
+    } else {
+        sortKey.value = key;
+        sortAsc.value = true;
+    }
+}
+
+const allTagsEnabled = computed(() => {
+    if (!state.settings.tags.length) return false;
+    return state.settings.tags.every((t) => t.enabled);
+});
+
+function toggleAllTags(e: Event) {
+    const checked = (e.target as HTMLInputElement).checked;
+    state.settings.tags.forEach((t) => {
+        t.enabled = checked;
+    });
+    onSettingsChanged();
+}
+
+const sortedTags = computed(() => {
+    let list = state.settings.tags;
+    const q = searchQuery.value.trim().toLowerCase();
+    if (q) {
+        list = list.filter(
+            (t) =>
+                t.name.toLowerCase().includes(q) ||
+                t.plcLink.toLowerCase().includes(q) ||
+                t.address.toLowerCase().includes(q) ||
+                t.dataType.toLowerCase().includes(q) ||
+                (t.yAxis && t.yAxis.toLowerCase().includes(q)),
+        );
+    }
+
+    if (!sortKey.value) return list;
+
+    const k = sortKey.value;
+    const dir = sortAsc.value ? 1 : -1;
+
+    return [...list].sort((a, b) => {
+        if (k === 'name') return a.name.localeCompare(b.name) * dir;
+        if (k === 'plcLink') return a.plcLink.localeCompare(b.plcLink) * dir;
+        if (k === 'value') {
+            const vA = parseFloat(liveValues[a.id] ?? '');
+            const vB = parseFloat(liveValues[b.id] ?? '');
+            if (Number.isFinite(vA) && Number.isFinite(vB))
+                return (vA - vB) * dir;
+            return (
+                (liveValues[a.id] || '').localeCompare(
+                    liveValues[b.id] || '',
+                ) * dir
+            );
+        }
+        if (k === 'min') {
+            const mA =
+                state.sampledRange[a.id]?.min ??
+                (sortAsc.value ? Infinity : -Infinity);
+            const mB =
+                state.sampledRange[b.id]?.min ??
+                (sortAsc.value ? Infinity : -Infinity);
+            return (mA - mB) * dir;
+        }
+        if (k === 'max') {
+            const mA =
+                state.sampledRange[a.id]?.max ??
+                (sortAsc.value ? -Infinity : Infinity);
+            const mB =
+                state.sampledRange[b.id]?.max ??
+                (sortAsc.value ? -Infinity : Infinity);
+            return (mA - mB) * dir;
+        }
+        return 0;
+    });
+});
+
+const tripletTags = computed<TagTriplet[]>(() => {
+    const list = sortedTags.value;
+    const triplets: TagTriplet[] = [];
+    const r = Math.ceil(list.length / 3);
+    for (let i = 0; i < r; i++) {
+        triplets.push({
+            c1: list[i],
+            c2: list[i + r],
+            c3: list[i + 2 * r],
+        });
+    }
+    return triplets;
+});
 
 // ── Dialog save handlers ───────────────────────────────────────────
 async function onPlcTagsSave() {
+    await onSettingsChanged();
+}
+async function onYAxesSave() {
     await onSettingsChanged();
 }
 
@@ -665,53 +1032,12 @@ async function stopSampling() {
     state.statusMessage = t('status.polling_stopped');
 }
 
-// ── Actual sampling interval (max across PLC links) ────────────────
-/** Per-PLC measured cycle period in ms */
-const actualByPlc = ref(new Map<string, number>());
-
-const actualSamplingText = computed(() => {
-    if (!state.isSampling) return '—';
-    const values = [...actualByPlc.value.values()];
-    if (values.length === 0) return '—';
-    return `${Math.max(...values)} ms`;
-});
-
-function resetActualSampling() {
-    actualByPlc.value = new Map();
-}
-
 // ── Chart drag start ───────────────────────────────────────────────
 function onChartDragStart() {
     if (!state.isSampling || state.isPaused) return;
     state.isPaused = true;
     chartRef.value?.setPaused(true);
     state.statusMessage = 'Chart paused for review; polling continues';
-}
-
-// ── Double-click edit on main grid ─────────────────────────────────
-function onRowDblClick(tag: TagSettings) {
-    const index = state.settings.tags.findIndex((t) => t.id === tag.id);
-    if (index < 0) return;
-    dblEditTag.value = { ...tag };
-    dblEditIndex.value = index;
-    dblEditOpen.value = true;
-}
-
-function onDblEditSave(tag: TagSettings) {
-    state.settings.tags[dblEditIndex.value] = tag;
-    dblEditOpen.value = false;
-    void onSettingsChanged();
-}
-
-// ── Dialog callbacks ───────────────────────────────────────────────
-function onPlcSave() {
-    void onSettingsChanged();
-}
-function onTagsSave() {
-    void onSettingsChanged();
-}
-function onYAxesSave() {
-    void onSettingsChanged();
 }
 
 function onPromptClose(result: string | null) {
@@ -745,8 +1071,6 @@ function onResizerPointerDown(e: PointerEvent) {
     window.addEventListener('pointerup', onUp);
 }
 
-let tagsAreaObserver: ResizeObserver | null = null;
-
 // ── Lifecycle ──────────────────────────────────────────────────────
 onMounted(async () => {
     try {
@@ -758,20 +1082,6 @@ onMounted(async () => {
         }
     } catch (e) {
         console.error('Error fetching OS language', e);
-    }
-
-    // Watch tagsArea height to dynamically size the left table
-    const tagsArea = document.getElementById('tagsArea');
-    if (tagsArea) {
-        tagsAreaObserver = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-                const height = entry.contentRect.height;
-                // Border (2px) + Padding (4px) + Header (26px) = 32px overhead
-                // Each row is ~23px high
-                visibleRows.value = Math.max(1, Math.floor((height - 32) / 23));
-            }
-        });
-        tagsAreaObserver.observe(tagsArea);
     }
 
     // Wails event listener
@@ -844,6 +1154,5 @@ onBeforeUnmount(() => {
         window.removeEventListener('keydown', handleKeydown);
     }
     if (fallbackTimer !== null) clearInterval(fallbackTimer);
-    tagsAreaObserver?.disconnect();
 });
 </script>

@@ -226,33 +226,150 @@ select:focus {
 /* Tags Area */
 .tags-area {
   flex-shrink: 0;
-  height: 128px;
+  height: 140px;
+  min-height: 80px;
   background-color: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: 5px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
-.tags-area .datagrid { font-size: 12px; }
-.tags-area .datagrid th,
-.tags-area .datagrid td { padding: 3px 6px; line-height: 16px; }
 
-.tags-grids {
-  flex: 1;
+.tags-area-toolbar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 8px;
+  background: var(--bg-color);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+}
+
+.tags-area-title {
+  color: var(--text-color);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tags-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.tags-search-input {
+  width: 150px;
+  padding: 2px 20px 2px 6px !important;
+  font-size: 11px !important;
+  height: 22px;
+  border-radius: 3px !important;
+}
+
+.tags-search-input::-webkit-search-cancel-button,
+.tags-search-input::-webkit-search-decoration,
+.tags-search-input::-webkit-search-results-button,
+.tags-search-input::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+.tags-search-clear {
+  position: absolute;
+  right: 4px;
+  background: transparent;
+  border: none;
+  font-size: 10px;
+  color: #94a3b8;
+  cursor: pointer;
   padding: 2px;
+  line-height: 1;
+}
+.tags-search-clear:hover { color: #475569; }
+
+.tags-table-container {
+  flex: 1;
+  overflow: auto;
   min-height: 0;
 }
 
-.tags-grid-container {
-  flex: 1;
-  overflow-y: auto;
+.tags-area .datagrid {
+  font-size: 12px;
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
 }
 
-.grid-splitter {
-  width: 6px;
-  background: transparent;
-  cursor: ew-resize;
+.tags-area .datagrid th {
+  padding: 4px 8px;
+  line-height: 16px;
+  background-color: #f8fafc;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-weight: 600;
+  border-bottom: 2px solid #e2e8f0;
+  user-select: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tags-area .datagrid th.no-sort {
+  cursor: default;
+}
+
+.tags-area .datagrid th:hover:not(.no-sort) {
+  background-color: #f1f5f9;
+}
+
+.tags-area .datagrid td {
+  padding: 3px 8px;
+  line-height: 18px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.sort-icon {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  color: var(--accent);
+}
+
+.col-checkbox {
+  width: 36px;
+  text-align: center !important;
+}
+
+.col-checkbox input {
+  cursor: pointer;
+  margin: 0 auto;
+  display: block;
+}
+
+.col-text {
+  text-align: left;
+}
+
+.col-numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.col-divider {
+  width: 4px;
+  min-width: 4px;
+  max-width: 4px;
+  padding: 0 !important;
+  background-color: var(--border-color) !important;
+  border: none !important;
+}
+
+.empty-cell {
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .datagrid {
@@ -281,6 +398,13 @@ select:focus {
 .datagrid td select {
   width: 100%;
   box-sizing: border-box;
+}
+
+.datagrid-empty {
+  text-align: center !important;
+  color: #94a3b8;
+  padding: 24px 8px !important;
+  font-style: italic;
 }
 
 /* Status Bar */

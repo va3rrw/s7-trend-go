@@ -53,9 +53,16 @@
     "on": "启用",
     "tag": "变量",
     "plc": "PLC",
+    "address": "地址",
+    "type": "类型",
+    "y_axis": "Y轴",
     "value": "数值",
     "min": "最小",
-    "max": "最大"
+    "max": "最大",
+    "search": "搜索变量...",
+    "tags_count": "{0} / {1} 个变量",
+    "no_tags": "未配置变量。请点击 PLC/变量设置 添加变量。",
+    "no_matching_tags": "未找到匹配的变量。"
   },
   "dialog": {
     "plc_tag_config": "PLC / 变量设置",

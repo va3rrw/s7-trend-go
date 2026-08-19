@@ -53,9 +53,16 @@
     "on": "On",
     "tag": "Tag",
     "plc": "PLC",
+    "address": "Address",
+    "type": "Type",
+    "y_axis": "Y-Axis",
     "value": "Value",
     "min": "Min",
-    "max": "Max"
+    "max": "Max",
+    "search": "Filter tags...",
+    "tags_count": "{0} of {1} tags",
+    "no_tags": "No tags configured. Click PLC/Tag Settings to add tags.",
+    "no_matching_tags": "No tags matching search filter."
   },
   "dialog": {
     "plc_tag_config": "PLC/Tag Settings",
