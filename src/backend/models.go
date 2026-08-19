@@ -24,27 +24,25 @@ func CreateDefaultPlcLinks() []PlcLinkSettings {
 type TagDataType string
 
 const (
-	DataTypeBool   TagDataType = "Bool"
-	DataTypeByte   TagDataType = "Byte"
-	DataTypeWord   TagDataType = "Word"
-	DataTypeInt    TagDataType = "Int"
-	DataTypeDWord  TagDataType = "DWord"
-	DataTypeDInt   TagDataType = "DInt"
-	DataTypeReal   TagDataType = "Real"
-	DataTypeLReal  TagDataType = "LReal"
-	DataTypeString TagDataType = "String"
+	DataTypeBool  TagDataType = "Bool"
+	DataTypeByte  TagDataType = "Byte"
+	DataTypeWord  TagDataType = "Word"
+	DataTypeInt   TagDataType = "Int"
+	DataTypeDWord TagDataType = "DWord"
+	DataTypeDInt  TagDataType = "DInt"
+	DataTypeReal  TagDataType = "Real"
+	DataTypeLReal TagDataType = "LReal"
 )
 
 type TagSettings struct {
-	Id           uuid.UUID   `json:"id"`
-	Name         string      `json:"name"`
-	PlcLink      string      `json:"plcLink"`
-	Address      string      `json:"address"`
-	DataType     TagDataType `json:"dataType"`
-	StringLength int         `json:"stringLength"`
-	YAxis        string      `json:"yAxis"`
-	Color        string      `json:"color"`
-	Enabled      bool        `json:"enabled"`
+	Id       uuid.UUID   `json:"id"`
+	Name     string      `json:"name"`
+	PlcLink  string      `json:"plcLink"`
+	Address  string      `json:"address"`
+	DataType TagDataType `json:"dataType"`
+	YAxis    string      `json:"yAxis"`
+	Color    string      `json:"color"`
+	Enabled  bool        `json:"enabled"`
 }
 
 type YAxisSettings struct {

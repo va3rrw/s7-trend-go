@@ -83,15 +83,14 @@ func TestCreateDefaultSettings(t *testing.T) {
 func TestModels_JSONSerialization(t *testing.T) {
 	tagId := uuid.New()
 	tag := TagSettings{
-		Id:           tagId,
-		Name:         "Motor_Speed",
-		PlcLink:      "PLC1",
-		Address:      "DB1.DBD0",
-		DataType:     DataTypeReal,
-		StringLength: 0,
-		YAxis:        "Y-Axis 1",
-		Color:        "#FF0000",
-		Enabled:      true,
+		Id:       tagId,
+		Name:     "Motor_Speed",
+		PlcLink:  "PLC1",
+		Address:  "DB1.DBD0",
+		DataType: DataTypeReal,
+		YAxis:    "Y-Axis 1",
+		Color:    "#FF0000",
+		Enabled:  true,
 	}
 
 	settings := AppSettings{

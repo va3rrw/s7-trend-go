@@ -24,7 +24,6 @@ export namespace backend {
 	    plcLink: string;
 	    address: string;
 	    dataType: string;
-	    stringLength: number;
 	    yAxis: string;
 	    color: string;
 	    enabled: boolean;
@@ -40,7 +39,6 @@ export namespace backend {
 	        this.plcLink = source["plcLink"];
 	        this.address = source["address"];
 	        this.dataType = source["dataType"];
-	        this.stringLength = source["stringLength"];
 	        this.yAxis = source["yAxis"];
 	        this.color = source["color"];
 	        this.enabled = source["enabled"];

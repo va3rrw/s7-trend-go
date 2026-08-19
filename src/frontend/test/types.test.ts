@@ -50,8 +50,7 @@ describe('types.ts', () => {
         expect(DATA_TYPES).toContain('DInt');
         expect(DATA_TYPES).toContain('Real');
         expect(DATA_TYPES).toContain('LReal');
-        expect(DATA_TYPES).toContain('String');
-        expect(DATA_TYPES).toHaveLength(9);
+        expect(DATA_TYPES).toHaveLength(8);
     });
 
     it('contains predefined color palette', () => {

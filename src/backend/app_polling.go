@@ -82,7 +82,7 @@ func (a *App) StartPolling(settings AppSettings) {
 
 			var pTags []parsedTag
 			for _, ch := range linkTags {
-				spec, err := ParseS7Address(ch.Address, ch.DataType, ch.StringLength)
+				spec, err := ParseS7Address(ch.Address, ch.DataType)
 				pTags = append(pTags, parsedTag{Tag: ch, Spec: spec, Err: err})
 			}
 

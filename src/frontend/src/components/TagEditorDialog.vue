@@ -41,14 +41,6 @@
                     </option>
                 </select>
             </div>
-            <div
-                v-if="showStringLength"
-                class="form-row">
-                <label>{{ $t('dialog.string_length') }}</label>
-                <input
-                    v-model.number="form.stringLength"
-                    type="number" />
-            </div>
             <div class="form-row">
                 <label>{{ $t('dialog.y_axis') }}</label>
                 <select v-model="form.yAxis">
@@ -116,7 +108,6 @@ const form = ref<TagSettings>({
     plcLink: '',
     address: '',
     dataType: 'Real',
-    stringLength: 20,
     yAxis: '',
     color: PALETTE[0],
     enabled: true,
@@ -129,6 +120,7 @@ watch(
             form.value = { ...props.tag };
         }
     },
+    { immediate: true },
 );
 
 function onAddressInput() {
@@ -137,8 +129,6 @@ function onAddressInput() {
         form.value.dataType = inferred;
     }
 }
-
-const showStringLength = computed(() => form.value.dataType === 'String');
 
 const plcNames = computed(() => state.settings.plcLinks.map((p) => p.name));
 const axisNames = computed(() => state.settings.yAxes.map((a) => a.name));

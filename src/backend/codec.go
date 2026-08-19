@@ -30,7 +30,7 @@ var (
 	reArea = regexp.MustCompile(`(?i)^(?:(?P<area>[MIQ])(?P<kind>B|W|D|X)?(?P<offset>\d+)(?:\.(?P<bit>[0-7]))?)$`)
 )
 
-func ParseS7Address(address string, valueType TagDataType, stringLength int) (*S7AddressSpec, error) {
+func ParseS7Address(address string, valueType TagDataType) (*S7AddressSpec, error) {
 	address = strings.TrimSpace(address)
 	if address == "" {
 		return nil, fmt.Errorf("address is empty")
@@ -64,7 +64,7 @@ func ParseS7Address(address string, valueType TagDataType, stringLength int) (*S
 			DbNumber:   dbNum,
 			StartByte:  offset,
 			BitNumber:  bitNum,
-			ByteLength: getByteLength(valueType, stringLength),
+			ByteLength: getByteLength(valueType),
 			ValueType:  valueType,
 		}, nil
 	}
@@ -101,7 +101,7 @@ func ParseS7Address(address string, valueType TagDataType, stringLength int) (*S
 			DbNumber:   0,
 			StartByte:  offset,
 			BitNumber:  bitNum,
-			ByteLength: getByteLength(valueType, stringLength),
+			ByteLength: getByteLength(valueType),
 			ValueType:  valueType,
 		}, nil
 	}
@@ -109,7 +109,7 @@ func ParseS7Address(address string, valueType TagDataType, stringLength int) (*S
 	return nil, fmt.Errorf("invalid address format '%s'. Use DB1.DBD0, MB0, IB0, QB0 or M0.0", address)
 }
 
-func getByteLength(valueType TagDataType, stringLength int) int {
+func getByteLength(valueType TagDataType) int {
 	switch valueType {
 	case DataTypeBool, DataTypeByte:
 		return 1
@@ -119,14 +119,6 @@ func getByteLength(valueType TagDataType, stringLength int) int {
 		return 4
 	case DataTypeLReal:
 		return 8
-	case DataTypeString:
-		if stringLength < 1 {
-			stringLength = 20
-		}
-		if stringLength > 254 {
-			stringLength = 254
-		}
-		return stringLength + 2
 	default:
 		return 4
 	}
@@ -203,17 +195,6 @@ func DecodeS7Value(data []byte, valueType TagDataType, bitNumber int) (string, *
 		bits := binary.BigEndian.Uint64(data)
 		val := math.Float64frombits(bits)
 		return fmt.Sprintf("%.3f", val), &val
-
-	case DataTypeString:
-		if len(data) < 2 {
-			return "", nil
-		}
-		strLen := int(data[1])
-		if strLen > len(data)-2 {
-			strLen = len(data) - 2
-		}
-		strVal := strings.TrimRight(string(data[2:2+strLen]), "\x00 ")
-		return strVal, nil
 	}
 
 	return "-", nil

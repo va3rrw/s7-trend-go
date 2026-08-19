@@ -15,7 +15,6 @@ describe('TagsDialog.vue', () => {
                 plcLink: 'PLC1',
                 address: 'DB1.DBD0',
                 dataType: 'Real',
-                stringLength: 0,
                 yAxis: 'Y-Axis 1',
                 color: '#FF0000',
                 enabled: true,

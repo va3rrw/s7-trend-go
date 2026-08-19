@@ -11,7 +11,6 @@ func TestParseS7Address_Valid(t *testing.T) {
 		name         string
 		address      string
 		valueType    TagDataType
-		stringLength int
 		expectedArea int
 		expectedDb   int
 		expectedByte int
@@ -109,43 +108,9 @@ func TestParseS7Address_Valid(t *testing.T) {
 			expectedBit:  -1,
 			expectedLen:  8,
 		},
+		// Memory (Merker) addresses
 		{
-			name:         "DB String with length 50",
-			address:      "DB9.DBD80",
-			valueType:    DataTypeString,
-			stringLength: 50,
-			expectedArea: s7AreaDB,
-			expectedDb:   9,
-			expectedByte: 80,
-			expectedBit:  -1,
-			expectedLen:  52, // 50 + 2 header bytes
-		},
-		{
-			name:         "DB String default length when 0",
-			address:      "DB9.DBD80",
-			valueType:    DataTypeString,
-			stringLength: 0,
-			expectedArea: s7AreaDB,
-			expectedDb:   9,
-			expectedByte: 80,
-			expectedBit:  -1,
-			expectedLen:  22, // 20 + 2 header bytes
-		},
-		{
-			name:         "DB String capped length when > 254",
-			address:      "DB9.DBD80",
-			valueType:    DataTypeString,
-			stringLength: 300,
-			expectedArea: s7AreaDB,
-			expectedDb:   9,
-			expectedByte: 80,
-			expectedBit:  -1,
-			expectedLen:  256, // 254 + 2 header bytes
-		},
-
-		// Memory (M) area
-		{
-			name:         "Memory Bool bit M0.0",
+			name:         "Memory bit M0.0",
 			address:      "M0.0",
 			valueType:    DataTypeBool,
 			expectedArea: s7AreaMK,
@@ -155,116 +120,154 @@ func TestParseS7Address_Valid(t *testing.T) {
 			expectedLen:  1,
 		},
 		{
-			name:         "Memory Bool bit MX2.4",
-			address:      "MX2.4",
+			name:         "Memory bit MX10.7",
+			address:      "MX10.7",
 			valueType:    DataTypeBool,
 			expectedArea: s7AreaMK,
 			expectedDb:   0,
-			expectedByte: 2,
-			expectedBit:  4,
+			expectedByte: 10,
+			expectedBit:  7,
 			expectedLen:  1,
 		},
 		{
-			name:         "Memory Byte MB10",
-			address:      "MB10",
+			name:         "Memory Byte MB5",
+			address:      "MB5",
 			valueType:    DataTypeByte,
 			expectedArea: s7AreaMK,
 			expectedDb:   0,
-			expectedByte: 10,
+			expectedByte: 5,
 			expectedBit:  -1,
 			expectedLen:  1,
 		},
 		{
-			name:         "Memory Word MW20",
-			address:      "MW20",
+			name:         "Memory Word MW100",
+			address:      "MW100",
 			valueType:    DataTypeWord,
 			expectedArea: s7AreaMK,
 			expectedDb:   0,
-			expectedByte: 20,
+			expectedByte: 100,
 			expectedBit:  -1,
 			expectedLen:  2,
 		},
 		{
-			name:         "Memory DWord MD30",
-			address:      "MD30",
+			name:         "Memory Int MW102",
+			address:      "MW102",
+			valueType:    DataTypeInt,
+			expectedArea: s7AreaMK,
+			expectedDb:   0,
+			expectedByte: 102,
+			expectedBit:  -1,
+			expectedLen:  2,
+		},
+		{
+			name:         "Memory DWord MD200",
+			address:      "MD200",
 			valueType:    DataTypeDWord,
 			expectedArea: s7AreaMK,
 			expectedDb:   0,
-			expectedByte: 30,
+			expectedByte: 200,
 			expectedBit:  -1,
 			expectedLen:  4,
 		},
-
-		// Input (I) area
 		{
-			name:         "Input Bool bit I0.3",
-			address:      "I0.3",
+			name:         "Memory Real MD204",
+			address:      "MD204",
+			valueType:    DataTypeReal,
+			expectedArea: s7AreaMK,
+			expectedDb:   0,
+			expectedByte: 204,
+			expectedBit:  -1,
+			expectedLen:  4,
+		},
+		// Input (PE) addresses
+		{
+			name:         "Input bit I0.5",
+			address:      "I0.5",
 			valueType:    DataTypeBool,
 			expectedArea: s7AreaPE,
 			expectedDb:   0,
 			expectedByte: 0,
-			expectedBit:  3,
-			expectedLen:  1,
-		},
-		{
-			name:         "Input Byte IB4",
-			address:      "IB4",
-			valueType:    DataTypeByte,
-			expectedArea: s7AreaPE,
-			expectedDb:   0,
-			expectedByte: 4,
-			expectedBit:  -1,
-			expectedLen:  1,
-		},
-		{
-			name:         "Input Word IW8",
-			address:      "IW8",
-			valueType:    DataTypeInt,
-			expectedArea: s7AreaPE,
-			expectedDb:   0,
-			expectedByte: 8,
-			expectedBit:  -1,
-			expectedLen:  2,
-		},
-		{
-			name:         "Input DWord ID12",
-			address:      "ID12",
-			valueType:    DataTypeReal,
-			expectedArea: s7AreaPE,
-			expectedDb:   0,
-			expectedByte: 12,
-			expectedBit:  -1,
-			expectedLen:  4,
-		},
-
-		// Output (Q) area
-		{
-			name:         "Output Bool bit Q1.5",
-			address:      "Q1.5",
-			valueType:    DataTypeBool,
-			expectedArea: s7AreaPA,
-			expectedDb:   0,
-			expectedByte: 1,
 			expectedBit:  5,
 			expectedLen:  1,
 		},
 		{
-			name:         "Output Byte QB6",
-			address:      "QB6",
-			valueType:    DataTypeByte,
-			expectedArea: s7AreaPA,
+			name:         "Input bit IX1.0",
+			address:      "IX1.0",
+			valueType:    DataTypeBool,
+			expectedArea: s7AreaPE,
 			expectedDb:   0,
-			expectedByte: 6,
+			expectedByte: 1,
+			expectedBit:  0,
+			expectedLen:  1,
+		},
+		{
+			name:         "Input Byte IB0",
+			address:      "IB0",
+			valueType:    DataTypeByte,
+			expectedArea: s7AreaPE,
+			expectedDb:   0,
+			expectedByte: 0,
 			expectedBit:  -1,
 			expectedLen:  1,
 		},
 		{
-			name:         "Output Word QW16",
-			address:      "QW16",
+			name:         "Input Word IW4",
+			address:      "IW4",
+			valueType:    DataTypeInt,
+			expectedArea: s7AreaPE,
+			expectedDb:   0,
+			expectedByte: 4,
+			expectedBit:  -1,
+			expectedLen:  2,
+		},
+		{
+			name:         "Input DWord ID8",
+			address:      "ID8",
+			valueType:    DataTypeDWord,
+			expectedArea: s7AreaPE,
+			expectedDb:   0,
+			expectedByte: 8,
+			expectedBit:  -1,
+			expectedLen:  4,
+		},
+		// Output (PA) addresses
+		{
+			name:         "Output bit Q0.0",
+			address:      "Q0.0",
+			valueType:    DataTypeBool,
+			expectedArea: s7AreaPA,
+			expectedDb:   0,
+			expectedByte: 0,
+			expectedBit:  0,
+			expectedLen:  1,
+		},
+		{
+			name:         "Output bit QX2.3",
+			address:      "QX2.3",
+			valueType:    DataTypeBool,
+			expectedArea: s7AreaPA,
+			expectedDb:   0,
+			expectedByte: 2,
+			expectedBit:  3,
+			expectedLen:  1,
+		},
+		{
+			name:         "Output Byte QB1",
+			address:      "QB1",
+			valueType:    DataTypeByte,
+			expectedArea: s7AreaPA,
+			expectedDb:   0,
+			expectedByte: 1,
+			expectedBit:  -1,
+			expectedLen:  1,
+		},
+		{
+			name:         "Output Word QW10",
+			address:      "QW10",
 			valueType:    DataTypeWord,
 			expectedArea: s7AreaPA,
 			expectedDb:   0,
-			expectedByte: 16,
+			expectedByte: 10,
 			expectedBit:  -1,
 			expectedLen:  2,
 		},
@@ -282,7 +285,7 @@ func TestParseS7Address_Valid(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			spec, err := ParseS7Address(tc.address, tc.valueType, tc.stringLength)
+			spec, err := ParseS7Address(tc.address, tc.valueType)
 			if err != nil {
 				t.Fatalf("unexpected error parsing '%s': %v", tc.address, err)
 			}
@@ -310,11 +313,10 @@ func TestParseS7Address_Valid(t *testing.T) {
 
 func TestParseS7Address_Invalid(t *testing.T) {
 	tests := []struct {
-		name         string
-		address      string
-		valueType    TagDataType
-		stringLength int
-		errContains  string
+		name        string
+		address     string
+		valueType   TagDataType
+		errContains string
 	}{
 		{
 			name:        "Empty address",
@@ -380,7 +382,7 @@ func TestParseS7Address_Invalid(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			spec, err := ParseS7Address(tc.address, tc.valueType, tc.stringLength)
+			spec, err := ParseS7Address(tc.address, tc.valueType)
 			if err == nil {
 				t.Fatalf("expected error for address '%s', but got spec %+v", tc.address, spec)
 			}
@@ -405,29 +407,24 @@ func containsSubstr(s, substr string) bool {
 func TestGetByteLength(t *testing.T) {
 	tests := []struct {
 		valType  TagDataType
-		strLen   int
 		expected int
 	}{
-		{DataTypeBool, 0, 1},
-		{DataTypeByte, 0, 1},
-		{DataTypeWord, 0, 2},
-		{DataTypeInt, 0, 2},
-		{DataTypeDWord, 0, 4},
-		{DataTypeDInt, 0, 4},
-		{DataTypeReal, 0, 4},
-		{DataTypeLReal, 0, 8},
-		{DataTypeString, 0, 22},   // default 20 + 2
-		{DataTypeString, -5, 22},  // min clamp to 20 + 2
-		{DataTypeString, 40, 42},  // 40 + 2
-		{DataTypeString, 300, 256},// max clamp to 254 + 2
-		{TagDataType("Unknown"), 0, 4}, // default fallback
+		{DataTypeBool, 1},
+		{DataTypeByte, 1},
+		{DataTypeWord, 2},
+		{DataTypeInt, 2},
+		{DataTypeDWord, 4},
+		{DataTypeDInt, 4},
+		{DataTypeReal, 4},
+		{DataTypeLReal, 8},
+		{TagDataType("Unknown"), 4}, // default fallback
 	}
 
 	for _, tc := range tests {
 		t.Run(string(tc.valType), func(t *testing.T) {
-			got := getByteLength(tc.valType, tc.strLen)
+			got := getByteLength(tc.valType)
 			if got != tc.expected {
-				t.Errorf("getByteLength(%s, %d) = %d; expected %d", tc.valType, tc.strLen, got, tc.expected)
+				t.Errorf("getByteLength(%s) = %d; expected %d", tc.valType, got, tc.expected)
 			}
 		})
 	}
@@ -581,35 +578,6 @@ func TestDecodeS7Value(t *testing.T) {
 		str, num = DecodeS7Value([]byte{0x00, 0x01, 0x02, 0x03}, DataTypeLReal, -1)
 		if str != "-" || num != nil {
 			t.Errorf("expected '-', nil for truncated lreal, got '%s', %v", str, num)
-		}
-	})
-
-	t.Run("DataTypeString", func(t *testing.T) {
-		// Valid string: max 20, actual 5, "Hello"
-		data := []byte{20, 5, 'H', 'e', 'l', 'l', 'o', 0x00, 0x00}
-		str, num := DecodeS7Value(data, DataTypeString, -1)
-		if str != "Hello" || num != nil {
-			t.Errorf("expected 'Hello', nil; got '%s', %v", str, num)
-		}
-
-		// String with trailing spaces
-		dataSpaces := []byte{20, 7, 'H', 'e', 'l', 'l', 'o', ' ', ' '}
-		str, num = DecodeS7Value(dataSpaces, DataTypeString, -1)
-		if str != "Hello" || num != nil {
-			t.Errorf("expected 'Hello', nil; got '%s', %v", str, num)
-		}
-
-		// String actual length exceeding data length
-		dataShort := []byte{20, 10, 'A', 'B', 'C'}
-		str, num = DecodeS7Value(dataShort, DataTypeString, -1)
-		if str != "ABC" || num != nil {
-			t.Errorf("expected 'ABC', nil; got '%s', %v", str, num)
-		}
-
-		// Truncated header
-		str, num = DecodeS7Value([]byte{20}, DataTypeString, -1)
-		if str != "" || num != nil {
-			t.Errorf("expected '', nil; got '%s', %v", str, num)
 		}
 	})
 

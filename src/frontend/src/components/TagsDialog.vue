@@ -144,7 +144,6 @@ function addTag() {
               plcLink: state.settings.plcLinks[0]?.name ?? 'PLC1',
               address: 'DB1.DBD0',
               dataType: 'Real',
-              stringLength: 20,
               yAxis: state.settings.yAxes[0]?.name ?? 'Y-Axis 1',
               color: PALETTE[tags.value.length % PALETTE.length],
               enabled: true,

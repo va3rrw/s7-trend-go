@@ -11,7 +11,7 @@ import {
     getTag,
     markPlcForTag,
 } from '../src/store';
-import { defaultSettings } from '../src/types';
+import { defaultSettings, type TagSettings } from '../src/types';
 
 describe('store.ts', () => {
     beforeEach(() => {
@@ -56,13 +56,12 @@ describe('store.ts', () => {
     });
 
     it('finds tag by ID with getTag()', () => {
-        const tag = {
+        const tag: TagSettings = {
             id: 'test-uuid-123',
             name: 'Speed',
             plcLink: 'PLC1',
             address: 'DB1.DBD0',
             dataType: 'Real',
-            stringLength: 0,
             yAxis: 'Y-Axis 1',
             color: '#FF0000',
             enabled: true,
@@ -74,13 +73,12 @@ describe('store.ts', () => {
     });
 
     it('updates PLC connection status with markPlcForTag()', () => {
-        const tag = {
+        const tag: TagSettings = {
             id: 'tag-1',
             name: 'Speed',
             plcLink: 'PLC2',
             address: 'DB1.DBD0',
             dataType: 'Real',
-            stringLength: 0,
             yAxis: 'Y-Axis 1',
             color: '#FF0000',
             enabled: true,

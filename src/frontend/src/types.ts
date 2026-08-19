@@ -12,7 +12,6 @@ export interface TagSettings {
     plcLink: string;
     address: string;
     dataType: string;
-    stringLength: number;
     yAxis: string;
     color: string;
     enabled: boolean;
@@ -50,7 +49,6 @@ export const DATA_TYPES = [
     'DInt',
     'Real',
     'LReal',
-    'String',
 ] as const;
 
 export const PALETTE = [
