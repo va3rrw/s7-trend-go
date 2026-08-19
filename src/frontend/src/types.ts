@@ -138,5 +138,17 @@ export function inferDataType(address: string, currentType?: string): string | n
         return 'Real';
     }
 
+    // Timer address (16-bit)
+    if (/^(?:T|TM)\d+$/i.test(addr)) {
+        if (currentType === 'Word') return 'Word';
+        return 'Real';
+    }
+
+    // Counter address (16-bit)
+    if (/^(?:C|Z|CT)\d+$/i.test(addr)) {
+        if (currentType === 'Word') return 'Word';
+        return 'Int';
+    }
+
     return null;
 }

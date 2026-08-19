@@ -93,6 +93,15 @@ describe('types.ts', () => {
         expect(inferDataType('ID0')).toBe('Real');
         expect(inferDataType('QD80')).toBe('Real');
 
+        // Timers & Counters
+        expect(inferDataType('T0')).toBe('Real');
+        expect(inferDataType('t10', 'Word')).toBe('Word');
+        expect(inferDataType('TM5')).toBe('Real');
+        expect(inferDataType('C0')).toBe('Int');
+        expect(inferDataType('c1', 'Word')).toBe('Word');
+        expect(inferDataType('Z10')).toBe('Int');
+        expect(inferDataType('CT20')).toBe('Int');
+
         // Empty or unrecognized
         expect(inferDataType('')).toBeNull();
         expect(inferDataType('invalid')).toBeNull();

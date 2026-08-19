@@ -141,12 +141,20 @@ func (a *App) StartPolling(settings AppSettings) {
 
 						for i, pt := range pTags {
 							if pt.Err == nil {
+								wordLen := pt.Spec.WordLen
+								if wordLen == 0 {
+									wordLen = 0x02 // Byte length
+								}
+								amount := pt.Spec.ByteLength
+								if pt.Spec.Area == s7AreaTM || pt.Spec.Area == s7AreaCT {
+									amount = 1 // 1 timer/counter element
+								}
 								dataItems = append(dataItems, gos7.S7DataItem{
 									Area:     pt.Spec.Area,
-									WordLen:  0x02, // Byte length
+									WordLen:  wordLen,
 									DBNumber: pt.Spec.DbNumber,
 									Start:    pt.Spec.StartByte,
-									Amount:   pt.Spec.ByteLength,
+									Amount:   amount,
 									Data:     make([]byte, pt.Spec.ByteLength),
 								})
 								validIndices = append(validIndices, i)
@@ -246,7 +254,15 @@ func (a *App) StartPolling(settings AppSettings) {
 							if item.Error != "" {
 								a.emitPollUpdate(pt.Tag.Id, "", nil, "Bad", item.Error)
 							} else {
-								valStr, numVal := DecodeS7Value(item.Data, pt.Tag.DataType, pt.Spec.BitNumber)
+								var valStr string
+								var numVal *float64
+								if pt.Spec.Area == s7AreaTM {
+									valStr, numVal = DecodeS7Timer(item.Data)
+								} else if pt.Spec.Area == s7AreaCT {
+									valStr, numVal = DecodeS7Counter(item.Data)
+								} else {
+									valStr, numVal = DecodeS7Value(item.Data, pt.Tag.DataType, pt.Spec.BitNumber)
+								}
 								if numVal != nil {
 									a.RecordSample(pt.Tag.Id.String(), time.Now().UnixMilli(), *numVal)
 								}

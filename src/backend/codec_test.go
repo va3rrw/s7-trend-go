@@ -281,6 +281,58 @@ func TestParseS7Address_Valid(t *testing.T) {
 			expectedBit:  -1,
 			expectedLen:  4,
 		},
+		// Timer (TM) addresses
+		{
+			name:         "Timer T0",
+			address:      "T0",
+			valueType:    DataTypeWord,
+			expectedArea: s7AreaTM,
+			expectedDb:   0,
+			expectedByte: 0,
+			expectedBit:  -1,
+			expectedLen:  2,
+		},
+		{
+			name:         "Timer TM12",
+			address:      "TM12",
+			valueType:    DataTypeWord,
+			expectedArea: s7AreaTM,
+			expectedDb:   0,
+			expectedByte: 12,
+			expectedBit:  -1,
+			expectedLen:  2,
+		},
+		// Counter (CT) addresses
+		{
+			name:         "Counter C0",
+			address:      "C0",
+			valueType:    DataTypeInt,
+			expectedArea: s7AreaCT,
+			expectedDb:   0,
+			expectedByte: 0,
+			expectedBit:  -1,
+			expectedLen:  2,
+		},
+		{
+			name:         "Counter Z5 (German Zähler)",
+			address:      "Z5",
+			valueType:    DataTypeInt,
+			expectedArea: s7AreaCT,
+			expectedDb:   0,
+			expectedByte: 5,
+			expectedBit:  -1,
+			expectedLen:  2,
+		},
+		{
+			name:         "Counter CT20",
+			address:      "CT20",
+			valueType:    DataTypeInt,
+			expectedArea: s7AreaCT,
+			expectedDb:   0,
+			expectedByte: 20,
+			expectedBit:  -1,
+			expectedLen:  2,
+		},
 	}
 
 	for _, tc := range tests {
@@ -585,6 +637,78 @@ func TestDecodeS7Value(t *testing.T) {
 		str, num := DecodeS7Value([]byte{0x01, 0x02}, TagDataType("UnknownType"), -1)
 		if str != "-" || num != nil {
 			t.Errorf("expected '-', nil for unknown type; got '%s', %v", str, num)
+		}
+	})
+}
+
+func TestDecodeS7Timer(t *testing.T) {
+	t.Run("Empty or truncated data", func(t *testing.T) {
+		str, num := DecodeS7Timer([]byte{})
+		if str != "-" || num != nil {
+			t.Errorf("expected '-', nil; got '%s', %v", str, num)
+		}
+		str, num = DecodeS7Timer([]byte{0x20})
+		if str != "-" || num != nil {
+			t.Errorf("expected '-', nil; got '%s', %v", str, num)
+		}
+	})
+
+	t.Run("10ms base (multiplier 0.01)", func(t *testing.T) {
+		// BCD 123 with base 0 (10ms) -> 0x01, 0x23 -> 1.230s
+		str, num := DecodeS7Timer([]byte{0x01, 0x23})
+		if str != "1.230" || num == nil || *num != 1.23 {
+			t.Errorf("expected '1.230', 1.23; got '%s', %v", str, num)
+		}
+	})
+
+	t.Run("100ms base (multiplier 0.1)", func(t *testing.T) {
+		// BCD 456 with base 1 (100ms) -> 0x14, 0x56 -> 45.600s
+		str, num := DecodeS7Timer([]byte{0x14, 0x56})
+		if str != "45.600" || num == nil || *num != 45.6 {
+			t.Errorf("expected '45.600', 45.6; got '%s', %v", str, num)
+		}
+	})
+
+	t.Run("1s base (multiplier 1.0)", func(t *testing.T) {
+		// BCD 120 with base 2 (1s) -> 0x21, 0x20 -> 120.000s
+		str, num := DecodeS7Timer([]byte{0x21, 0x20})
+		if str != "120.000" || num == nil || *num != 120.0 {
+			t.Errorf("expected '120.000', 120.0; got '%s', %v", str, num)
+		}
+	})
+
+	t.Run("10s base (multiplier 10.0)", func(t *testing.T) {
+		// BCD 050 with base 3 (10s) -> 0x30, 0x50 -> 500.000s
+		str, num := DecodeS7Timer([]byte{0x30, 0x50})
+		if str != "500.000" || num == nil || *num != 500.0 {
+			t.Errorf("expected '500.000', 500.0; got '%s', %v", str, num)
+		}
+	})
+}
+
+func TestDecodeS7Counter(t *testing.T) {
+	t.Run("Empty or truncated data", func(t *testing.T) {
+		str, num := DecodeS7Counter([]byte{})
+		if str != "-" || num != nil {
+			t.Errorf("expected '-', nil; got '%s', %v", str, num)
+		}
+		str, num = DecodeS7Counter([]byte{0x05})
+		if str != "-" || num != nil {
+			t.Errorf("expected '-', nil; got '%s', %v", str, num)
+		}
+	})
+
+	t.Run("BCD Counter decoding", func(t *testing.T) {
+		// BCD 123 -> 0x01, 0x23
+		str, num := DecodeS7Counter([]byte{0x01, 0x23})
+		if str != "123" || num == nil || *num != 123.0 {
+			t.Errorf("expected '123', 123.0; got '%s', %v", str, num)
+		}
+
+		// BCD 999 -> 0x09, 0x99
+		str, num = DecodeS7Counter([]byte{0x09, 0x99})
+		if str != "999" || num == nil || *num != 999.0 {
+			t.Errorf("expected '999', 999.0; got '%s', %v", str, num)
 		}
 	})
 }

@@ -11,6 +11,7 @@ import (
 
 type S7AddressSpec struct {
 	Area       int // gos7 area code
+	WordLen    int // gos7 word length (0x02 for Byte, 0x1C for Counter, 0x1D for Timer)
 	DbNumber   int
 	StartByte  int
 	BitNumber  int
@@ -23,17 +24,53 @@ const (
 	s7AreaPA = 0x82
 	s7AreaMK = 0x83
 	s7AreaDB = 0x84
+	s7AreaCT = 0x1C // Counter
+	s7AreaTM = 0x1D // Timer
+
+	s7WLTimer   = 0x1D
+	s7WLCounter = 0x1C
+	s7WLByte    = 0x02
 )
 
 var (
-	reDB   = regexp.MustCompile(`(?i)^DB(?P<db>\d+)\.(?P<kind>DBX|DBB|DBW|DBD)(?P<offset>\d+)(?:\.(?P<bit>[0-7]))?$`)
-	reArea = regexp.MustCompile(`(?i)^(?:(?P<area>[MIQ])(?P<kind>B|W|D|X)?(?P<offset>\d+)(?:\.(?P<bit>[0-7]))?)$`)
+	reDB      = regexp.MustCompile(`(?i)^DB(?P<db>\d+)\.(?P<kind>DBX|DBB|DBW|DBD)(?P<offset>\d+)(?:\.(?P<bit>[0-7]))?$`)
+	reArea    = regexp.MustCompile(`(?i)^(?:(?P<area>[MIQ])(?P<kind>B|W|D|X)?(?P<offset>\d+)(?:\.(?P<bit>[0-7]))?)$`)
+	reTimer   = regexp.MustCompile(`(?i)^(?:T|TM)(?P<num>\d+)$`)
+	reCounter = regexp.MustCompile(`(?i)^(?:C|Z|CT)(?P<num>\d+)$`)
 )
 
 func ParseS7Address(address string, valueType TagDataType) (*S7AddressSpec, error) {
 	address = strings.TrimSpace(address)
 	if address == "" {
 		return nil, fmt.Errorf("address is empty")
+	}
+
+	// Try Timer pattern (T0..T65535, TM0..TM65535)
+	if match := reTimer.FindStringSubmatch(address); match != nil {
+		num, _ := strconv.Atoi(match[1])
+		return &S7AddressSpec{
+			Area:       s7AreaTM,
+			WordLen:    s7WLTimer,
+			DbNumber:   0,
+			StartByte:  num,
+			BitNumber:  -1,
+			ByteLength: 2,
+			ValueType:  valueType,
+		}, nil
+	}
+
+	// Try Counter pattern (C0..C65535, Z0..Z65535, CT0..CT65535)
+	if match := reCounter.FindStringSubmatch(address); match != nil {
+		num, _ := strconv.Atoi(match[1])
+		return &S7AddressSpec{
+			Area:       s7AreaCT,
+			WordLen:    s7WLCounter,
+			DbNumber:   0,
+			StartByte:  num,
+			BitNumber:  -1,
+			ByteLength: 2,
+			ValueType:  valueType,
+		}, nil
 	}
 
 	// Try DB pattern
@@ -61,6 +98,7 @@ func ParseS7Address(address string, valueType TagDataType) (*S7AddressSpec, erro
 
 		return &S7AddressSpec{
 			Area:       s7AreaDB,
+			WordLen:    s7WLByte,
 			DbNumber:   dbNum,
 			StartByte:  offset,
 			BitNumber:  bitNum,
@@ -98,6 +136,7 @@ func ParseS7Address(address string, valueType TagDataType) (*S7AddressSpec, erro
 
 		return &S7AddressSpec{
 			Area:       areaCode,
+			WordLen:    s7WLByte,
 			DbNumber:   0,
 			StartByte:  offset,
 			BitNumber:  bitNum,
@@ -106,7 +145,7 @@ func ParseS7Address(address string, valueType TagDataType) (*S7AddressSpec, erro
 		}, nil
 	}
 
-	return nil, fmt.Errorf("invalid address format '%s'. Use DB1.DBD0, MB0, IB0, QB0 or M0.0", address)
+	return nil, fmt.Errorf("invalid address format '%s'. Use DB1.DBD0, MB0, IB0, QB0, T0 or C0", address)
 }
 
 func getByteLength(valueType TagDataType) int {
@@ -198,4 +237,43 @@ func DecodeS7Value(data []byte, valueType TagDataType, bitNumber int) (string, *
 	}
 
 	return "-", nil
+}
+
+// DecodeS7Timer decodes Siemens S5TIME / Timer (16-bit) into seconds
+func DecodeS7Timer(data []byte) (string, *float64) {
+	if len(data) < 2 {
+		return "-", nil
+	}
+	digit0 := float64(data[1] & 0x0F)
+	digit1 := float64((data[1] >> 4) & 0x0F)
+	digit2 := float64(data[0] & 0x0F)
+	bcd := digit2*100 + digit1*10 + digit0
+
+	base := (data[0] >> 4) & 0x03
+	var mult float64
+	switch base {
+	case 0:
+		mult = 0.01 // 10ms
+	case 1:
+		mult = 0.1 // 100ms
+	case 2:
+		mult = 1.0 // 1s
+	case 3:
+		mult = 10.0 // 10s
+	}
+	sec := bcd * mult
+	return fmt.Sprintf("%.3f", sec), &sec
+}
+
+// DecodeS7Counter decodes Siemens S7 Counter (16-bit BCD 0..999)
+func DecodeS7Counter(data []byte) (string, *float64) {
+	if len(data) < 2 {
+		return "-", nil
+	}
+	digit0 := int(data[1] & 0x0F)
+	digit1 := int((data[1] >> 4) & 0x0F)
+	digit2 := int(data[0] & 0x0F)
+	val := digit2*100 + digit1*10 + digit0
+	num := float64(val)
+	return fmt.Sprintf("%d", val), &num
 }
