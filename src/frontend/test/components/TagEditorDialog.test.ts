@@ -210,4 +210,47 @@ describe('TagEditorDialog.vue', () => {
         const saved = wrapper.emitted('save')?.[0]?.[0] as TagSettings;
         expect(saved.yAxis).toBe('');
     });
+
+    it('shows inline address validation feedback and allows choosing from 16 color swatches', async () => {
+        const tag: TagSettings = {
+            id: 'tag-1',
+            name: 'Speed',
+            plcLink: 'PLC1',
+            address: 'DB1.DBD0',
+            dataType: 'Real',
+            yAxis: 'Y-Axis 1',
+            color: '#F87171',
+            enabled: true,
+        };
+
+        const wrapper = await mountOpenEditor(tag);
+
+        // Check valid address feedback
+        const validFeedback = wrapper.find('.address-feedback');
+        expect(validFeedback.exists()).toBe(true);
+        expect(validFeedback.classes()).toContain('valid-msg');
+
+        // Change to invalid address
+        const inputs = wrapper.findAll('input[type="text"]');
+        const addressInput = inputs[1];
+        await addressInput.setValue('INVALID_ADDR');
+        await nextTick();
+
+        const invalidFeedback = wrapper.find('.address-feedback');
+        // Check empty address shows placeholder hint with zero CLS
+        await addressInput.setValue('');
+        await nextTick();
+        const hintFeedback = wrapper.find('.address-feedback');
+        expect(hintFeedback.exists()).toBe(true);
+        expect(hintFeedback.classes()).toContain('hint-msg');
+        expect(hintFeedback.text()).toContain('Enter tag address');
+
+        // Check 16 swatches rendered
+        const swatches = wrapper.findAll('.swatch-btn');
+        expect(swatches.length).toBe(16);
+
+        // Click swatch 3 (Pale Amber #FDE68A)
+        await swatches[2].trigger('click');
+        expect((wrapper.vm as any).form.color).toBe('#FDE68A');
+    });
 });

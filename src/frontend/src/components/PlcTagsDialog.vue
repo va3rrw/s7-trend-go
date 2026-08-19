@@ -414,11 +414,20 @@ function removeTag() {
     const targetTag = activePlcTags.value[selectedTagIndex.value];
     if (!targetTag) return;
 
+    const curIndex = selectedTagIndex.value;
     const gIndex = tags.value.findIndex((t) => t.id === targetTag.id);
     if (gIndex >= 0) {
         tags.value.splice(gIndex, 1);
     }
-    selectedTagIndex.value = -1;
+
+    const remainingCount = activePlcTags.value.length;
+    if (remainingCount === 0) {
+        selectedTagIndex.value = -1;
+    } else if (curIndex >= remainingCount) {
+        selectedTagIndex.value = remainingCount - 1;
+    } else {
+        selectedTagIndex.value = curIndex;
+    }
 }
 
 function moveTag(delta: number) {

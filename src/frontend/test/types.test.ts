@@ -53,8 +53,8 @@ describe('types.ts', () => {
         expect(DATA_TYPES).toHaveLength(8);
     });
 
-    it('contains predefined color palette', () => {
-        expect(PALETTE.length).toBeGreaterThanOrEqual(8);
+    it('contains predefined 16 chalk color palette', () => {
+        expect(PALETTE).toHaveLength(16);
         for (const color of PALETTE) {
             expect(color).toMatch(/^#[0-9A-Fa-f]{6}$/);
         }

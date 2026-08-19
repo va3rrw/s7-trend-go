@@ -81,17 +81,39 @@ describe('PlcTagsDialog.vue', () => {
         expect(tagRows.length).toBe(2);
     });
 
-    it('removes a selected tag', async () => {
+    it('removes a selected tag and retains selection on the same index or moves one up', async () => {
+        state.settings.tags = [
+            { id: 't-1', name: 'Tag_1', plcLink: 'PLC1', address: 'DB1.DBD0', dataType: 'Real', yAxis: 'Y-Axis 1', color: '#FCA5A5', enabled: true },
+            { id: 't-2', name: 'Tag_2', plcLink: 'PLC1', address: 'DB1.DBD4', dataType: 'Real', yAxis: 'Y-Axis 1', color: '#93C5FD', enabled: true },
+            { id: 't-3', name: 'Tag_3', plcLink: 'PLC1', address: 'DB1.DBD8', dataType: 'Real', yAxis: 'Y-Axis 1', color: '#FDE68A', enabled: true },
+        ];
         const wrapper = await mountOpenPlcTagsDialog();
-        const tagRow = wrapper.find('.tags-panel table.datagrid tbody tr');
-        await tagRow.trigger('click');
-
         const removeBtn = wrapper.findAll('.tags-panel .panel-footer button')[2];
+
+        // Select row 1 (Tag_2) and delete it
+        let tagRows = wrapper.findAll('.tags-panel table.datagrid tbody tr');
+        await tagRows[1].trigger('click');
         await removeBtn.trigger('click');
 
-        const tagRows = wrapper.findAll('.tags-panel table.datagrid tbody tr');
-        // Empty state row is displayed
+        // Remaining tags: [Tag_1, Tag_3]. Selection should stay on index 1 (Tag_3)
+        tagRows = wrapper.findAll('.tags-panel table.datagrid tbody tr');
+        expect(tagRows.length).toBe(2);
+        expect(tagRows[1].classes()).toContain('selected');
+        expect(tagRows[1].text()).toContain('Tag_3');
+
+        // Delete again from index 1 (the last tag, Tag_3)
+        await removeBtn.trigger('click');
+
+        // Remaining tags: [Tag_1]. Selection should move one up to index 0 (Tag_1)
+        tagRows = wrapper.findAll('.tags-panel table.datagrid tbody tr');
         expect(tagRows.length).toBe(1);
+        expect(tagRows[0].classes()).toContain('selected');
+        expect(tagRows[0].text()).toContain('Tag_1');
+
+        // Delete the last remaining tag
+        await removeBtn.trigger('click');
+        tagRows = wrapper.findAll('.tags-panel table.datagrid tbody tr');
+        expect(tagRows.length).toBe(1); // empty state row
         expect(tagRows[0].classes()).not.toContain('selected');
     });
 

@@ -56,16 +56,22 @@ export const DATA_TYPES = [
 ] as const;
 
 export const PALETTE = [
-    '#93C5FD',
-    '#FDBA74',
-    '#86EFAC',
-    '#FDA4AF',
-    '#C4B5FD',
-    '#67E8F9',
-    '#FDE68A',
-    '#D8B4FE',
-    '#BEF264',
-    '#F9A8D4',
+    '#FCA5A5', // 1. Pale Coral / Red
+    '#93C5FD', // 2. Pale Sky Blue
+    '#FDE68A', // 3. Pale Amber / Gold
+    '#86EFAC', // 4. Pale Mint Green
+    '#FDBA74', // 5. Pale Peach / Orange
+    '#C4B5FD', // 6. Pale Lavender
+    '#F9A8D4', // 7. Pale Pink / Rose
+    '#67E8F9', // 8. Pale Aqua / Cyan
+    '#F0ABFC', // 9. Pale Fuchsia / Orchid
+    '#A7F3D0', // 10. Pale Seafoam
+    '#FED7AA', // 11. Pale Apricot
+    '#A5B4FC', // 12. Pale Periwinkle
+    '#FEF08A', // 13. Pale Soft Yellow
+    '#5EEAD4', // 14. Pale Teal
+    '#FECDD3', // 15. Pale Blush Rose
+    '#CBD5E1', // 16. Pale Slate
 ] as const;
 
 export function newId(): string {
@@ -99,7 +105,10 @@ export function defaultSettings(): AppSettings {
     };
 }
 
-export function inferDataType(address: string, currentType?: string): string | null {
+export function inferDataType(
+    address: string,
+    currentType?: string,
+): string | null {
     const addr = address.trim().toUpperCase();
     if (!addr) return null;
 
@@ -113,28 +122,20 @@ export function inferDataType(address: string, currentType?: string): string | n
     }
 
     // Byte address (8-bit)
-    if (
-        /^DB\d+\.DBB\d+$/i.test(addr) ||
-        /^[MIQ]B\d+$/i.test(addr)
-    ) {
+    if (/^DB\d+\.DBB\d+$/i.test(addr) || /^[MIQ]B\d+$/i.test(addr)) {
         return 'Byte';
     }
 
     // Word / Int address (16-bit)
-    if (
-        /^DB\d+\.DBW\d+$/i.test(addr) ||
-        /^[MIQ]W\d+$/i.test(addr)
-    ) {
+    if (/^DB\d+\.DBW\d+$/i.test(addr) || /^[MIQ]W\d+$/i.test(addr)) {
         if (currentType === 'Word') return 'Word';
         return 'Int';
     }
 
     // Double Word / DInt / Real address (32-bit)
-    if (
-        /^DB\d+\.DBD\d+$/i.test(addr) ||
-        /^[MIQ]D\d+$/i.test(addr)
-    ) {
-        if (currentType === 'DInt' || currentType === 'DWord') return currentType;
+    if (/^DB\d+\.DBD\d+$/i.test(addr) || /^[MIQ]D\d+$/i.test(addr)) {
+        if (currentType === 'DInt' || currentType === 'DWord')
+            return currentType;
         return 'Real';
     }
 

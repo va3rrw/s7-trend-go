@@ -141,6 +141,16 @@
     "invalid_axis_range": "每个 Y 轴的最大值必须大于最小值。",
     "max_tags_per_plc_exceeded": "PLC 连接 '{0}' 已配置达到上限 {1} 个变量。请选择或配置其他 PLC 连接。",
     "max_plcs_exceeded": "已达到最大 {0} 个 PLC 连接上限。",
-    "min_plcs_required": "至少需要保留 {0} 个 PLC 连接。"
+    "min_plcs_required": "至少需要保留 {0} 个 PLC 连接。",
+    "address_placeholder_hint": "输入变量地址（如 DB1.DBD0, MB0, T0, C0)",
+    "valid_bit_address": "有效位地址",
+    "missing_bit_number": "缺少位编号（如 DB1.DBX0.0)",
+    "bool_requires_bit": "Bool 变量需要位编号（如 DB1.DBX0.0, I0.0)",
+    "bit_requires_bool": "位地址需要选择 Bool 数据类型",
+    "valid_db_address": "有效 DB 地址",
+    "valid_io_address": "有效 M/IO 地址",
+    "valid_timer_address": "有效定时器地址",
+    "valid_counter_address": "有效计数器地址",
+    "invalid_address_syntax": "地址格式无效（使用 DB1.DBD0, MB0, T0, C0)"
   }
 }

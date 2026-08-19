@@ -141,6 +141,16 @@
     "invalid_axis_range": "Maximum must be greater than minimum for each Y axis.",
     "max_tags_per_plc_exceeded": "PLC link '{0}' already has the maximum of {1} tags configured. Please select or configure another PLC link.",
     "max_plcs_exceeded": "Maximum of {0} PLC links reached.",
-    "min_plcs_required": "At least {0} PLC link must be configured."
+    "min_plcs_required": "At least {0} PLC link must be configured.",
+    "address_placeholder_hint": "Enter tag address (e.g. DB1.DBD0, MB0, T0, C0)",
+    "valid_bit_address": "Valid bit address",
+    "missing_bit_number": "Missing bit number (e.g. DB1.DBX0.0)",
+    "bool_requires_bit": "Bool address requires bit number (e.g. DB1.DBX0.0, I0.0)",
+    "bit_requires_bool": "Bit address requires Bool data type",
+    "valid_db_address": "Valid DB address",
+    "valid_io_address": "Valid memory/IO address",
+    "valid_timer_address": "Valid timer address",
+    "valid_counter_address": "Valid counter address",
+    "invalid_address_syntax": "Invalid format (use DB1.DBD0, MB0, T0, C0)"
   }
 }

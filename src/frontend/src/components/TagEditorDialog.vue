@@ -2,7 +2,7 @@
     <AppDialog
         :open="open"
         title="Tag Properties"
-        width="460px"
+        width="480px"
         @close="emit('close')"
         @submit="save">
         <div class="form-grid">
@@ -27,10 +27,25 @@
             </div>
             <div class="form-row">
                 <label>{{ $t('dialog.address') }}</label>
-                <input
-                    v-model="form.address"
-                    type="text"
-                    @input="onAddressInput" />
+                <div class="field-control">
+                    <input
+                        v-model="form.address"
+                        type="text"
+                        :class="{
+                            'border-invalid': addressStatus.isError,
+                            'border-valid': addressStatus.isValid,
+                        }"
+                        @input="onAddressInput" />
+                    <span
+                        class="address-feedback"
+                        :class="{
+                            'valid-msg': addressStatus.isValid,
+                            'invalid-msg': addressStatus.isError,
+                            'hint-msg': addressStatus.isHint,
+                        }">
+                        {{ addressStatus.prefix }}{{ addressStatus.message }}
+                    </span>
+                </div>
             </div>
             <div class="form-row">
                 <label>{{ $t('dialog.data_type') }}</label>
@@ -63,9 +78,24 @@
             </div>
             <div class="form-row">
                 <label>{{ $t('dialog.color') }}</label>
-                <input
-                    v-model="form.color"
-                    type="color" />
+                <div class="color-row">
+                    <input
+                        v-model="form.color"
+                        type="color"
+                        class="color-input"
+                        title="Custom color" />
+                    <div class="swatches-grid">
+                        <button
+                            v-for="c in PALETTE"
+                            :key="c"
+                            type="button"
+                            class="swatch-btn"
+                            :class="{ active: form.color?.toUpperCase() === c.toUpperCase() }"
+                            :style="{ backgroundColor: c }"
+                            :title="c"
+                            @click="form.color = c" />
+                    </div>
+                </div>
             </div>
             <div class="form-row">
                 <label />
@@ -150,6 +180,117 @@ watch(
     },
 );
 
+const addressStatus = computed<{
+    isValid: boolean;
+    isError: boolean;
+    isHint: boolean;
+    prefix: string;
+    message: string;
+}>(() => {
+    const addr = form.value.address.trim().toUpperCase();
+    if (!addr) {
+        return {
+            isValid: false,
+            isError: false,
+            isHint: true,
+            prefix: 'ℹ ',
+            message: t('prompt.address_placeholder_hint'),
+        };
+    }
+
+    if (form.value.dataType === 'Bool') {
+        if (/^DB\d+\.DBX\d+\.[0-7]$/i.test(addr) || /^[MIQ](?:X)?\d+\.[0-7]$/i.test(addr)) {
+            return {
+                isValid: true,
+                isError: false,
+                isHint: false,
+                prefix: '✓ ',
+                message: t('prompt.valid_bit_address'),
+            };
+        }
+        if (/^DB\d+\.DBX\d+$/i.test(addr)) {
+            return {
+                isValid: false,
+                isError: true,
+                isHint: false,
+                prefix: '✕ ',
+                message: t('prompt.missing_bit_number'),
+            };
+        }
+        if (/^DB\d+\.(?:DBB|DBW|DBD)\d+$/i.test(addr) || /^[MIQ][BWD]\d+$/i.test(addr)) {
+            return {
+                isValid: false,
+                isError: true,
+                isHint: false,
+                prefix: '✕ ',
+                message: t('prompt.bool_requires_bit'),
+            };
+        }
+        return {
+            isValid: false,
+            isError: true,
+            isHint: false,
+            prefix: '✕ ',
+            message: t('prompt.invalid_bool_address'),
+        };
+    }
+
+    // Non-bool (analog)
+    if (/^DB\d+\.DBX\d+/i.test(addr) || /^[MIQ]X?\d+\.\d+$/i.test(addr)) {
+        return {
+            isValid: false,
+            isError: true,
+            isHint: false,
+            prefix: '✕ ',
+            message: t('prompt.bit_requires_bool'),
+        };
+    }
+    if (/^DB\d+\.(?:DBB|DBW|DBD)\d+$/i.test(addr)) {
+        return {
+            isValid: true,
+            isError: false,
+            isHint: false,
+            prefix: '✓ ',
+            message: t('prompt.valid_db_address'),
+        };
+    }
+    if (/^[MIQ][BWD]?\d+$/i.test(addr)) {
+        return {
+            isValid: true,
+            isError: false,
+            isHint: false,
+            prefix: '✓ ',
+            message: t('prompt.valid_io_address'),
+        };
+    }
+    if (/^(?:T|TM)\d+$/i.test(addr)) {
+        return {
+            isValid: true,
+            isError: false,
+            isHint: false,
+            prefix: '✓ ',
+            message: t('prompt.valid_timer_address'),
+        };
+    }
+    if (/^(?:C|Z|CT)\d+$/i.test(addr)) {
+        return {
+            isValid: true,
+            isError: false,
+            isHint: false,
+            prefix: '✓ ',
+            message: t('prompt.valid_counter_address'),
+        };
+    }
+
+    return {
+        isValid: false,
+        isError: true,
+        isHint: false,
+        prefix: '✕ ',
+        message: t('prompt.invalid_address_syntax'),
+    };
+});
+
 function onAddressInput() {
     const inferred = inferDataType(form.value.address, form.value.dataType);
     if (inferred && inferred !== form.value.dataType) {
@@ -201,3 +342,88 @@ function save() {
     emit('save', tag);
 }
 </script>
+
+<style scoped>
+.field-control {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+}
+
+.border-valid {
+    border-color: #10b981 !important;
+}
+
+.border-invalid {
+    border-color: #ef4444 !important;
+}
+
+.address-feedback {
+    font-size: 11px;
+    line-height: 14px;
+    height: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 1px;
+}
+
+.hint-msg {
+    color: #64748b;
+}
+
+.valid-msg {
+    color: #059669;
+}
+
+.invalid-msg {
+    color: #dc2626;
+}
+
+.color-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.color-input {
+    width: 32px;
+    height: 28px;
+    padding: 1px 2px;
+    border: 1px solid var(--border-color, #cbd5e1);
+    border-radius: 4px;
+    cursor: pointer;
+    background: #ffffff;
+    flex-shrink: 0;
+}
+
+.swatches-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    flex: 1;
+}
+
+.swatch-btn {
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    padding: 0;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    outline: none;
+}
+
+.swatch-btn:hover {
+    transform: scale(1.18);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.swatch-btn.active {
+    box-shadow: 0 0 0 2px #2563eb, 0 0 0 3px #ffffff;
+    transform: scale(1.1);
+}
+</style>
