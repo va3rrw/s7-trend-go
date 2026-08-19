@@ -88,7 +88,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
 import type { TagSettings } from '../types';
-import { DATA_TYPES, PALETTE, inferDataType } from '../types';
+import { DATA_TYPES, PALETTE, inferDataType, MAX_TAGS_PER_PLC_LINK } from '../types';
 import { state, showMessage } from '../store';
 import { useI18n } from 'vue-i18n';
 import AppDialog from './AppDialog.vue';
@@ -98,6 +98,8 @@ const props = defineProps<{
     tag: TagSettings | null;
     /** Index in tags array */
     index: number;
+    /** Existing tags list to validate PLC link capacity against */
+    existingTags?: TagSettings[];
 }>();
 const emit = defineEmits<{ close: []; save: [tag: TagSettings] }>();
 const { t } = useI18n();
@@ -147,6 +149,21 @@ function save() {
         !/(?:^DB\d+\.DBX\d+\.[0-7]$|^[MIQ](?:X)?\d+\.[0-7]$)/i.test(tag.address)
     ) {
         showMessage(t('dialog.tag_properties'), t('prompt.invalid_bool_address'));
+        return;
+    }
+
+    const existing = props.existingTags ?? state.settings.tags;
+    const sameLinkCount = existing.filter(
+        (t, idx) =>
+            t.plcLink === tag.plcLink &&
+            (props.index >= 0 ? idx !== props.index : t.id !== tag.id),
+    ).length;
+
+    if (sameLinkCount >= MAX_TAGS_PER_PLC_LINK) {
+        showMessage(
+            t('dialog.tag_properties'),
+            t('prompt.max_tags_per_plc_exceeded', [tag.plcLink, MAX_TAGS_PER_PLC_LINK]),
+        );
         return;
     }
 

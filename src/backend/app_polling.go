@@ -81,8 +81,16 @@ func (a *App) StartPolling(settings AppSettings) {
 			}
 
 			var pTags []parsedTag
+			validCount := 0
 			for _, ch := range linkTags {
 				spec, err := ParseS7Address(ch.Address, ch.DataType)
+				if err == nil {
+					if validCount >= MaxTagsPerPlcLink {
+						err = fmt.Errorf("exceeded max %d tags per PLC link (configure another PLC connection for additional tags)", MaxTagsPerPlcLink)
+					} else {
+						validCount++
+					}
+				}
 				pTags = append(pTags, parsedTag{Tag: ch, Spec: spec, Err: err})
 			}
 

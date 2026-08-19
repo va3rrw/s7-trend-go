@@ -79,6 +79,7 @@
         :open="editorOpen"
         :tag="editorTag"
         :index="editorIndex"
+        :existing-tags="tags"
         @save="onEditorSave"
         @close="onEditorClose" />
 </template>

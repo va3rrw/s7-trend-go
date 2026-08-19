@@ -34,6 +34,8 @@ const (
 	DataTypeLReal TagDataType = "LReal"
 )
 
+const MaxTagsPerPlcLink = 16
+
 type TagSettings struct {
 	Id       uuid.UUID   `json:"id"`
 	Name     string      `json:"name"`

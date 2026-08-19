@@ -147,6 +147,7 @@
     "tag_name_required": "变量名称是必填项。",
     "invalid_bool_address": "Bool 变量需要位地址，例如 I31.1 或 DB1.DBX0.3。",
     "axis_name_required": "每个 Y 轴都需要一个名称。",
-    "invalid_axis_range": "每个 Y 轴的最大值必须大于最小值。"
+    "invalid_axis_range": "每个 Y 轴的最大值必须大于最小值。",
+    "max_tags_per_plc_exceeded": "PLC 连接 '{0}' 已配置达到上限 {1} 个变量。请选择或配置其他 PLC 连接。"
   }
 }

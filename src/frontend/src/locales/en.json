@@ -147,6 +147,7 @@
     "tag_name_required": "Tag name is required.",
     "invalid_bool_address": "Bool tags require a bit address such as I31.1 or DB1.DBX0.3.",
     "axis_name_required": "Each Y axis needs a name.",
-    "invalid_axis_range": "Maximum must be greater than minimum for each Y axis."
+    "invalid_axis_range": "Maximum must be greater than minimum for each Y axis.",
+    "max_tags_per_plc_exceeded": "PLC link '{0}' already has the maximum of {1} tags configured. Please select or configure another PLC link."
   }
 }

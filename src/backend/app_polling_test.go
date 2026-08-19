@@ -102,3 +102,27 @@ func TestApp_InvalidateConnection(t *testing.T) {
 		t.Error("expected PLC1 to be removed after invalidateConnection")
 	}
 }
+
+func TestApp_StartPolling_MaxTagsPerPlcLinkCap(t *testing.T) {
+	app := NewApp()
+	settings := CreateDefaultSettings()
+
+	// Configure 20 enabled tags on PLC1 (which exceeds MaxTagsPerPlcLink = 16)
+	var tags []TagSettings
+	for i := 0; i < 20; i++ {
+		tags = append(tags, TagSettings{
+			Id:       uuid.New(),
+			Name:     "Tag",
+			PlcLink:  "PLC1",
+			Address:  "DB1.DBD0",
+			DataType: DataTypeReal,
+			Enabled:  true,
+		})
+	}
+	settings.Tags = tags
+
+	app.StartPolling(settings)
+	time.Sleep(50 * time.Millisecond)
+	app.StopPolling()
+}
+

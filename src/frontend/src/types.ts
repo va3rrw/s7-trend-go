@@ -40,6 +40,8 @@ export interface SampleRecord {
     value: number;
 }
 
+export const MAX_TAGS_PER_PLC_LINK = 16;
+
 export const DATA_TYPES = [
     'Bool',
     'Byte',

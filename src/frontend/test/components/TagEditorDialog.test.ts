@@ -118,4 +118,56 @@ describe('TagEditorDialog.vue', () => {
         await addressInput.trigger('input');
         expect((wrapper.vm as any).form.dataType).toBe('Real');
     });
+
+    it('prevents saving more than 16 tags on the same PLC link', async () => {
+        // Create 16 existing tags on PLC1
+        const existingTags: TagSettings[] = Array.from({ length: 16 }, (_, i) => ({
+            id: `tag-${i}`,
+            name: `Tag_${i}`,
+            plcLink: 'PLC1',
+            address: `DB1.DBD${i * 4}`,
+            dataType: 'Real',
+            yAxis: 'Y-Axis 1',
+            color: '#FF0000',
+            enabled: true,
+        }));
+
+        // Attempt to create a 17th tag on PLC1 (index = -1 for new tag)
+        const newTag: TagSettings = {
+            id: 'tag-17',
+            name: 'Overflow_Tag',
+            plcLink: 'PLC1',
+            address: 'DB1.DBD100',
+            dataType: 'Real',
+            yAxis: 'Y-Axis 1',
+            color: '#FF0000',
+            enabled: true,
+        };
+
+        const wrapper = mount(TagEditorDialog, {
+            props: {
+                open: true,
+                tag: newTag,
+                index: -1,
+                existingTags,
+            },
+            global: {
+                plugins: [i18n],
+            },
+        });
+        await nextTick();
+
+        const okBtn = wrapper.find('button.btn-primary');
+        await okBtn.trigger('click');
+
+        // Should be blocked
+        expect(wrapper.emitted('save')).toBeFalsy();
+
+        // Switch to PLC2 (which has 0 tags)
+        (wrapper.vm as any).form.plcLink = 'PLC2';
+        await okBtn.trigger('click');
+
+        // Should now succeed
+        expect(wrapper.emitted('save')).toBeTruthy();
+    });
 });

@@ -398,6 +398,7 @@
         :open="dblEditOpen"
         :tag="dblEditTag"
         :index="dblEditIndex"
+        :existing-tags="state.settings.tags"
         @save="onDblEditSave"
         @close="dblEditOpen = false" />
 </template>
