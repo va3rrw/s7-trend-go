@@ -104,3 +104,33 @@ func TestApp_Disconnect_NonExistent(t *testing.T) {
 		t.Errorf("disconnecting non-existent link should return nil, got %v", err)
 	}
 }
+
+func TestApp_HistoryMethods(t *testing.T) {
+	app := NewApp()
+
+	// Record samples for tag-1 and tag-2
+	app.RecordSample("tag-1", 1000, 10.5)
+	app.RecordSample("tag-1", 2000, 11.0)
+	app.RecordSample("tag-1", 3000, 12.5)
+	app.RecordSample("tag-2", 2000, 99.9)
+
+	// Query range [1500, 2500]
+	res := app.GetHistoryRange([]string{"tag-1", "tag-2", "tag-3"}, 1500, 2500)
+	if len(res["tag-1"]) != 1 || res["tag-1"][0].Timestamp != 2000 {
+		t.Errorf("expected tag-1 to have 1 point at 2000, got %+v", res["tag-1"])
+	}
+	if len(res["tag-2"]) != 1 || res["tag-2"][0].Value != 99.9 {
+		t.Errorf("expected tag-2 to have 1 point at 99.9, got %+v", res["tag-2"])
+	}
+	if len(res["tag-3"]) != 0 {
+		t.Errorf("expected tag-3 to have 0 points, got %+v", res["tag-3"])
+	}
+
+	// Clear history
+	app.ClearHistory()
+	resAfter := app.GetHistoryRange([]string{"tag-1"}, 0, 5000)
+	if len(resAfter["tag-1"]) != 0 {
+		t.Errorf("expected tag-1 to have 0 points after ClearHistory, got %+v", resAfter["tag-1"])
+	}
+}
+

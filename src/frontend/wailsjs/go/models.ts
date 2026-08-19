@@ -107,24 +107,6 @@ export namespace backend {
 		}
 	}
 	
-	export class SampleRecord {
-	    timestamp: string;
-	    tagName: string;
-	    address: string;
-	    value: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new SampleRecord(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.timestamp = source["timestamp"];
-	        this.tagName = source["tagName"];
-	        this.address = source["address"];
-	        this.value = source["value"];
-	    }
-	}
 	
 
 }

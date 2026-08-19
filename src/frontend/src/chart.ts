@@ -338,21 +338,94 @@ export class TrendChart {
         const time = Date.parse(timestamp) || Date.now();
         const points = this.history.get(id) ?? [];
         points.push({ timestamp: time, value });
-        if (points.length > 100000) {
-            points.splice(0, 10000);
+
+        // When in live mode (viewOffset == 0), retain only current display window plus margin
+        if (this.viewOffsetSeconds === 0) {
+            const cutoff = time - this.timeWindowSeconds * 1500;
+            while (points.length > 0 && points[0].timestamp < cutoff) {
+                points.shift();
+            }
+        } else if (points.length > 50000) {
+            points.splice(0, 5000);
         }
+
         this.history.set(id, points);
         if (!this.paused) this.render();
+    }
+
+    private fetchHistoryPending = false;
+    private fetchTimer: number | null = null;
+
+    private scheduleHistoryFetch(startMs: number, endMs: number) {
+        if (typeof window === 'undefined') return;
+        const api = (window as any).go?.backend?.App;
+        if (!api?.GetHistoryRange) return;
+
+        if (this.fetchTimer !== null) {
+            window.clearTimeout(this.fetchTimer);
+        }
+
+        this.fetchTimer = window.setTimeout(async () => {
+            this.fetchTimer = null;
+            if (this.fetchHistoryPending) return;
+            this.fetchHistoryPending = true;
+
+            try {
+                const tagIds = this.tags.map((t) => t.id);
+                if (tagIds.length === 0) return;
+
+                // Add 10% padding around start and end
+                const span = Math.max(1000, endMs - startMs);
+                const pad = span * 0.1;
+                const queryStart = Math.max(0, Math.round(startMs - pad));
+                const queryEnd = Math.round(endMs + pad);
+
+                const res: Record<string, Array<{ t: number; v: number }>> =
+                    await api.GetHistoryRange(tagIds, queryStart, queryEnd);
+
+                if (res) {
+                    for (const [tagId, pts] of Object.entries(res)) {
+                        if (Array.isArray(pts)) {
+                            this.history.set(
+                                tagId,
+                                pts.map((p) => ({
+                                    timestamp: p.t,
+                                    value: p.v,
+                                })),
+                            );
+                        }
+                    }
+                    this.render();
+                }
+            } catch {
+                /* ignore fetch error */
+            } finally {
+                this.fetchHistoryPending = false;
+            }
+        }, 40);
     }
 
     public clear() {
         this.history.clear();
         this.axisRanges.clear();
         this.viewOffsetSeconds = 0;
+        if (this.fetchTimer !== null && typeof window !== 'undefined') {
+            window.clearTimeout(this.fetchTimer);
+            this.fetchTimer = null;
+        }
+        const api =
+            typeof window !== 'undefined'
+                ? (window as any).go?.backend?.App
+                : null;
+        api?.ClearHistory?.();
         this.render();
     }
 
     public destroy() {
+        if (this.fetchTimer !== null && typeof window !== 'undefined') {
+            window.clearTimeout(this.fetchTimer);
+            this.fetchTimer = null;
+        }
         this.resizeObserver?.disconnect();
         this.resizeObserver = null;
         if (typeof window !== 'undefined') {
@@ -376,6 +449,12 @@ export class TrendChart {
         const latest = this.latestTimestamp();
         const end = latest + this.viewOffsetSeconds * 1000;
         const start = end - this.timeWindowSeconds * 1000;
+
+        // If panning into history, fetch requested range from backend
+        if (this.viewOffsetSeconds < 0) {
+            this.scheduleHistoryFetch(start, end);
+        }
+
         const analogTags = this.tags.filter((tag) => tag.dataType !== 'Bool');
         const axes = this.getUsedAxes(analogTags);
         const datasets = analogTags.map((tag) => {

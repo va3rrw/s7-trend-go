@@ -4,13 +4,17 @@ import {backend} from '../models';
 
 export function CheckStatus(arg1:string):Promise<boolean>;
 
+export function ClearHistory():Promise<void>;
+
 export function Connect(arg1:string,arg2:string,arg3:number,arg4:number):Promise<void>;
 
 export function Disconnect(arg1:string):Promise<void>;
 
 export function DisconnectAll():Promise<void>;
 
-export function ExportCSV(arg1:Array<backend.SampleRecord>,arg2:string):Promise<void>;
+export function ExportCSV(arg1:string):Promise<void>;
+
+export function GetHistoryRange(arg1:Array<string>,arg2:number,arg3:number):Promise<Record<string, Array<backend.SamplePoint>>>;
 
 export function GetSettings():Promise<backend.AppSettings>;
 
@@ -21,6 +25,8 @@ export function GetVersion():Promise<string>;
 export function LoadPlcLinks(arg1:string):Promise<Array<backend.PlcLinkSettings>>;
 
 export function LoadTags(arg1:string):Promise<Array<backend.TagSettings>>;
+
+export function RecordSample(arg1:string,arg2:number,arg3:number):Promise<void>;
 
 export function SavePlcLinks(arg1:Array<backend.PlcLinkSettings>,arg2:string):Promise<void>;
 

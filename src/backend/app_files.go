@@ -1,10 +1,12 @@
 package backend
 
 import (
+	"bufio"
 	"encoding/csv"
 	"encoding/json"
-	"fmt"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -81,7 +83,8 @@ func (a *App) LoadTags(title string) ([]TagSettings, error) {
 	return tags, nil
 }
 
-func (a *App) ExportCSV(records []SampleRecord, title string) error {
+// ExportCSV streams all recorded sample history from backend ring buffers directly to disk
+func (a *App) ExportCSV(title string) error {
 	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		Title:           title,
 		DefaultFilename: "trend.csv",
@@ -97,25 +100,47 @@ func (a *App) ExportCSV(records []SampleRecord, title string) error {
 	}
 	defer file.Close()
 
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
+	bufWriter := bufio.NewWriterSize(file, 64*1024)
+	writer := csv.NewWriter(bufWriter)
+	defer func() {
+		writer.Flush()
+		bufWriter.Flush()
+	}()
 
 	if err := writer.Write([]string{"Timestamp", "Tag", "Address", "Value"}); err != nil {
 		return err
 	}
-	for _, r := range records {
-		if err := writer.Write([]string{
-			r.Timestamp,
-			r.TagName,
-			r.Address,
-			fmt.Sprintf("%f", r.Value),
-		}); err != nil {
-			return err
-		}
+
+	a.historyMu.RLock()
+	defer a.historyMu.RUnlock()
+
+	tagMap := make(map[string]TagSettings)
+	a.mu.RLock()
+	for _, t := range a.settings.Tags {
+		tagMap[t.Id.String()] = t
 	}
-	writer.Flush()
-	if err := writer.Error(); err != nil {
-		return err
+	a.mu.RUnlock()
+
+	for tagIdStr, rb := range a.history {
+		tag, exists := tagMap[tagIdStr]
+		tagName := tagIdStr
+		tagAddr := ""
+		if exists {
+			tagName = tag.Name
+			tagAddr = tag.Address
+		}
+		points := rb.GetAll()
+		for _, pt := range points {
+			tStr := time.UnixMilli(pt.Timestamp).Format(time.RFC3339Nano)
+			if err := writer.Write([]string{
+				tStr,
+				tagName,
+				tagAddr,
+				strconv.FormatFloat(pt.Value, 'f', -1, 64),
+			}); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

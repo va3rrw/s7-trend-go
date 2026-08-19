@@ -6,6 +6,10 @@ export function CheckStatus(arg1) {
   return window['go']['backend']['App']['CheckStatus'](arg1);
 }
 
+export function ClearHistory() {
+  return window['go']['backend']['App']['ClearHistory']();
+}
+
 export function Connect(arg1, arg2, arg3, arg4) {
   return window['go']['backend']['App']['Connect'](arg1, arg2, arg3, arg4);
 }
@@ -18,8 +22,12 @@ export function DisconnectAll() {
   return window['go']['backend']['App']['DisconnectAll']();
 }
 
-export function ExportCSV(arg1, arg2) {
-  return window['go']['backend']['App']['ExportCSV'](arg1, arg2);
+export function ExportCSV(arg1) {
+  return window['go']['backend']['App']['ExportCSV'](arg1);
+}
+
+export function GetHistoryRange(arg1, arg2, arg3) {
+  return window['go']['backend']['App']['GetHistoryRange'](arg1, arg2, arg3);
 }
 
 export function GetSettings() {
@@ -40,6 +48,10 @@ export function LoadPlcLinks(arg1) {
 
 export function LoadTags(arg1) {
   return window['go']['backend']['App']['LoadTags'](arg1);
+}
+
+export function RecordSample(arg1, arg2, arg3) {
+  return window['go']['backend']['App']['RecordSample'](arg1, arg2, arg3);
 }
 
 export function SavePlcLinks(arg1, arg2) {

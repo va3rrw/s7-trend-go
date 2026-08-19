@@ -74,6 +74,8 @@ if (typeof HTMLCanvasElement !== 'undefined') {
             SaveTags: vi.fn().mockResolvedValue(undefined),
             LoadTags: vi.fn().mockResolvedValue([]),
             ExportCSV: vi.fn().mockResolvedValue(undefined),
+            GetHistoryRange: vi.fn().mockResolvedValue({}),
+            ClearHistory: vi.fn().mockResolvedValue(undefined),
             GetVersion: vi.fn().mockResolvedValue('1.0.0'),
             GetSystemLanguage: vi.fn().mockResolvedValue('en'),
         },

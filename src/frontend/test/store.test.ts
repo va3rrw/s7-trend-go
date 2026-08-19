@@ -19,7 +19,6 @@ describe('store.ts', () => {
         state.isSampling = false;
         state.isPaused = false;
         state.statusMessage = 'Ready';
-        state.recordsHistory = [];
         resetStats();
 
         uiState.msgOpen = false;

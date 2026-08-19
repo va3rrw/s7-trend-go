@@ -112,5 +112,24 @@ describe('TrendChart', () => {
 
         trend.destroy();
     });
+
+    it('prunes points older than viewport window margin during live streaming', () => {
+        const trend = new TrendChart(canvas, boolBand, timeAxis);
+        trend.setWindow(60); // 60 seconds
+
+        const baseTime = 1000000;
+        // Add point at baseTime
+        trend.addDataPoint('tag-1', new Date(baseTime).toISOString(), 10);
+        // Add point at baseTime + 200 seconds (older point is > 1.5x window away)
+        trend.addDataPoint('tag-1', new Date(baseTime + 200000).toISOString(), 20);
+
+        // First point should have been trimmed from local live cache
+        const historyMap = (trend as any).history.get('tag-1');
+        expect(historyMap.length).toBe(1);
+        expect(historyMap[0].value).toBe(20);
+
+        trend.destroy();
+    });
 });
+
 

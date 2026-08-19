@@ -38,12 +38,16 @@ type App struct {
 	cancelPoll context.CancelFunc
 	isPolling  bool
 	pollDone   chan struct{}
+
+	historyMu sync.RWMutex
+	history   map[string]*TagRingBuffer
 }
 
 func NewApp() *App {
 	return &App{
 		plcs:     make(map[string]*PlcConnection),
 		settings: CreateDefaultSettings(),
+		history:  make(map[string]*TagRingBuffer),
 	}
 }
 
@@ -179,3 +183,43 @@ func (a *App) CheckStatus(linkName string) bool {
 	defer conn.mu.Unlock()
 	return conn.IsConnected
 }
+
+// RecordSample stores a data point into the tag's backend ring buffer
+func (a *App) RecordSample(tagId string, timestampMs int64, value float64) {
+	a.historyMu.Lock()
+	rb, exists := a.history[tagId]
+	if !exists {
+		rb = NewTagRingBuffer(500000)
+		a.history[tagId] = rb
+	}
+	a.historyMu.Unlock()
+
+	rb.Push(timestampMs, value)
+}
+
+// GetHistoryRange returns sample points for requested tagIds within [startMs, endMs]
+func (a *App) GetHistoryRange(tagIds []string, startMs, endMs int64) map[string][]SamplePoint {
+	result := make(map[string][]SamplePoint)
+	a.historyMu.RLock()
+	defer a.historyMu.RUnlock()
+
+	for _, tagId := range tagIds {
+		if rb, exists := a.history[tagId]; exists {
+			result[tagId] = rb.GetRange(startMs, endMs)
+		} else {
+			result[tagId] = []SamplePoint{}
+		}
+	}
+	return result
+}
+
+// ClearHistory clears all recorded samples from backend ring buffers
+func (a *App) ClearHistory() {
+	a.historyMu.Lock()
+	defer a.historyMu.Unlock()
+
+	for _, rb := range a.history {
+		rb.Clear()
+	}
+}
+

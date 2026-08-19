@@ -1,5 +1,5 @@
 import { reactive } from 'vue';
-import type { AppSettings, TagSettings, SampleRecord } from './types';
+import type { AppSettings, TagSettings } from './types';
 import { defaultSettings } from './types';
 
 /** Reactive application state shared across all components */
@@ -8,7 +8,6 @@ export const state = reactive({
     isSampling: false,
     isPaused: false,
     statusMessage: 'Ready',
-    recordsHistory: [] as SampleRecord[],
     sampledRange: new Map<string, { min: number; max: number }>(),
 });
 

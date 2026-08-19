@@ -239,6 +239,9 @@ func (a *App) StartPolling(settings AppSettings) {
 								a.emitPollUpdate(pt.Tag.Id, "", nil, "Bad", item.Error)
 							} else {
 								valStr, numVal := DecodeS7Value(item.Data, pt.Tag.DataType, pt.Spec.BitNumber)
+								if numVal != nil {
+									a.RecordSample(pt.Tag.Id.String(), time.Now().UnixMilli(), *numVal)
+								}
 								a.emitPollUpdate(pt.Tag.Id, valStr, numVal, "Good", "")
 							}
 						}

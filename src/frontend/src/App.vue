@@ -607,7 +607,6 @@ async function menuClear() {
         ))
     )
         return;
-    state.recordsHistory.length = 0;
     chartRef.value?.clear();
     resetStats();
     liveValues.value.clear();
@@ -616,7 +615,7 @@ async function menuClear() {
 
 async function menuExport() {
     try {
-        await backend()?.ExportCSV(state.recordsHistory, t('menu.export_csv'));
+        await backend()?.ExportCSV(t('menu.export_csv'));
         state.statusMessage = t('status.exported_data');
     } catch (err) {
         state.statusMessage = t('status.error_exporting', [err]);
@@ -793,17 +792,6 @@ onMounted(async () => {
                     update.timestamp,
                     numVal,
                 );
-                if (tag) {
-                    state.recordsHistory.push({
-                        timestamp: update.timestamp,
-                        tagName: tag.name,
-                        address: tag.address,
-                        value: numVal,
-                    });
-                    if (state.recordsHistory.length > 1000000) {
-                        state.recordsHistory.splice(0, 100000);
-                    }
-                }
             }
         });
 
@@ -838,15 +826,6 @@ onMounted(async () => {
                     chartRef.value?.addDataPoint(tag.id, now, value);
                     liveValues.value.set(tag.id, value.toFixed(2));
                     updateTagValue(tag.id, value.toFixed(2), value);
-                    state.recordsHistory.push({
-                        timestamp: now,
-                        tagName: tag.name,
-                        address: tag.address,
-                        value,
-                    });
-                    if (state.recordsHistory.length > 1000000) {
-                        state.recordsHistory.splice(0, 100000);
-                    }
                 });
         }, 100);
     }
