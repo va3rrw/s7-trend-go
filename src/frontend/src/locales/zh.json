@@ -33,7 +33,8 @@
     "sampling_interval": "采样间隔",
     "trend_window": "曲线窗口",
     "interpolation": "插值方式",
-    "y_axes": "Y 轴"
+    "y_axes": "Y 轴",
+    "measurement_cursors": "测量光标"
   },
   "toolbar": {
     "plcs": "PLC",
@@ -43,7 +44,18 @@
     "resume_chart": "恢复曲线",
     "stop_sampling": "停止采样",
     "y_axis_settings": "Y 轴设置",
-    "x_axis_settings": "X 轴设置"
+    "x_axis_settings": "X 轴设置",
+    "cursors": "测量光标 (Alt+M)"
+  },
+  "measurement": {
+    "cursor_a": "光标 A",
+    "cursor_b": "光标 B",
+    "delta_t": "ΔT",
+    "delta_y": "ΔY",
+    "slope": "斜率 (dY/dt)",
+    "mean": "平均值 (μ)",
+    "std_dev": "标准差 (σ)",
+    "reset_cursors": "重置光标"
   },
   "grid": {
     "on": "启用",

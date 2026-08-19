@@ -10,7 +10,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
-import type { ChartTag, ChartAxis } from '../chart'
+import type { ChartTag, ChartAxis, CursorMeasurement } from '../chart'
 import { TrendChart } from '../chart'
 
 const props = defineProps<{
@@ -18,9 +18,13 @@ const props = defineProps<{
   axes: ChartAxis[]
   timeWindowSeconds: number
   interpolation: string
+  cursorsEnabled?: boolean
 }>()
 
-const emit = defineEmits<{ dragStart: [] }>()
+const emit = defineEmits<{
+  dragStart: []
+  cursorChange: [meas: CursorMeasurement | null]
+}>()
 
 const canvasRef = ref<HTMLCanvasElement>()
 const boolBandRef = ref<HTMLCanvasElement>()
@@ -38,6 +42,10 @@ onMounted(() => {
     chart.setTags(props.tags, props.axes)
     chart.setWindow(props.timeWindowSeconds)
     chart.setInterpolation(props.interpolation)
+    chart.setOnCursorChange((meas) => emit('cursorChange', meas))
+    if (props.cursorsEnabled) {
+      chart.setCursorsEnabled(true)
+    }
   }
 })
 
@@ -67,6 +75,13 @@ watch(
   },
 )
 
+watch(
+  () => props.cursorsEnabled,
+  (enabled) => {
+    chart?.setCursorsEnabled(!!enabled)
+  },
+)
+
 function addDataPoint(id: string, timestamp: string, value: number) {
   chart?.addDataPoint(id, timestamp, value)
 }
@@ -76,6 +91,23 @@ function setPaused(paused: boolean) {
 function clear() {
   chart?.clear()
 }
+function setCursorsEnabled(enabled: boolean) {
+  chart?.setCursorsEnabled(enabled)
+}
+function fitCursorsToWindow() {
+  chart?.fitCursorsToWindow()
+}
+function getMeasurements() {
+  return chart?.getMeasurements() ?? null
+}
 
-defineExpose({ addDataPoint, setPaused, clear })
+defineExpose({
+  addDataPoint,
+  setPaused,
+  clear,
+  setCursorsEnabled,
+  fitCursorsToWindow,
+  getMeasurements,
+})
 </script>
+

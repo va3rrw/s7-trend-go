@@ -33,7 +33,8 @@
     "sampling_interval": "Sampling interval",
     "trend_window": "Trend window",
     "interpolation": "Interpolation",
-    "y_axes": "Y axes"
+    "y_axes": "Y axes",
+    "measurement_cursors": "Measurement Cursors"
   },
   "toolbar": {
     "plcs": "PLCs",
@@ -43,7 +44,18 @@
     "resume_chart": "Resume chart",
     "stop_sampling": "Stop sampling",
     "y_axis_settings": "Y-axis settings",
-    "x_axis_settings": "X-axis settings"
+    "x_axis_settings": "X-axis settings",
+    "cursors": "Measurement Cursors (Alt+M)"
+  },
+  "measurement": {
+    "cursor_a": "Cursor A",
+    "cursor_b": "Cursor B",
+    "delta_t": "ΔT",
+    "delta_y": "ΔY",
+    "slope": "Slope (dY/dt)",
+    "mean": "Mean (μ)",
+    "std_dev": "Std Dev (σ)",
+    "reset_cursors": "Reset Cursors"
   },
   "grid": {
     "on": "On",

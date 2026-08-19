@@ -130,6 +130,45 @@ describe('TrendChart', () => {
 
         trend.destroy();
     });
+
+    it('enables cursors, calculates measurements, and emits cursor changes', () => {
+        const trend = new TrendChart(canvas, boolBand, timeAxis);
+        trend.setTags(
+            [
+                {
+                    id: 'tag-analog',
+                    name: 'FlowRate',
+                    color: '#38BDF8',
+                    dataType: 'Real',
+                    yAxis: 'Y-Axis 1',
+                    enabled: true,
+                },
+            ],
+            [{ name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true }],
+        );
+
+        let measurementResult: any = null;
+        trend.setOnCursorChange((meas) => {
+            measurementResult = meas;
+        });
+
+        trend.setCursorsEnabled(true);
+        expect(trend.getMeasurements()).not.toBeNull();
+
+        trend.addDataPoint('tag-analog', new Date(1000000).toISOString(), 25);
+        trend.addDataPoint('tag-analog', new Date(1005000).toISOString(), 75);
+
+        trend.fitCursorsToWindow();
+        const meas = trend.getMeasurements();
+        expect(meas).toBeDefined();
+        expect(meas?.tags['tag-analog']).toBeDefined();
+
+        trend.setCursorsEnabled(false);
+        expect(trend.getMeasurements()).toBeNull();
+
+        trend.destroy();
+    });
 });
+
 
 

@@ -164,6 +164,7 @@ select:focus {
 }
 .tool-btn .icon-glyph { display: block; width: 20px; height: 20px; line-height: 1; }
 .tool-btn:not(:disabled):hover { background: rgba(255,255,255,0.6); border-color: var(--border-color); }
+.tool-btn.active { background: rgba(0, 120, 215, 0.2); border-color: var(--accent); color: var(--accent); }
 .tool-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .separator { width: 1px; height: 20px; background-color: var(--border-color); margin: 0 6px; }
 

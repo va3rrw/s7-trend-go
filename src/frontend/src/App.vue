@@ -58,6 +58,12 @@
                 <div class="dropdown">
                     <a
                         href="#"
+                        @click.prevent="toggleCursors">
+                        {{ cursorsEnabled ? '✓ ' : '' }}{{ $t('menu.measurement_cursors') }}
+                    </a>
+                    <hr />
+                    <a
+                        href="#"
                         @click.prevent="menuExport"
                         >{{ $t('menu.export_csv') }}</a
                     >
@@ -168,6 +174,16 @@
             </button>
             <div class="separator" />
             <button
+                class="tool-btn"
+                :class="{ active: cursorsEnabled }"
+                :title="$t('toolbar.cursors')"
+                @click="toggleCursors">
+                <span
+                    class="i-ix-ruler-horizontal icon-glyph"
+                    aria-hidden="true" />
+            </button>
+            <div class="separator" />
+            <button
                 class="tool-btn start"
                 :title="$t('toolbar.start_sampling')"
                 :disabled="state.isSampling"
@@ -211,7 +227,17 @@
                 :axes="chartAxes"
                 :time-window-seconds="state.settings.timeWindowSeconds"
                 :interpolation="state.settings.interpolation"
-                @drag-start="onChartDragStart" />
+                :cursors-enabled="cursorsEnabled"
+                @drag-start="onChartDragStart"
+                @cursor-change="onCursorChange" />
+
+            <!-- Measurement & Statistics Strip -->
+            <MeasurementStrip
+                :open="cursorsEnabled"
+                :measurement="measurementData"
+                :tags="state.settings.tags"
+                @close="cursorsEnabled = false"
+                @fit-window="fitCursors" />
 
             <!-- Resizer -->
             <div
@@ -379,7 +405,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { ChartTag, ChartAxis } from './chart';
+import type { ChartTag, ChartAxis, CursorMeasurement } from './chart';
 import type { TagSettings } from './types';
 import {
     state,
@@ -394,6 +420,7 @@ import {
     showMessage,
 } from './store';
 import TrendChartView from './components/TrendChartView.vue';
+import MeasurementStrip from './components/MeasurementStrip.vue';
 import PlcDialog from './components/PlcDialog.vue';
 import TagsDialog from './components/TagsDialog.vue';
 import YAxesDialog from './components/YAxesDialog.vue';
@@ -406,6 +433,29 @@ import TagEditorDialog from './components/TagEditorDialog.vue';
 const { t, locale } = useI18n();
 
 const chartRef = ref<InstanceType<typeof TrendChartView>>();
+
+// ── Measurement Cursors ────────────────────────────────────────────
+const cursorsEnabled = ref(false);
+const measurementData = ref<CursorMeasurement | null>(null);
+
+function toggleCursors() {
+    cursorsEnabled.value = !cursorsEnabled.value;
+}
+
+function onCursorChange(meas: CursorMeasurement | null) {
+    measurementData.value = meas;
+}
+
+function fitCursors() {
+    chartRef.value?.fitCursorsToWindow();
+}
+
+function handleKeydown(e: KeyboardEvent) {
+    if (e.altKey && (e.key === 'm' || e.key === 'M')) {
+        e.preventDefault();
+        toggleCursors();
+    }
+}
 
 // ── Dialog visibility ──────────────────────────────────────────────
 const plcOpen = ref(false);
@@ -829,9 +879,16 @@ onMounted(async () => {
                 });
         }, 100);
     }
+
+    if (typeof window !== 'undefined') {
+        window.addEventListener('keydown', handleKeydown);
+    }
 });
 
 onBeforeUnmount(() => {
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('keydown', handleKeydown);
+    }
     if (fallbackTimer !== null) clearInterval(fallbackTimer);
     tagsAreaObserver?.disconnect();
 });

@@ -1,4 +1,11 @@
 import Chart from 'chart.js/auto';
+import {
+    interpolateValue,
+    calculateTagStats,
+    type Point,
+    type CursorMeasurement,
+    type TagStats,
+} from './measurement';
 
 export interface ChartTag {
     id: string;
@@ -16,10 +23,7 @@ export interface ChartAxis {
     autoScale: boolean;
 }
 
-interface Point {
-    timestamp: number;
-    value: number;
-}
+export type { Point, CursorMeasurement, TagStats };
 
 /** Nice time steps (seconds) used for major grid. */
 const NICE_STEPS_SEC = [
@@ -106,6 +110,14 @@ const secondGridPlugin = {
     },
 };
 
+const cursorOverlayPlugin = {
+    id: 'cursorOverlay',
+    afterDatasetsDraw(chart: any) {
+        const trend = chart._trendChartInstance as TrendChart | undefined;
+        trend?.drawCursorOverlay(chart);
+    },
+};
+
 export class TrendChart {
     private chart: Chart | null = null;
     private readonly canvas: HTMLCanvasElement | null;
@@ -126,6 +138,11 @@ export class TrendChart {
     private renderPending = false;
     private resizeObserver: ResizeObserver | null = null;
     private onDragStart?: () => void;
+    private cursorsEnabled = false;
+    private cursorA: number | null = null;
+    private cursorB: number | null = null;
+    private activeCursorDrag: 'A' | 'B' | null = null;
+    private onCursorChange?: (meas: CursorMeasurement | null) => void;
     private handleWindowResize = () => {
         this.render();
     };
@@ -183,7 +200,7 @@ export class TrendChart {
         this.chart = new Chart(this.canvas, {
             type: 'line',
             data: { datasets: [] },
-            plugins: [secondGridPlugin],
+            plugins: [secondGridPlugin, cursorOverlayPlugin],
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -242,6 +259,7 @@ export class TrendChart {
                 },
             } as any,
         });
+        (this.chart as any)._trendChartInstance = this;
 
         if (typeof ResizeObserver !== 'undefined' && this.canvas) {
             this.resizeObserver = new ResizeObserver(() => {
@@ -258,28 +276,100 @@ export class TrendChart {
 
         this.canvas.style.cursor = 'crosshair';
         this.canvas.addEventListener('pointerdown', (event) => {
-            if (event.button !== 0) return;
+            if (event.button !== 0 || !this.canvas) return;
+
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+
+            if (this.cursorsEnabled && this.chart) {
+                const scale = this.chart.scales.x;
+                if (scale && this.cursorA !== null && this.cursorB !== null) {
+                    const xA = scale.getPixelForValue(this.cursorA);
+                    const xB = scale.getPixelForValue(this.cursorB);
+                    const distA = Math.abs(mouseX - xA);
+                    const distB = Math.abs(mouseX - xB);
+
+                    if (distA <= 12 && distA <= distB) {
+                        this.activeCursorDrag = 'A';
+                        try {
+                            this.canvas.setPointerCapture(event.pointerId);
+                        } catch {}
+                        event.preventDefault();
+                        return;
+                    } else if (distB <= 12) {
+                        this.activeCursorDrag = 'B';
+                        try {
+                            this.canvas.setPointerCapture(event.pointerId);
+                        } catch {}
+                        event.preventDefault();
+                        return;
+                    }
+                }
+            }
+
+            this.activeCursorDrag = null;
             this.dragging = true;
             this.lastPointerX = event.clientX;
             try {
-                this.canvas?.setPointerCapture(event.pointerId);
+                this.canvas.setPointerCapture(event.pointerId);
             } catch {
                 /* ignore */
             }
-            if (this.canvas) this.canvas.style.cursor = 'grabbing';
+            this.canvas.style.cursor = 'grabbing';
             this.onDragStart?.();
             event.preventDefault();
         });
+
         this.canvas.addEventListener('pointermove', (event) => {
-            if (!this.dragging || !this.canvas) return;
-            const delta = event.clientX - this.lastPointerX;
-            this.lastPointerX = event.clientX;
-            this.viewOffsetSeconds -=
-                (delta / Math.max(1, this.canvas.clientWidth)) *
-                this.timeWindowSeconds;
-            this.render();
+            if (!this.canvas) return;
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+
+            if (this.activeCursorDrag && this.chart) {
+                const scale = this.chart.scales.x;
+                const area = this.chart.chartArea;
+                if (scale && area) {
+                    const clampedX = Math.max(area.left, Math.min(area.right, mouseX));
+                    const val = scale.getValueForPixel(clampedX);
+                    const newTime = Math.round(val ?? clampedX);
+                    if (this.activeCursorDrag === 'A') {
+                        this.cursorA = newTime;
+                    } else if (this.activeCursorDrag === 'B') {
+                        this.cursorB = newTime;
+                    }
+                    this.render();
+                    this.emitMeasurementUpdate();
+                }
+                return;
+            }
+
+            if (this.dragging) {
+                const delta = event.clientX - this.lastPointerX;
+                this.lastPointerX = event.clientX;
+                this.viewOffsetSeconds -=
+                    (delta / Math.max(1, this.canvas.clientWidth)) *
+                    this.timeWindowSeconds;
+                this.render();
+                return;
+            }
+
+            // Hover cursor styling for measurement cursors
+            if (this.cursorsEnabled && this.chart) {
+                const scale = this.chart.scales.x;
+                if (scale && this.cursorA !== null && this.cursorB !== null) {
+                    const xA = scale.getPixelForValue(this.cursorA);
+                    const xB = scale.getPixelForValue(this.cursorB);
+                    if (Math.abs(mouseX - xA) <= 8 || Math.abs(mouseX - xB) <= 8) {
+                        this.canvas.style.cursor = 'ew-resize';
+                        return;
+                    }
+                }
+            }
+            this.canvas.style.cursor = 'crosshair';
         });
+
         const release = (event: PointerEvent) => {
+            this.activeCursorDrag = null;
             this.dragging = false;
             try {
                 if (this.canvas?.hasPointerCapture(event.pointerId)) {
@@ -293,6 +383,7 @@ export class TrendChart {
         this.canvas.addEventListener('pointerup', release);
         this.canvas.addEventListener('pointercancel', release);
         this.canvas.addEventListener('lostpointercapture', () => {
+            this.activeCursorDrag = null;
             this.dragging = false;
             if (this.canvas) this.canvas.style.cursor = 'crosshair';
         });
@@ -405,10 +496,193 @@ export class TrendChart {
         }, 40);
     }
 
+    public setCursorsEnabled(enabled: boolean) {
+        this.cursorsEnabled = enabled;
+        if (enabled && (this.cursorA === null || this.cursorB === null)) {
+            this.fitCursorsToWindow();
+        } else {
+            this.render();
+            this.emitMeasurementUpdate();
+        }
+    }
+
+    public fitCursorsToWindow() {
+        const latest = this.latestTimestamp();
+        const end = latest + this.viewOffsetSeconds * 1000;
+        const start = end - this.timeWindowSeconds * 1000;
+        this.cursorA = Math.round(start + (end - start) * 0.25);
+        this.cursorB = Math.round(start + (end - start) * 0.75);
+        this.render();
+        this.emitMeasurementUpdate();
+    }
+
+    public setOnCursorChange(cb?: (meas: CursorMeasurement | null) => void) {
+        this.onCursorChange = cb;
+        this.emitMeasurementUpdate();
+    }
+
+    public getMeasurements(): CursorMeasurement | null {
+        if (
+            !this.cursorsEnabled ||
+            this.cursorA === null ||
+            this.cursorB === null
+        ) {
+            return null;
+        }
+        const deltaTMs = this.cursorB - this.cursorA;
+        const deltaTSec = deltaTMs / 1000;
+        const tagStats: Record<string, TagStats> = {};
+
+        for (const tag of this.tags) {
+            const points = this.history.get(tag.id) ?? [];
+            tagStats[tag.id] = calculateTagStats(
+                points,
+                this.cursorA,
+                this.cursorB,
+            );
+        }
+
+        return {
+            cursorA: this.cursorA,
+            cursorB: this.cursorB,
+            deltaTSec,
+            deltaTMs,
+            tags: tagStats,
+        };
+    }
+
+    private emitMeasurementUpdate() {
+        if (this.onCursorChange) {
+            this.onCursorChange(this.getMeasurements());
+        }
+    }
+
+    public drawCursorOverlay(chart: any) {
+        if (!this.cursorsEnabled) return;
+        const scale = chart.scales.x;
+        const area = chart.chartArea;
+        if (!scale || !area) return;
+
+        const min = Number(scale.min);
+        const max = Number(scale.max);
+        if (this.cursorA === null) this.cursorA = Math.round(min + (max - min) * 0.25);
+        if (this.cursorB === null) this.cursorB = Math.round(min + (max - min) * 0.75);
+
+        const xA = scale.getPixelForValue(this.cursorA);
+        const xB = scale.getPixelForValue(this.cursorB);
+        const ctx = chart.ctx as CanvasRenderingContext2D;
+        ctx.save();
+
+        // Highlight band between A and B
+        const leftX = Math.max(area.left, Math.min(xA, xB));
+        const rightX = Math.min(area.right, Math.max(xA, xB));
+        if (rightX > leftX) {
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.07)';
+            ctx.fillRect(leftX, area.top, rightX - leftX, area.bottom - area.top);
+        }
+
+        // Draw Cursor A
+        if (xA >= area.left && xA <= area.right) {
+            ctx.beginPath();
+            ctx.setLineDash([4, 2]);
+            ctx.strokeStyle = '#38BDF8';
+            ctx.lineWidth = 1.5;
+            ctx.moveTo(xA, area.top);
+            ctx.lineTo(xA, area.bottom);
+            ctx.stroke();
+
+            // Top handle badge A
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#0284C7';
+            ctx.fillRect(xA - 10, area.top + 2, 20, 14);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('A', xA, area.top + 9);
+
+            // Intersection markers for active analog tags
+            for (const tag of this.tags) {
+                if (tag.dataType === 'Bool') continue;
+                const valA = interpolateValue(
+                    this.history.get(tag.id) ?? [],
+                    this.cursorA,
+                );
+                if (valA !== null) {
+                    const axes = this.getUsedAxes(this.tags.filter(t => t.dataType !== 'Bool'));
+                    const axisIdx = Math.max(0, axes.findIndex(a => a.name === tag.yAxis));
+                    const yScale = chart.scales[`yAxis${axisIdx}`];
+                    if (yScale) {
+                        const yPix = yScale.getPixelForValue(valA);
+                        if (yPix >= area.top && yPix <= area.bottom) {
+                            ctx.beginPath();
+                            ctx.arc(xA, yPix, 4, 0, 2 * Math.PI);
+                            ctx.fillStyle = tag.color || '#38BDF8';
+                            ctx.fill();
+                            ctx.strokeStyle = '#FFFFFF';
+                            ctx.lineWidth = 1.5;
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Draw Cursor B
+        if (xB >= area.left && xB <= area.right) {
+            ctx.beginPath();
+            ctx.setLineDash([4, 2]);
+            ctx.strokeStyle = '#FBBF24';
+            ctx.lineWidth = 1.5;
+            ctx.moveTo(xB, area.top);
+            ctx.lineTo(xB, area.bottom);
+            ctx.stroke();
+
+            // Top handle badge B
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#D97706';
+            ctx.fillRect(xB - 10, area.top + 2, 20, 14);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('B', xB, area.top + 9);
+
+            // Intersection markers for active analog tags
+            for (const tag of this.tags) {
+                if (tag.dataType === 'Bool') continue;
+                const valB = interpolateValue(
+                    this.history.get(tag.id) ?? [],
+                    this.cursorB,
+                );
+                if (valB !== null) {
+                    const axes = this.getUsedAxes(this.tags.filter(t => t.dataType !== 'Bool'));
+                    const axisIdx = Math.max(0, axes.findIndex(a => a.name === tag.yAxis));
+                    const yScale = chart.scales[`yAxis${axisIdx}`];
+                    if (yScale) {
+                        const yPix = yScale.getPixelForValue(valB);
+                        if (yPix >= area.top && yPix <= area.bottom) {
+                            ctx.beginPath();
+                            ctx.arc(xB, yPix, 4, 0, 2 * Math.PI);
+                            ctx.fillStyle = tag.color || '#FBBF24';
+                            ctx.fill();
+                            ctx.strokeStyle = '#FFFFFF';
+                            ctx.lineWidth = 1.5;
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+        }
+
+        ctx.restore();
+    }
+
     public clear() {
         this.history.clear();
         this.axisRanges.clear();
         this.viewOffsetSeconds = 0;
+        this.fixedIdleTime = Date.now();
         if (this.fetchTimer !== null && typeof window !== 'undefined') {
             window.clearTimeout(this.fetchTimer);
             this.fetchTimer = null;
@@ -419,6 +693,7 @@ export class TrendChart {
                 : null;
         api?.ClearHistory?.();
         this.render();
+        this.emitMeasurementUpdate();
     }
 
     public destroy() {
@@ -546,15 +821,23 @@ export class TrendChart {
         const area = this.chart.chartArea;
         this.renderBooleanBand(start, end, area);
         this.renderTimeAxis(start, end, area);
+        this.emitMeasurementUpdate();
     }
 
+    private fixedIdleTime = Date.now();
+
     private latestTimestamp(): number {
-        let latest = Date.now();
+        let maxTs = 0;
         for (const points of this.history.values()) {
-            if (points.length > 0)
-                latest = Math.max(latest, points[points.length - 1].timestamp);
+            if (points.length > 0) {
+                const ts = points[points.length - 1].timestamp;
+                if (ts > maxTs) maxTs = ts;
+            }
         }
-        return latest;
+        if (maxTs > 0) {
+            return maxTs;
+        }
+        return this.fixedIdleTime;
     }
 
     private getUsedAxes(tags: ChartTag[]): ChartAxis[] {
@@ -762,6 +1045,37 @@ export class TrendChart {
                 ctx.restore();
             }
         });
+
+        // Draw Cursor guidelines across boolean band
+        if (this.cursorsEnabled && layout.width > 0) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(layout.left, 0, layout.width, totalHeight);
+            ctx.clip();
+
+            if (this.cursorA !== null && this.cursorA >= start && this.cursorA <= end) {
+                const xA = layout.left + ((this.cursorA - start) / span) * layout.width;
+                ctx.beginPath();
+                ctx.setLineDash([4, 2]);
+                ctx.strokeStyle = '#38BDF8';
+                ctx.lineWidth = 1.5;
+                ctx.moveTo(xA, 0);
+                ctx.lineTo(xA, totalHeight);
+                ctx.stroke();
+            }
+
+            if (this.cursorB !== null && this.cursorB >= start && this.cursorB <= end) {
+                const xB = layout.left + ((this.cursorB - start) / span) * layout.width;
+                ctx.beginPath();
+                ctx.setLineDash([4, 2]);
+                ctx.strokeStyle = '#FBBF24';
+                ctx.lineWidth = 1.5;
+                ctx.moveTo(xB, 0);
+                ctx.lineTo(xB, totalHeight);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
     }
 
     private renderTimeAxis(
@@ -822,6 +1136,31 @@ export class TrendChart {
                 continue;
             const timeStr = formatTickTime(timestamp);
             ctx.fillText(timeStr, x, height / 2);
+        }
+
+        // Draw Cursor indicators on time axis
+        if (this.cursorsEnabled) {
+            if (this.cursorA !== null && this.cursorA >= start && this.cursorA <= end) {
+                const xA = layout.left + ((this.cursorA - start) / span) * layout.width;
+                ctx.fillStyle = '#0284C7';
+                ctx.fillRect(xA - 8, 3, 16, 16);
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = 'bold 9px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('A', xA, 11);
+            }
+
+            if (this.cursorB !== null && this.cursorB >= start && this.cursorB <= end) {
+                const xB = layout.left + ((this.cursorB - start) / span) * layout.width;
+                ctx.fillStyle = '#D97706';
+                ctx.fillRect(xB - 8, 3, 16, 16);
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = 'bold 9px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('B', xB, 11);
+            }
         }
 
         ctx.restore();
