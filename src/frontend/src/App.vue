@@ -376,7 +376,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ChartTag, ChartAxis, CursorMeasurement } from './chart';
 import type { TagSettings } from './types';
@@ -502,20 +502,19 @@ async function onSettingsChanged() {
 }
 
 // ── Tag value display helpers ──────────────────────────────────────
+const liveValues = reactive<Record<string, string>>({});
+
 function tagValue(id: string) {
-    // We'll track live values in a separate reactive map
-    return liveValues.value.get(id) ?? '-';
+    return liveValues[id] ?? '-';
 }
 function tagMin(id: string) {
-    const r = state.sampledRange.get(id);
+    const r = state.sampledRange[id];
     return r ? formatNumber(r.min) : '-';
 }
 function tagMax(id: string) {
-    const r = state.sampledRange.get(id);
+    const r = state.sampledRange[id];
     return r ? formatNumber(r.max) : '-';
 }
-
-const liveValues = ref(new Map<string, string>());
 
 // Calculate visible rows dynamically based on the tags area height
 const visibleRows = ref(4);
@@ -614,7 +613,7 @@ async function menuClear() {
         return;
     chartRef.value?.clear();
     resetStats();
-    liveValues.value.clear();
+    Object.keys(liveValues).forEach((k) => delete liveValues[k]);
     state.statusMessage = t('status.records_cleared');
 }
 
@@ -784,7 +783,7 @@ onMounted(async () => {
             const valStr = update.value || '-';
             const numVal = Number(update.numericValue);
 
-            liveValues.value.set(update.tagId, valStr);
+            liveValues[update.tagId] = valStr;
             updateTagValue(update.tagId, valStr, numVal);
             markPlcForTag(update.tagId, update.quality);
 
@@ -829,7 +828,7 @@ onMounted(async () => {
                 .forEach((tag) => {
                     const value = Math.random() * 100;
                     chartRef.value?.addDataPoint(tag.id, now, value);
-                    liveValues.value.set(tag.id, value.toFixed(2));
+                    liveValues[tag.id] = value.toFixed(2);
                     updateTagValue(tag.id, value.toFixed(2), value);
                 });
         }, 100);

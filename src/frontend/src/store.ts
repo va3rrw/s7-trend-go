@@ -8,7 +8,7 @@ export const state = reactive({
     isSampling: false,
     isPaused: false,
     statusMessage: 'Ready',
-    sampledRange: new Map<string, { min: number; max: number }>(),
+    sampledRange: {} as Record<string, { min: number; max: number }>,
 });
 
 export const uiState = reactive({
@@ -50,18 +50,18 @@ export function updateTagValue(
     numericValue?: number,
 ) {
     if (numericValue !== undefined && Number.isFinite(numericValue)) {
-        const current = state.sampledRange.get(id) ?? {
+        const current = state.sampledRange[id] ?? {
             min: numericValue,
             max: numericValue,
         };
         current.min = Math.min(current.min, numericValue);
         current.max = Math.max(current.max, numericValue);
-        state.sampledRange.set(id, current);
+        state.sampledRange[id] = current;
     }
 }
 
 export function resetStats() {
-    state.sampledRange.clear();
+    state.sampledRange = {};
 }
 
 export function getTag(id: string): TagSettings | undefined {

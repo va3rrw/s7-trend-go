@@ -41,18 +41,18 @@ describe('store.ts', () => {
         updateTagValue('tag-1', '25.0', 25.0);
         updateTagValue('tag-1', '5.2', 5.2);
 
-        const range = state.sampledRange.get('tag-1');
+        const range = state.sampledRange['tag-1'];
         expect(range).toBeDefined();
         expect(range?.min).toBe(5.2);
         expect(range?.max).toBe(25.0);
 
         // Undefined or NaN should not break the range
         updateTagValue('tag-1', 'NaN', NaN);
-        expect(state.sampledRange.get('tag-1')?.min).toBe(5.2);
+        expect(state.sampledRange['tag-1']?.min).toBe(5.2);
 
         // Reset clears all stats
         resetStats();
-        expect(state.sampledRange.size).toBe(0);
+        expect(Object.keys(state.sampledRange).length).toBe(0);
     });
 
     it('finds tag by ID with getTag()', () => {
