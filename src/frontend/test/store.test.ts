@@ -76,7 +76,7 @@ describe('store.ts', () => {
         const tag: TagSettings = {
             id: 'tag-1',
             name: 'Speed',
-            plcLink: 'PLC2',
+            plcLink: 'PLC1',
             address: 'DB1.DBD0',
             dataType: 'Real',
             yAxis: 'Y-Axis 1',
@@ -86,7 +86,7 @@ describe('store.ts', () => {
         state.settings.tags.push(tag);
 
         markPlcForTag('tag-1', 'Good');
-        const link = state.settings.plcLinks.find((p) => p.name === 'PLC2');
+        const link = state.settings.plcLinks.find((p) => p.name === 'PLC1');
         expect(link?.isConnected).toBe(true);
 
         markPlcForTag('tag-1', 'Bad');

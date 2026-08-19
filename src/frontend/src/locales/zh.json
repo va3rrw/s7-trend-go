@@ -5,12 +5,9 @@
     "tools": "工具",
     "trace": "曲线",
     "help": "帮助",
-    "load_plc_settings": "加载 PLC 设置 …",
-    "save_plc_settings": "保存 PLC 设置 …",
-    "load_channel_settings": "加载变量设置 …",
-    "save_channel_settings": "保存变量设置 …",
-    "plc_settings": "PLC 设置 …",
-    "channel_settings": "变量设置 …",
+    "load_settings": "加载设置 …",
+    "save_settings": "保存设置 …",
+    "plc_tag_settings": "PLC / 变量设置 …",
     "x_settings": "X 轴设置 …",
     "y_settings": "Y 轴设置 …",
     "export_csv": "导出 CSV …",
@@ -24,12 +21,8 @@
     "about": "关于 S7 Trend Go",
     "plcs": "PLC",
     "plc_config": "PLC 配置",
-    "load_plcs": "加载 PLC",
-    "save_plcs": "保存 PLC",
     "tags": "变量",
     "tag_config": "变量配置",
-    "load_tags": "加载变量",
-    "save_tags": "保存变量",
     "sampling_interval": "采样间隔",
     "trend_window": "曲线窗口",
     "interpolation": "插值方式",
@@ -37,8 +30,7 @@
     "measurement_cursors": "测量光标"
   },
   "toolbar": {
-    "plcs": "PLC",
-    "tag_settings": "变量设置",
+    "plc_tag_settings": "PLC / 变量设置",
     "start_sampling": "开始采样",
     "pause_chart": "暂停曲线",
     "resume_chart": "恢复曲线",
@@ -66,7 +58,10 @@
     "max": "最大"
   },
   "dialog": {
+    "plc_tag_config": "PLC / 变量设置",
     "plc_config": "PLC 连接设置",
+    "tags_for_plc": "{0} 的变量",
+    "no_tags_for_plc": "该 PLC 尚未配置变量，点击“添加”创建。",
     "status": "状态",
     "link": "连接",
     "ip_address": "IP 地址",
@@ -104,14 +99,10 @@
     "delete": "删除"
   },
   "status": {
-    "loaded_plcs": "已加载 PLC 连接",
-    "saved_plcs": "已保存 PLC 连接",
-    "error_loading_plcs": "加载 PLC 连接出错: {0}",
-    "error_saving_plcs": "保存 PLC 连接出错: {0}",
-    "loaded_tags": "已加载变量",
-    "saved_tags": "已保存变量",
-    "error_loading_tags": "加载变量出错: {0}",
-    "error_saving_tags": "保存变量出错: {0}",
+    "loaded_settings": "已从文件加载设置",
+    "saved_settings": "已保存设置到文件",
+    "error_loading_settings": "加载设置出错: {0}",
+    "error_saving_settings": "保存设置出错: {0}",
     "interval_set": "采样间隔设置为 {0} ms",
     "window_set": "曲线窗口设置为 {0} s",
     "interpolation_set": "插值方式设置为 {0}",
@@ -148,6 +139,8 @@
     "invalid_bool_address": "Bool 变量需要位地址，例如 I31.1 或 DB1.DBX0.3。",
     "axis_name_required": "每个 Y 轴都需要一个名称。",
     "invalid_axis_range": "每个 Y 轴的最大值必须大于最小值。",
-    "max_tags_per_plc_exceeded": "PLC 连接 '{0}' 已配置达到上限 {1} 个变量。请选择或配置其他 PLC 连接。"
+    "max_tags_per_plc_exceeded": "PLC 连接 '{0}' 已配置达到上限 {1} 个变量。请选择或配置其他 PLC 连接。",
+    "max_plcs_exceeded": "已达到最大 {0} 个 PLC 连接上限。",
+    "min_plcs_required": "至少需要保留 {0} 个 PLC 连接。"
   }
 }

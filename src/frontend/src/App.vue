@@ -7,24 +7,13 @@
                 <div class="dropdown">
                     <a
                         href="#"
-                        @click.prevent="menuLoadPlc"
-                        >{{ $t('menu.load_plc_settings') }}</a
+                        @click.prevent="menuLoadSettings"
+                        >{{ $t('menu.load_settings') }}</a
                     >
                     <a
                         href="#"
-                        @click.prevent="menuSavePlc"
-                        >{{ $t('menu.save_plc_settings') }}</a
-                    >
-                    <hr />
-                    <a
-                        href="#"
-                        @click.prevent="menuLoadTags"
-                        >{{ $t('menu.load_channel_settings') }}</a
-                    >
-                    <a
-                        href="#"
-                        @click.prevent="menuSaveTags"
-                        >{{ $t('menu.save_channel_settings') }}</a
+                        @click.prevent="menuSaveSettings"
+                        >{{ $t('menu.save_settings') }}</a
                     >
                 </div>
             </div>
@@ -33,13 +22,8 @@
                 <div class="dropdown">
                     <a
                         href="#"
-                        @click.prevent="plcOpen = true"
-                        >{{ $t('menu.plc_settings') }}</a
-                    >
-                    <a
-                        href="#"
-                        @click.prevent="tagsOpen = true"
-                        >{{ $t('menu.channel_settings') }}</a
+                        @click.prevent="plcTagsOpen = true"
+                        >{{ $t('menu.plc_tag_settings') }}</a
                     >
                     <a
                         href="#"
@@ -141,16 +125,8 @@
         <div class="toolbar">
             <button
                 class="tool-btn"
-                :title="$t('toolbar.plcs')"
-                @click="plcOpen = true">
-                <span
-                    class="i-ix-plc-device icon-glyph"
-                    aria-hidden="true" />
-            </button>
-            <button
-                class="tool-btn"
-                :title="$t('toolbar.tag_settings')"
-                @click="tagsOpen = true">
+                :title="$t('toolbar.plc_tag_settings')"
+                @click="plcTagsOpen = true">
                 <span
                     class="i-ix-plc-tag icon-glyph"
                     aria-hidden="true" />
@@ -362,14 +338,10 @@
     </div>
 
     <!-- Dialogs -->
-    <PlcDialog
-        :open="plcOpen"
-        @close="plcOpen = false"
-        @save="onPlcSave" />
-    <TagsDialog
-        :open="tagsOpen"
-        @close="tagsOpen = false"
-        @save="onTagsSave" />
+    <PlcTagsDialog
+        :open="plcTagsOpen"
+        @close="plcTagsOpen = false"
+        @save="onPlcTagsSave" />
     <YAxesDialog
         :open="yAxesOpen"
         @close="yAxesOpen = false"
@@ -422,8 +394,7 @@ import {
 } from './store';
 import TrendChartView from './components/TrendChartView.vue';
 import MeasurementStrip from './components/MeasurementStrip.vue';
-import PlcDialog from './components/PlcDialog.vue';
-import TagsDialog from './components/TagsDialog.vue';
+import PlcTagsDialog from './components/PlcTagsDialog.vue';
 import YAxesDialog from './components/YAxesDialog.vue';
 import PromptDialog from './components/PromptDialog.vue';
 import MessageDialog from './components/MessageDialog.vue';
@@ -459,8 +430,7 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 // ── Dialog visibility ──────────────────────────────────────────────
-const plcOpen = ref(false);
-const tagsOpen = ref(false);
+const plcTagsOpen = ref(false);
 const yAxesOpen = ref(false);
 const aboutOpen = ref(false);
 
@@ -558,48 +528,32 @@ const rightTags = computed(() =>
     state.settings.tags.slice(visibleRows.value),
 );
 
+// ── Dialog save handlers ───────────────────────────────────────────
+async function onPlcTagsSave() {
+    await onSettingsChanged();
+}
+
 // ── Menu actions ───────────────────────────────────────────────────
-async function menuLoadPlc() {
+async function menuLoadSettings() {
     try {
-        const links = await backend()?.LoadPlcLinks(t('menu.load_plc_settings'));
-        if (links?.length) {
-            state.settings.plcLinks = links;
+        const loaded = await backend()?.LoadPlcTagSettings(t('menu.load_settings'));
+        if (loaded?.plcLinks?.length) {
+            state.settings.plcLinks = loaded.plcLinks;
+            state.settings.tags = loaded.tags ?? [];
             await saveSettingsAndRestart();
-            state.statusMessage = t('status.loaded_plcs');
+            state.statusMessage = t('status.loaded_settings');
         }
     } catch (err) {
-        state.statusMessage = t('status.error_loading_plcs', [err]);
+        state.statusMessage = t('status.error_loading_settings', [err]);
     }
 }
 
-async function menuSavePlc() {
+async function menuSaveSettings() {
     try {
-        await backend()?.SavePlcLinks(state.settings.plcLinks, t('menu.save_plc_settings'));
-        state.statusMessage = t('status.saved_plcs');
+        await backend()?.SavePlcTagSettings(state.settings.plcLinks, state.settings.tags, t('menu.save_settings'));
+        state.statusMessage = t('status.saved_settings');
     } catch (err) {
-        state.statusMessage = t('status.error_saving_plcs', [err]);
-    }
-}
-
-async function menuLoadTags() {
-    try {
-        const tags = await backend()?.LoadTags(t('menu.load_channel_settings'));
-        if (tags) {
-            state.settings.tags = tags;
-            await saveSettingsAndRestart();
-            state.statusMessage = t('status.loaded_tags');
-        }
-    } catch (err) {
-        state.statusMessage = t('status.error_loading_tags', [err]);
-    }
-}
-
-async function menuSaveTags() {
-    try {
-        await backend()?.SaveTags(state.settings.tags, t('menu.save_channel_settings'));
-        state.statusMessage = t('status.saved_tags');
-    } catch (err) {
-        state.statusMessage = t('status.error_saving_tags', [err]);
+        state.statusMessage = t('status.error_saving_settings', [err]);
     }
 }
 

@@ -9,29 +9,24 @@ import (
 
 func TestCreateDefaultPlcLinks(t *testing.T) {
 	links := CreateDefaultPlcLinks()
-	if len(links) != 4 {
-		t.Fatalf("expected 4 default PLC links, got %d", len(links))
+	if len(links) != 1 {
+		t.Fatalf("expected 1 default PLC link, got %d", len(links))
 	}
 
-	expectedNames := []string{"PLC1", "PLC2", "PLC3", "PLC4"}
-	expectedIPs := []string{"192.168.0.1", "192.168.0.2", "192.168.0.3", "192.168.0.4"}
-
-	for i, link := range links {
-		if link.Name != expectedNames[i] {
-			t.Errorf("link[%d].Name = %s; expected %s", i, link.Name, expectedNames[i])
-		}
-		if link.IpAddress != expectedIPs[i] {
-			t.Errorf("link[%d].IpAddress = %s; expected %s", i, link.IpAddress, expectedIPs[i])
-		}
-		if link.Rack != 0 {
-			t.Errorf("link[%d].Rack = %d; expected 0", i, link.Rack)
-		}
-		if link.Slot != 1 {
-			t.Errorf("link[%d].Slot = %d; expected 1", i, link.Slot)
-		}
-		if link.IsConnected {
-			t.Errorf("link[%d].IsConnected = true; expected false", i)
-		}
+	if links[0].Name != "PLC1" {
+		t.Errorf("links[0].Name = %s; expected PLC1", links[0].Name)
+	}
+	if links[0].IpAddress != "192.168.0.1" {
+		t.Errorf("links[0].IpAddress = %s; expected 192.168.0.1", links[0].IpAddress)
+	}
+	if links[0].Rack != 0 {
+		t.Errorf("links[0].Rack = %d; expected 0", links[0].Rack)
+	}
+	if links[0].Slot != 1 {
+		t.Errorf("links[0].Slot = %d; expected 1", links[0].Slot)
+	}
+	if links[0].IsConnected {
+		t.Errorf("links[0].IsConnected = true; expected false")
 	}
 }
 
@@ -69,8 +64,8 @@ func TestCreateDefaultSettings(t *testing.T) {
 	if s.Interpolation != InterpolationLine {
 		t.Errorf("expected Interpolation Line, got %s", s.Interpolation)
 	}
-	if len(s.PlcLinks) != 4 {
-		t.Errorf("expected 4 PlcLinks, got %d", len(s.PlcLinks))
+	if len(s.PlcLinks) != 1 {
+		t.Errorf("expected 1 PlcLink, got %d", len(s.PlcLinks))
 	}
 	if len(s.Tags) != 0 {
 		t.Errorf("expected 0 Tags, got %d", len(s.Tags))
@@ -171,5 +166,22 @@ func TestModels_JSONSerialization(t *testing.T) {
 	}
 	if restoredTiming.PlcLink != "PLC1" || restoredTiming.ActualIntervalMs != 85 {
 		t.Errorf("restored timing mismatch: %+v", restoredTiming)
+	}
+
+	// Test PlcTagConfig serialization
+	plcTagCfg := PlcTagConfig{
+		PlcLinks: CreateDefaultPlcLinks(),
+		Tags:     []TagSettings{tag},
+	}
+	cfgData, err := json.Marshal(plcTagCfg)
+	if err != nil {
+		t.Fatalf("failed to marshal PlcTagConfig: %v", err)
+	}
+	var restoredCfg PlcTagConfig
+	if err := json.Unmarshal(cfgData, &restoredCfg); err != nil {
+		t.Fatalf("failed to unmarshal PlcTagConfig: %v", err)
+	}
+	if len(restoredCfg.PlcLinks) != 1 || len(restoredCfg.Tags) != 1 {
+		t.Errorf("restored PlcTagConfig mismatch: %+v", restoredCfg)
 	}
 }

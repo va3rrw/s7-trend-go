@@ -5,12 +5,9 @@
     "tools": "Tools",
     "trace": "Trace",
     "help": "Help",
-    "load_plc_settings": "Load PLC settings …",
-    "save_plc_settings": "Save PLC settings …",
-    "load_channel_settings": "Load channel settings …",
-    "save_channel_settings": "Save channel settings …",
-    "plc_settings": "PLC settings …",
-    "channel_settings": "Channel settings …",
+    "load_settings": "Load settings …",
+    "save_settings": "Save settings …",
+    "plc_tag_settings": "PLC/Tag settings …",
     "x_settings": "X settings …",
     "y_settings": "Y(s) settings …",
     "export_csv": "Export CSV …",
@@ -24,12 +21,8 @@
     "about": "About S7 Trend Go",
     "plcs": "PLCs",
     "plc_config": "PLC configuration",
-    "load_plcs": "Load PLCs",
-    "save_plcs": "Save PLCs",
     "tags": "Tags",
     "tag_config": "Tag configuration",
-    "load_tags": "Load tags",
-    "save_tags": "Save tags",
     "sampling_interval": "Sampling interval",
     "trend_window": "Trend window",
     "interpolation": "Interpolation",
@@ -37,8 +30,7 @@
     "measurement_cursors": "Measurement Cursors"
   },
   "toolbar": {
-    "plcs": "PLCs",
-    "tag_settings": "Tag settings",
+    "plc_tag_settings": "PLC/Tag settings",
     "start_sampling": "Start sampling",
     "pause_chart": "Pause chart",
     "resume_chart": "Resume chart",
@@ -66,7 +58,10 @@
     "max": "Max"
   },
   "dialog": {
+    "plc_tag_config": "PLC/Tag Settings",
     "plc_config": "PLC Configuration",
+    "tags_for_plc": "Tags for {0}",
+    "no_tags_for_plc": "No tags configured for this PLC. Click Add to create one.",
     "status": "Status",
     "link": "Link",
     "ip_address": "IP Address",
@@ -104,14 +99,10 @@
     "delete": "Delete"
   },
   "status": {
-    "loaded_plcs": "Loaded PLC links",
-    "saved_plcs": "Saved PLC links",
-    "error_loading_plcs": "Error loading PLC links: {0}",
-    "error_saving_plcs": "Error saving PLC links: {0}",
-    "loaded_tags": "Loaded tags",
-    "saved_tags": "Saved tags",
-    "error_loading_tags": "Error loading tags: {0}",
-    "error_saving_tags": "Error saving tags: {0}",
+    "loaded_settings": "Loaded settings from file",
+    "saved_settings": "Saved settings to file",
+    "error_loading_settings": "Error loading settings: {0}",
+    "error_saving_settings": "Error saving settings: {0}",
     "interval_set": "Sampling interval set to {0} ms",
     "window_set": "Trend window set to {0} s",
     "interpolation_set": "Interpolation set to {0}",
@@ -148,6 +139,8 @@
     "invalid_bool_address": "Bool tags require a bit address such as I31.1 or DB1.DBX0.3.",
     "axis_name_required": "Each Y axis needs a name.",
     "invalid_axis_range": "Maximum must be greater than minimum for each Y axis.",
-    "max_tags_per_plc_exceeded": "PLC link '{0}' already has the maximum of {1} tags configured. Please select or configure another PLC link."
+    "max_tags_per_plc_exceeded": "PLC link '{0}' already has the maximum of {1} tags configured. Please select or configure another PLC link.",
+    "max_plcs_exceeded": "Maximum of {0} PLC links reached.",
+    "min_plcs_required": "At least {0} PLC link must be configured."
   }
 }

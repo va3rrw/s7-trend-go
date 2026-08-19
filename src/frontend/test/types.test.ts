@@ -22,7 +22,7 @@ describe('types.ts', () => {
         expect(settings.timeWindowSeconds).toBe(60);
         expect(settings.interpolation).toBe('Line');
         expect(settings.tags).toEqual([]);
-        expect(settings.plcLinks).toHaveLength(4);
+        expect(settings.plcLinks).toHaveLength(1);
         expect(settings.yAxes).toHaveLength(4);
 
         expect(settings.plcLinks[0]).toEqual({

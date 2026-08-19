@@ -17,8 +17,8 @@ func TestNewApp(t *testing.T) {
 	if s.PollIntervalMs != 100 {
 		t.Errorf("expected initial PollIntervalMs 100, got %d", s.PollIntervalMs)
 	}
-	if len(s.PlcLinks) != 4 {
-		t.Errorf("expected 4 PlcLinks, got %d", len(s.PlcLinks))
+	if len(s.PlcLinks) != 1 {
+		t.Errorf("expected 1 PlcLink, got %d", len(s.PlcLinks))
 	}
 }
 

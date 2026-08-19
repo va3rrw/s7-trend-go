@@ -19,9 +19,11 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:  "S7 Trend Go v" + backend.AppVersion,
-		Width:  1024,
-		Height: 768,
+		Title:     "S7 Trend Go v" + backend.AppVersion,
+		Width:     1440,
+		Height:    900,
+		MinWidth:  1280,
+		MinHeight: 800,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

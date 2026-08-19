@@ -22,17 +22,17 @@ export function GetSystemLanguage():Promise<string>;
 
 export function GetVersion():Promise<string>;
 
-export function LoadPlcLinks(arg1:string):Promise<Array<backend.PlcLinkSettings>>;
+export function LoadPlcTagSettings(arg1:string):Promise<backend.PlcTagConfig>;
 
-export function LoadTags(arg1:string):Promise<Array<backend.TagSettings>>;
+export function LoadSettingsFile(arg1:string):Promise<backend.AppSettings>;
 
 export function RecordSample(arg1:string,arg2:number,arg3:number):Promise<void>;
 
-export function SavePlcLinks(arg1:Array<backend.PlcLinkSettings>,arg2:string):Promise<void>;
+export function SavePlcTagSettings(arg1:Array<backend.PlcLinkSettings>,arg2:Array<backend.TagSettings>,arg3:string):Promise<void>;
 
 export function SaveSettings(arg1:backend.AppSettings):Promise<void>;
 
-export function SaveTags(arg1:Array<backend.TagSettings>,arg2:string):Promise<void>;
+export function SaveSettingsFile(arg1:backend.AppSettings,arg2:string):Promise<void>;
 
 export function StartPolling(arg1:backend.AppSettings):Promise<void>;
 

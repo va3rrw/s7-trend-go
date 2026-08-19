@@ -13,23 +13,27 @@ import (
 
 // File Operations
 
-func (a *App) SavePlcLinks(links []PlcLinkSettings, title string) error {
+func (a *App) SavePlcTagSettings(links []PlcLinkSettings, tags []TagSettings, title string) error {
 	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		Title:           title,
-		DefaultFilename: "plcs.json",
+		DefaultFilename: "plc_tags.json",
 		Filters:         []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
 	})
 	if err != nil || filePath == "" {
 		return err
 	}
-	data, err := json.MarshalIndent(links, "", "  ")
+	cfg := PlcTagConfig{
+		PlcLinks: links,
+		Tags:     tags,
+	}
+	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(filePath, data, 0644)
 }
 
-func (a *App) LoadPlcLinks(title string) ([]PlcLinkSettings, error) {
+func (a *App) LoadPlcTagSettings(title string) (*PlcTagConfig, error) {
 	filePath, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title:   title,
 		Filters: []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
@@ -41,30 +45,38 @@ func (a *App) LoadPlcLinks(title string) ([]PlcLinkSettings, error) {
 	if err != nil {
 		return nil, err
 	}
-	var links []PlcLinkSettings
-	if err := json.Unmarshal(data, &links); err != nil {
+	var cfg PlcTagConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		// Fallback: check if it's full AppSettings file
+		var fullSettings AppSettings
+		if err2 := json.Unmarshal(data, &fullSettings); err2 == nil && len(fullSettings.PlcLinks) > 0 {
+			return &PlcTagConfig{
+				PlcLinks: fullSettings.PlcLinks,
+				Tags:     fullSettings.Tags,
+			}, nil
+		}
 		return nil, err
 	}
-	return links, nil
+	return &cfg, nil
 }
 
-func (a *App) SaveTags(tags []TagSettings, title string) error {
+func (a *App) SaveSettingsFile(settings AppSettings, title string) error {
 	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		Title:           title,
-		DefaultFilename: "tags.json",
+		DefaultFilename: "s7-trend-settings.json",
 		Filters:         []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
 	})
 	if err != nil || filePath == "" {
 		return err
 	}
-	data, err := json.MarshalIndent(tags, "", "  ")
+	data, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(filePath, data, 0644)
 }
 
-func (a *App) LoadTags(title string) ([]TagSettings, error) {
+func (a *App) LoadSettingsFile(title string) (*AppSettings, error) {
 	filePath, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title:   title,
 		Filters: []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
@@ -76,11 +88,11 @@ func (a *App) LoadTags(title string) ([]TagSettings, error) {
 	if err != nil {
 		return nil, err
 	}
-	var tags []TagSettings
-	if err := json.Unmarshal(data, &tags); err != nil {
+	var settings AppSettings
+	if err := json.Unmarshal(data, &settings); err != nil {
 		return nil, err
 	}
-	return tags, nil
+	return &settings, nil
 }
 
 // ExportCSV streams all recorded sample history from backend ring buffers directly to disk

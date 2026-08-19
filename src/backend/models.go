@@ -15,9 +15,6 @@ type PlcLinkSettings struct {
 func CreateDefaultPlcLinks() []PlcLinkSettings {
 	return []PlcLinkSettings{
 		{Name: "PLC1", IpAddress: "192.168.0.1", Rack: 0, Slot: 1},
-		{Name: "PLC2", IpAddress: "192.168.0.2", Rack: 0, Slot: 1},
-		{Name: "PLC3", IpAddress: "192.168.0.3", Rack: 0, Slot: 1},
-		{Name: "PLC4", IpAddress: "192.168.0.4", Rack: 0, Slot: 1},
 	}
 }
 
@@ -34,7 +31,11 @@ const (
 	DataTypeLReal TagDataType = "LReal"
 )
 
-const MaxTagsPerPlcLink = 16
+const (
+	MinPlcLinks       = 1
+	MaxPlcLinks       = 8
+	MaxTagsPerPlcLink = 16
+)
 
 type TagSettings struct {
 	Id       uuid.UUID   `json:"id"`
@@ -45,6 +46,11 @@ type TagSettings struct {
 	YAxis    string      `json:"yAxis"`
 	Color    string      `json:"color"`
 	Enabled  bool        `json:"enabled"`
+}
+
+type PlcTagConfig struct {
+	PlcLinks []PlcLinkSettings `json:"plcLinks"`
+	Tags     []TagSettings     `json:"tags"`
 }
 
 type YAxisSettings struct {

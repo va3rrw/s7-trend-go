@@ -42,28 +42,28 @@ export function GetVersion() {
   return window['go']['backend']['App']['GetVersion']();
 }
 
-export function LoadPlcLinks(arg1) {
-  return window['go']['backend']['App']['LoadPlcLinks'](arg1);
+export function LoadPlcTagSettings(arg1) {
+  return window['go']['backend']['App']['LoadPlcTagSettings'](arg1);
 }
 
-export function LoadTags(arg1) {
-  return window['go']['backend']['App']['LoadTags'](arg1);
+export function LoadSettingsFile(arg1) {
+  return window['go']['backend']['App']['LoadSettingsFile'](arg1);
 }
 
 export function RecordSample(arg1, arg2, arg3) {
   return window['go']['backend']['App']['RecordSample'](arg1, arg2, arg3);
 }
 
-export function SavePlcLinks(arg1, arg2) {
-  return window['go']['backend']['App']['SavePlcLinks'](arg1, arg2);
+export function SavePlcTagSettings(arg1, arg2, arg3) {
+  return window['go']['backend']['App']['SavePlcTagSettings'](arg1, arg2, arg3);
 }
 
 export function SaveSettings(arg1) {
   return window['go']['backend']['App']['SaveSettings'](arg1);
 }
 
-export function SaveTags(arg1, arg2) {
-  return window['go']['backend']['App']['SaveTags'](arg1, arg2);
+export function SaveSettingsFile(arg1, arg2) {
+  return window['go']['backend']['App']['SaveSettingsFile'](arg1, arg2);
 }
 
 export function StartPolling(arg1) {

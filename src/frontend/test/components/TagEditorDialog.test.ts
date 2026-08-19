@@ -170,4 +170,44 @@ describe('TagEditorDialog.vue', () => {
         // Should now succeed
         expect(wrapper.emitted('save')).toBeTruthy();
     });
+
+    it('disables Y-Axis selection when tag is Bool and defaults to Y-Axis 1 on switch', async () => {
+        const boolTag: TagSettings = {
+            id: 'tag-bool',
+            name: 'Motor_Running',
+            plcLink: 'PLC1',
+            address: 'I0.0',
+            dataType: 'Bool',
+            yAxis: '',
+            color: '#FF0000',
+            enabled: true,
+        };
+
+        const wrapper = await mountOpenEditor(boolTag);
+        const selects = wrapper.findAll('select');
+        // selects: [plcLink, dataType, yAxis]
+        const yAxisSelect = selects[selects.length - 1];
+
+        // Should be disabled for Bool
+        expect(yAxisSelect.attributes('disabled')).toBeDefined();
+
+        // Switch to Real -> should be enabled and default to Y-Axis 1
+        (wrapper.vm as any).form.dataType = 'Real';
+        await nextTick();
+        expect(yAxisSelect.attributes('disabled')).toBeUndefined();
+        expect((wrapper.vm as any).form.yAxis).toBe('Y-Axis 1');
+
+        // Switch back to Bool -> should be disabled and cleared
+        (wrapper.vm as any).form.dataType = 'Bool';
+        await nextTick();
+        expect(yAxisSelect.attributes('disabled')).toBeDefined();
+        expect((wrapper.vm as any).form.yAxis).toBe('');
+
+        const okBtn = wrapper.find('button.btn-primary');
+        await okBtn.trigger('click');
+
+        expect(wrapper.emitted('save')).toBeTruthy();
+        const saved = wrapper.emitted('save')?.[0]?.[0] as TagSettings;
+        expect(saved.yAxis).toBe('');
+    });
 });

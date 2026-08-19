@@ -12,7 +12,9 @@
                     v-model="form.name"
                     type="text" />
             </div>
-            <div class="form-row">
+            <div
+                v-if="!hidePlc"
+                class="form-row">
                 <label>{{ $t('grid.plc') }}</label>
                 <select v-model="form.plcLink">
                     <option
@@ -43,7 +45,14 @@
             </div>
             <div class="form-row">
                 <label>{{ $t('dialog.y_axis') }}</label>
-                <select v-model="form.yAxis">
+                <select
+                    v-model="form.yAxis"
+                    :disabled="form.dataType === 'Bool'">
+                    <option
+                        v-if="form.dataType === 'Bool'"
+                        value="">
+                        -
+                    </option>
                     <option
                         v-for="a in axisNames"
                         :key="a"
@@ -100,6 +109,8 @@ const props = defineProps<{
     index: number;
     /** Existing tags list to validate PLC link capacity against */
     existingTags?: TagSettings[];
+    /** Whether to hide PLC link selector when locked/selected */
+    hidePlc?: boolean;
 }>();
 const emit = defineEmits<{ close: []; save: [tag: TagSettings] }>();
 const { t } = useI18n();
@@ -120,9 +131,23 @@ watch(
     (val) => {
         if (val && props.tag) {
             form.value = { ...props.tag };
+            if (form.value.dataType === 'Bool') {
+                form.value.yAxis = '';
+            }
         }
     },
     { immediate: true },
+);
+
+watch(
+    () => form.value.dataType,
+    (newType, oldType) => {
+        if (newType === 'Bool') {
+            form.value.yAxis = '';
+        } else if (oldType === 'Bool' || !form.value.yAxis) {
+            form.value.yAxis = axisNames.value[0] || 'Y-Axis 1';
+        }
+    },
 );
 
 function onAddressInput() {
@@ -165,6 +190,12 @@ function save() {
             t('prompt.max_tags_per_plc_exceeded', [tag.plcLink, MAX_TAGS_PER_PLC_LINK]),
         );
         return;
+    }
+
+    if (tag.dataType === 'Bool') {
+        tag.yAxis = '';
+    } else if (!tag.yAxis) {
+        tag.yAxis = axisNames.value[0] || 'Y-Axis 1';
     }
 
     emit('save', tag);

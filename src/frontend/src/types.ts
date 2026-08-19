@@ -40,6 +40,8 @@ export interface SampleRecord {
     value: number;
 }
 
+export const MIN_PLC_LINKS = 1;
+export const MAX_PLC_LINKS = 8;
 export const MAX_TAGS_PER_PLC_LINK = 16;
 
 export const DATA_TYPES = [
@@ -78,13 +80,15 @@ export function defaultSettings(): AppSettings {
         pollIntervalMs: 100,
         timeWindowSeconds: 60,
         interpolation: 'Line',
-        plcLinks: [0, 1, 2, 3].map((i) => ({
-            name: `PLC${i + 1}`,
-            ipAddress: `192.168.0.${i + 1}`,
-            rack: 0,
-            slot: 1,
-            isConnected: false,
-        })),
+        plcLinks: [
+            {
+                name: 'PLC1',
+                ipAddress: '192.168.0.1',
+                rack: 0,
+                slot: 1,
+                isConnected: false,
+            },
+        ],
         tags: [],
         yAxes: [1, 2, 3, 4].map((i) => ({
             name: `Y-Axis ${i}`,
