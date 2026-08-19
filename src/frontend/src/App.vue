@@ -7,14 +7,16 @@
                 <div class="dropdown">
                     <a
                         href="#"
-                        @click.prevent="menuLoadSettings"
-                        >{{ $t('menu.load_settings') }}</a
-                    >
+                        @click.prevent="menuLoadSettings">
+                        <span>{{ $t('menu.load_settings') }}</span>
+                        <span class="menu-shortcut">Ctrl+L</span>
+                    </a>
                     <a
                         href="#"
-                        @click.prevent="menuSaveSettings"
-                        >{{ $t('menu.save_settings') }}</a
-                    >
+                        @click.prevent="menuSaveSettings">
+                        <span>{{ $t('menu.save_settings') }}</span>
+                        <span class="menu-shortcut">Ctrl+S</span>
+                    </a>
                 </div>
             </div>
             <div class="menu-item">
@@ -22,19 +24,22 @@
                 <div class="dropdown">
                     <a
                         href="#"
-                        @click.prevent="plcTagsOpen = true"
-                        >{{ $t('menu.plc_tag_settings') }}</a
-                    >
+                        @click.prevent="plcTagsOpen = true">
+                        <span>{{ $t('menu.plc_tag_settings') }}</span>
+                        <span class="menu-shortcut">Ctrl+T</span>
+                    </a>
                     <a
                         href="#"
-                        @click.prevent="menuTrendWindow"
-                        >{{ $t('menu.x_settings') }}</a
-                    >
+                        @click.prevent="menuTrendWindow">
+                        <span>{{ $t('menu.x_settings') }}</span>
+                        <span class="menu-shortcut">Ctrl+X</span>
+                    </a>
                     <a
                         href="#"
-                        @click.prevent="yAxesOpen = true"
-                        >{{ $t('menu.y_settings') }}</a
-                    >
+                        @click.prevent="yAxesOpen = true">
+                        <span>{{ $t('menu.y_settings') }}</span>
+                        <span class="menu-shortcut">Ctrl+Y</span>
+                    </a>
                 </div>
             </div>
             <div class="menu-item">
@@ -43,14 +48,18 @@
                     <a
                         href="#"
                         @click.prevent="toggleCursors">
-                        {{ cursorsEnabled ? '✓ ' : '' }}{{ $t('menu.measurement_cursors') }}
+                        <span
+                            >{{ cursorsEnabled ? '✓ ' : ''
+                            }}{{ $t('menu.measurement_cursors') }}</span
+                        >
+                        <span class="menu-shortcut">Ctrl+M</span>
                     </a>
                     <hr />
                     <a
                         href="#"
-                        @click.prevent="menuExport"
-                        >{{ $t('menu.export_csv') }}</a
-                    >
+                        @click.prevent="menuExport">
+                        <span>{{ $t('menu.export_csv') }}</span>
+                    </a>
                 </div>
             </div>
             <div class="menu-item">
@@ -58,44 +67,47 @@
                 <div class="dropdown">
                     <a
                         href="#"
-                        @click.prevent="menuTimer"
-                        >{{ $t('menu.set_timer_interval') }}</a
-                    >
+                        @click.prevent="menuTimer">
+                        <span>{{ $t('menu.set_timer_interval') }}</span>
+                    </a>
                     <hr />
                     <a
                         href="#"
                         :class="{ disabled: state.isSampling }"
-                        @click.prevent="!state.isSampling && startSampling()"
-                        >{{ $t('menu.start') }}</a
-                    >
+                        @click.prevent="!state.isSampling && startSampling()">
+                        <span>{{ $t('menu.start') }}</span>
+                        <span class="menu-shortcut">F5</span>
+                    </a>
                     <a
                         href="#"
                         :class="{ disabled: !state.isSampling }"
-                        @click.prevent="state.isSampling && pauseSampling()"
-                        >{{
+                        @click.prevent="state.isSampling && pauseSampling()">
+                        <span>{{
                             state.isPaused
                                 ? $t('menu.resume')
                                 : $t('menu.pause')
-                        }}</a
-                    >
+                        }}</span>
+                        <span class="menu-shortcut">Space</span>
+                    </a>
                     <a
                         href="#"
                         :class="{ disabled: !state.isSampling }"
-                        @click.prevent="state.isSampling && stopSampling()"
-                        >{{ $t('menu.stop') }}</a
-                    >
+                        @click.prevent="state.isSampling && stopSampling()">
+                        <span>{{ $t('menu.stop') }}</span>
+                        <span class="menu-shortcut">Shift+F5</span>
+                    </a>
                     <hr />
                     <a
                         href="#"
-                        @click.prevent="menuInterpolation"
-                        >{{ $t('menu.samples_interpolation') }}</a
-                    >
+                        @click.prevent="menuInterpolation">
+                        <span>{{ $t('menu.samples_interpolation') }}</span>
+                    </a>
                     <hr />
                     <a
                         href="#"
-                        @click.prevent="menuClear"
-                        >{{ $t('menu.clear_records') }}</a
-                    >
+                        @click.prevent="menuClear">
+                        <span>{{ $t('menu.clear_records') }}</span>
+                    </a>
                 </div>
             </div>
             <div class="menu-item">
@@ -103,20 +115,20 @@
                 <div class="dropdown">
                     <a
                         href="#"
-                        @click.prevent="locale = 'en'"
-                        >English</a
-                    >
+                        @click.prevent="locale = 'en'">
+                        <span>English</span>
+                    </a>
                     <a
                         href="#"
-                        @click.prevent="locale = 'zh'"
-                        >简体中文</a
-                    >
+                        @click.prevent="locale = 'zh'">
+                        <span>简体中文</span>
+                    </a>
                     <hr />
                     <a
                         href="#"
-                        @click.prevent="aboutOpen = true"
-                        >{{ $t('menu.about') }}</a
-                    >
+                        @click.prevent="aboutOpen = true">
+                        <span>{{ $t('menu.about') }}</span>
+                    </a>
                 </div>
             </div>
         </nav>
@@ -226,7 +238,12 @@
                 class="tags-area">
                 <div class="tags-area-toolbar">
                     <div class="tags-area-title">
-                        <span class="tags-count">{{ $t('grid.tags_count', [sortedTags.length, state.settings.tags.length]) }}</span>
+                        <span class="tags-count">{{
+                            $t('grid.tags_count', [
+                                sortedTags.length,
+                                state.settings.tags.length,
+                            ])
+                        }}</span>
                     </div>
                     <div class="tags-search-wrapper">
                         <input
@@ -262,31 +279,51 @@
                                     class="col-text"
                                     @click="toggleSort('name')">
                                     {{ $t('grid.tag') }}
-                                    <span v-if="sortKey === 'name'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'name'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
                                 <th
                                     class="col-text"
                                     @click="toggleSort('plcLink')">
                                     {{ $t('grid.plc') }}
-                                    <span v-if="sortKey === 'plcLink'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'plcLink'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
                                 <th
                                     class="col-numeric"
                                     @click="toggleSort('value')">
                                     {{ $t('grid.value') }}
-                                    <span v-if="sortKey === 'value'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'value'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
                                 <th
                                     class="col-numeric"
                                     @click="toggleSort('min')">
                                     {{ $t('grid.min') }}
-                                    <span v-if="sortKey === 'min'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'min'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
                                 <th
                                     class="col-numeric"
                                     @click="toggleSort('max')">
                                     {{ $t('grid.max') }}
-                                    <span v-if="sortKey === 'max'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'max'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
 
                                 <!-- Center Divider 1 -->
@@ -304,31 +341,51 @@
                                     class="col-text"
                                     @click="toggleSort('name')">
                                     {{ $t('grid.tag') }}
-                                    <span v-if="sortKey === 'name'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'name'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
                                 <th
                                     class="col-text"
                                     @click="toggleSort('plcLink')">
                                     {{ $t('grid.plc') }}
-                                    <span v-if="sortKey === 'plcLink'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'plcLink'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
                                 <th
                                     class="col-numeric"
                                     @click="toggleSort('value')">
                                     {{ $t('grid.value') }}
-                                    <span v-if="sortKey === 'value'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'value'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
                                 <th
                                     class="col-numeric"
                                     @click="toggleSort('min')">
                                     {{ $t('grid.min') }}
-                                    <span v-if="sortKey === 'min'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'min'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
                                 <th
                                     class="col-numeric"
                                     @click="toggleSort('max')">
                                     {{ $t('grid.max') }}
-                                    <span v-if="sortKey === 'max'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'max'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
 
                                 <!-- Center Divider 2 -->
@@ -346,31 +403,51 @@
                                     class="col-text"
                                     @click="toggleSort('name')">
                                     {{ $t('grid.tag') }}
-                                    <span v-if="sortKey === 'name'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'name'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
                                 <th
                                     class="col-text"
                                     @click="toggleSort('plcLink')">
                                     {{ $t('grid.plc') }}
-                                    <span v-if="sortKey === 'plcLink'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'plcLink'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
                                 <th
                                     class="col-numeric"
                                     @click="toggleSort('value')">
                                     {{ $t('grid.value') }}
-                                    <span v-if="sortKey === 'value'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'value'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
                                 <th
                                     class="col-numeric"
                                     @click="toggleSort('min')">
                                     {{ $t('grid.min') }}
-                                    <span v-if="sortKey === 'min'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'min'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
                                 <th
                                     class="col-numeric"
                                     @click="toggleSort('max')">
                                     {{ $t('grid.max') }}
-                                    <span v-if="sortKey === 'max'" class="sort-icon">{{ sortAsc ? '▲' : '▼' }}</span>
+                                    <span
+                                        v-if="sortKey === 'max'"
+                                        class="sort-icon"
+                                        >{{ sortAsc ? '▲' : '▼' }}</span
+                                    >
                                 </th>
                             </tr>
                         </thead>
@@ -381,7 +458,11 @@
                                 <td
                                     colspan="20"
                                     class="datagrid-empty">
-                                    {{ state.settings.tags.length === 0 ? $t('grid.no_tags') : $t('grid.no_matching_tags') }}
+                                    {{
+                                        state.settings.tags.length === 0
+                                            ? $t('grid.no_tags')
+                                            : $t('grid.no_matching_tags')
+                                    }}
                                 </td>
                             </tr>
                             <tr
@@ -390,7 +471,10 @@
                                 <!-- Col 1 Cell Group -->
                                 <td
                                     class="col-checkbox"
-                                    :style="{ backgroundColor: triplet.c1.color || 'transparent' }"
+                                    :style="{
+                                        backgroundColor:
+                                            triplet.c1.color || 'transparent',
+                                    }"
                                     @click.stop>
                                     <input
                                         type="checkbox"
@@ -404,31 +488,46 @@
                                 </td>
                                 <td
                                     class="col-text font-medium"
-                                    :style="{ backgroundColor: triplet.c1.color || 'transparent' }"
+                                    :style="{
+                                        backgroundColor:
+                                            triplet.c1.color || 'transparent',
+                                    }"
                                     @dblclick="onRowDblClick(triplet.c1)">
                                     {{ triplet.c1.name }}
                                 </td>
                                 <td
                                     class="col-text"
-                                    :style="{ backgroundColor: triplet.c1.color || 'transparent' }"
+                                    :style="{
+                                        backgroundColor:
+                                            triplet.c1.color || 'transparent',
+                                    }"
                                     @dblclick="onRowDblClick(triplet.c1)">
                                     {{ triplet.c1.plcLink }}
                                 </td>
                                 <td
                                     class="col-numeric font-mono"
-                                    :style="{ backgroundColor: triplet.c1.color || 'transparent' }"
+                                    :style="{
+                                        backgroundColor:
+                                            triplet.c1.color || 'transparent',
+                                    }"
                                     @dblclick="onRowDblClick(triplet.c1)">
                                     {{ tagValue(triplet.c1.id) }}
                                 </td>
                                 <td
                                     class="col-numeric font-mono"
-                                    :style="{ backgroundColor: triplet.c1.color || 'transparent' }"
+                                    :style="{
+                                        backgroundColor:
+                                            triplet.c1.color || 'transparent',
+                                    }"
                                     @dblclick="onRowDblClick(triplet.c1)">
                                     {{ tagMin(triplet.c1.id) }}
                                 </td>
                                 <td
                                     class="col-numeric font-mono"
-                                    :style="{ backgroundColor: triplet.c1.color || 'transparent' }"
+                                    :style="{
+                                        backgroundColor:
+                                            triplet.c1.color || 'transparent',
+                                    }"
                                     @dblclick="onRowDblClick(triplet.c1)">
                                     {{ tagMax(triplet.c1.id) }}
                                 </td>
@@ -440,7 +539,11 @@
                                 <template v-if="triplet.c2">
                                     <td
                                         class="col-checkbox"
-                                        :style="{ backgroundColor: triplet.c2?.color || 'transparent' }"
+                                        :style="{
+                                            backgroundColor:
+                                                triplet.c2?.color ||
+                                                'transparent',
+                                        }"
                                         @click.stop>
                                         <input
                                             type="checkbox"
@@ -456,37 +559,86 @@
                                     </td>
                                     <td
                                         class="col-text font-medium"
-                                        :style="{ backgroundColor: triplet.c2?.color || 'transparent' }"
-                                        @dblclick="triplet.c2 && onRowDblClick(triplet.c2)">
+                                        :style="{
+                                            backgroundColor:
+                                                triplet.c2?.color ||
+                                                'transparent',
+                                        }"
+                                        @dblclick="
+                                            triplet.c2 &&
+                                            onRowDblClick(triplet.c2)
+                                        ">
                                         {{ triplet.c2?.name }}
                                     </td>
                                     <td
                                         class="col-text"
-                                        :style="{ backgroundColor: triplet.c2?.color || 'transparent' }"
-                                        @dblclick="triplet.c2 && onRowDblClick(triplet.c2)">
+                                        :style="{
+                                            backgroundColor:
+                                                triplet.c2?.color ||
+                                                'transparent',
+                                        }"
+                                        @dblclick="
+                                            triplet.c2 &&
+                                            onRowDblClick(triplet.c2)
+                                        ">
                                         {{ triplet.c2?.plcLink }}
                                     </td>
                                     <td
                                         class="col-numeric font-mono"
-                                        :style="{ backgroundColor: triplet.c2?.color || 'transparent' }"
-                                        @dblclick="triplet.c2 && onRowDblClick(triplet.c2)">
-                                        {{ triplet.c2 ? tagValue(triplet.c2.id) : '-' }}
+                                        :style="{
+                                            backgroundColor:
+                                                triplet.c2?.color ||
+                                                'transparent',
+                                        }"
+                                        @dblclick="
+                                            triplet.c2 &&
+                                            onRowDblClick(triplet.c2)
+                                        ">
+                                        {{
+                                            triplet.c2
+                                                ? tagValue(triplet.c2.id)
+                                                : '-'
+                                        }}
                                     </td>
                                     <td
                                         class="col-numeric font-mono"
-                                        :style="{ backgroundColor: triplet.c2?.color || 'transparent' }"
-                                        @dblclick="triplet.c2 && onRowDblClick(triplet.c2)">
-                                        {{ triplet.c2 ? tagMin(triplet.c2.id) : '-' }}
+                                        :style="{
+                                            backgroundColor:
+                                                triplet.c2?.color ||
+                                                'transparent',
+                                        }"
+                                        @dblclick="
+                                            triplet.c2 &&
+                                            onRowDblClick(triplet.c2)
+                                        ">
+                                        {{
+                                            triplet.c2
+                                                ? tagMin(triplet.c2.id)
+                                                : '-'
+                                        }}
                                     </td>
                                     <td
                                         class="col-numeric font-mono"
-                                        :style="{ backgroundColor: triplet.c2?.color || 'transparent' }"
-                                        @dblclick="triplet.c2 && onRowDblClick(triplet.c2)">
-                                        {{ triplet.c2 ? tagMax(triplet.c2.id) : '-' }}
+                                        :style="{
+                                            backgroundColor:
+                                                triplet.c2?.color ||
+                                                'transparent',
+                                        }"
+                                        @dblclick="
+                                            triplet.c2 &&
+                                            onRowDblClick(triplet.c2)
+                                        ">
+                                        {{
+                                            triplet.c2
+                                                ? tagMax(triplet.c2.id)
+                                                : '-'
+                                        }}
                                     </td>
                                 </template>
                                 <template v-else>
-                                    <td colspan="6" class="empty-cell" />
+                                    <td
+                                        colspan="6"
+                                        class="empty-cell" />
                                 </template>
 
                                 <!-- Divider 2 -->
@@ -496,7 +648,11 @@
                                 <template v-if="triplet.c3">
                                     <td
                                         class="col-checkbox"
-                                        :style="{ backgroundColor: triplet.c3?.color || 'transparent' }"
+                                        :style="{
+                                            backgroundColor:
+                                                triplet.c3?.color ||
+                                                'transparent',
+                                        }"
                                         @click.stop>
                                         <input
                                             type="checkbox"
@@ -512,37 +668,86 @@
                                     </td>
                                     <td
                                         class="col-text font-medium"
-                                        :style="{ backgroundColor: triplet.c3?.color || 'transparent' }"
-                                        @dblclick="triplet.c3 && onRowDblClick(triplet.c3)">
+                                        :style="{
+                                            backgroundColor:
+                                                triplet.c3?.color ||
+                                                'transparent',
+                                        }"
+                                        @dblclick="
+                                            triplet.c3 &&
+                                            onRowDblClick(triplet.c3)
+                                        ">
                                         {{ triplet.c3?.name }}
                                     </td>
                                     <td
                                         class="col-text"
-                                        :style="{ backgroundColor: triplet.c3?.color || 'transparent' }"
-                                        @dblclick="triplet.c3 && onRowDblClick(triplet.c3)">
+                                        :style="{
+                                            backgroundColor:
+                                                triplet.c3?.color ||
+                                                'transparent',
+                                        }"
+                                        @dblclick="
+                                            triplet.c3 &&
+                                            onRowDblClick(triplet.c3)
+                                        ">
                                         {{ triplet.c3?.plcLink }}
                                     </td>
                                     <td
                                         class="col-numeric font-mono"
-                                        :style="{ backgroundColor: triplet.c3?.color || 'transparent' }"
-                                        @dblclick="triplet.c3 && onRowDblClick(triplet.c3)">
-                                        {{ triplet.c3 ? tagValue(triplet.c3.id) : '-' }}
+                                        :style="{
+                                            backgroundColor:
+                                                triplet.c3?.color ||
+                                                'transparent',
+                                        }"
+                                        @dblclick="
+                                            triplet.c3 &&
+                                            onRowDblClick(triplet.c3)
+                                        ">
+                                        {{
+                                            triplet.c3
+                                                ? tagValue(triplet.c3.id)
+                                                : '-'
+                                        }}
                                     </td>
                                     <td
                                         class="col-numeric font-mono"
-                                        :style="{ backgroundColor: triplet.c3?.color || 'transparent' }"
-                                        @dblclick="triplet.c3 && onRowDblClick(triplet.c3)">
-                                        {{ triplet.c3 ? tagMin(triplet.c3.id) : '-' }}
+                                        :style="{
+                                            backgroundColor:
+                                                triplet.c3?.color ||
+                                                'transparent',
+                                        }"
+                                        @dblclick="
+                                            triplet.c3 &&
+                                            onRowDblClick(triplet.c3)
+                                        ">
+                                        {{
+                                            triplet.c3
+                                                ? tagMin(triplet.c3.id)
+                                                : '-'
+                                        }}
                                     </td>
                                     <td
                                         class="col-numeric font-mono"
-                                        :style="{ backgroundColor: triplet.c3?.color || 'transparent' }"
-                                        @dblclick="triplet.c3 && onRowDblClick(triplet.c3)">
-                                        {{ triplet.c3 ? tagMax(triplet.c3.id) : '-' }}
+                                        :style="{
+                                            backgroundColor:
+                                                triplet.c3?.color ||
+                                                'transparent',
+                                        }"
+                                        @dblclick="
+                                            triplet.c3 &&
+                                            onRowDblClick(triplet.c3)
+                                        ">
+                                        {{
+                                            triplet.c3
+                                                ? tagMax(triplet.c3.id)
+                                                : '-'
+                                        }}
                                     </td>
                                 </template>
                                 <template v-else>
-                                    <td colspan="6" class="empty-cell" />
+                                    <td
+                                        colspan="6"
+                                        class="empty-cell" />
                                 </template>
                             </tr>
                         </tbody>
@@ -658,9 +863,137 @@ function fitCursors() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
-    if (e.altKey && (e.key === 'm' || e.key === 'M')) {
+    const target = e.target as HTMLElement | null;
+    const isInput =
+        target &&
+        (target.tagName === 'INPUT' ||
+            target.tagName === 'TEXTAREA' ||
+            target.tagName === 'SELECT' ||
+            target.isContentEditable);
+
+    const hasModalOpen =
+        plcTagsOpen.value ||
+        yAxesOpen.value ||
+        aboutOpen.value ||
+        promptOpen.value ||
+        uiState.msgOpen ||
+        dblEditOpen.value;
+
+    // Ctrl + M / Cmd + M / Alt + M: Toggle measurement cursors
+    if (
+        (((e.ctrlKey || e.metaKey) && !e.altKey) ||
+            (e.altKey && !e.ctrlKey && !e.metaKey)) &&
+        (e.key === 'm' || e.key === 'M') &&
+        !e.shiftKey
+    ) {
         e.preventDefault();
         toggleCursors();
+        return;
+    }
+
+    // Ctrl + S / Cmd + S: Save settings
+    if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === 's' || e.key === 'S') &&
+        !e.shiftKey &&
+        !e.altKey
+    ) {
+        e.preventDefault();
+        void menuSaveSettings();
+        return;
+    }
+
+    // Ctrl + L / Ctrl + O / Cmd + L / Cmd + O: Load settings
+    if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === 'l' || e.key === 'L' || e.key === 'o' || e.key === 'O') &&
+        !e.shiftKey &&
+        !e.altKey
+    ) {
+        e.preventDefault();
+        void menuLoadSettings();
+        return;
+    }
+
+    // Ctrl + X / Cmd + X: X-axis settings
+    if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === 'x' || e.key === 'X') &&
+        !e.shiftKey &&
+        !e.altKey
+    ) {
+        if (!isInput && !hasModalOpen) {
+            e.preventDefault();
+            void menuTrendWindow();
+            return;
+        }
+    }
+
+    // Ctrl + Y / Cmd + Y: Y-axis settings
+    if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === 'y' || e.key === 'Y') &&
+        !e.shiftKey &&
+        !e.altKey
+    ) {
+        if (!isInput && !hasModalOpen) {
+            e.preventDefault();
+            yAxesOpen.value = true;
+            return;
+        }
+    }
+
+    // Ctrl + T / Cmd + T: PLC / Tag settings
+    if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === 't' || e.key === 'T') &&
+        !e.shiftKey &&
+        !e.altKey
+    ) {
+        if (!isInput && !hasModalOpen) {
+            e.preventDefault();
+            plcTagsOpen.value = true;
+            return;
+        }
+    }
+
+    // Shift + F5: Stop sampling
+    if (e.shiftKey && e.key === 'F5') {
+        e.preventDefault();
+        void stopSampling();
+        return;
+    }
+
+    // F5: Start sampling (or resume if paused)
+    if (
+        !e.shiftKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.metaKey &&
+        e.key === 'F5'
+    ) {
+        e.preventDefault();
+        if (!state.isSampling) {
+            void startSampling();
+        } else if (state.isPaused) {
+            pauseSampling();
+        }
+        return;
+    }
+
+    // Space: Toggle pause / resume (only when no modal is open and not typing inside an input)
+    if (
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.metaKey &&
+        !e.shiftKey &&
+        (e.key === ' ' || e.code === 'Space')
+    ) {
+        if (!isInput && !hasModalOpen && state.isSampling) {
+            e.preventDefault();
+            pauseSampling();
+            return;
+        }
     }
 }
 
@@ -711,7 +1044,10 @@ function onRowDblClick(tag: TagSettings) {
 }
 
 function onDblEditSave(updatedTag: TagSettings) {
-    if (dblEditIndex.value >= 0 && dblEditIndex.value < state.settings.tags.length) {
+    if (
+        dblEditIndex.value >= 0 &&
+        dblEditIndex.value < state.settings.tags.length
+    ) {
         state.settings.tags[dblEditIndex.value] = updatedTag;
         onSettingsChanged();
     }
@@ -778,12 +1114,7 @@ function tagMax(id: string) {
 }
 
 // ── Tag DataGrid state & helpers ───────────────────────────────────
-type SortKey =
-    | 'name'
-    | 'plcLink'
-    | 'value'
-    | 'min'
-    | 'max';
+type SortKey = 'name' | 'plcLink' | 'value' | 'min' | 'max';
 
 interface TagTriplet {
     c1: TagSettings;
@@ -850,9 +1181,8 @@ const sortedTags = computed(() => {
             if (Number.isFinite(vA) && Number.isFinite(vB))
                 return (vA - vB) * dir;
             return (
-                (liveValues[a.id] || '').localeCompare(
-                    liveValues[b.id] || '',
-                ) * dir
+                (liveValues[a.id] || '').localeCompare(liveValues[b.id] || '') *
+                dir
             );
         }
         if (k === 'min') {
@@ -902,7 +1232,9 @@ async function onYAxesSave() {
 // ── Menu actions ───────────────────────────────────────────────────
 async function menuLoadSettings() {
     try {
-        const loaded = await backend()?.LoadPlcTagSettings(t('menu.load_settings'));
+        const loaded = await backend()?.LoadPlcTagSettings(
+            t('menu.load_settings'),
+        );
         if (loaded?.plcLinks?.length) {
             state.settings.plcLinks = loaded.plcLinks;
             state.settings.tags = loaded.tags ?? [];
@@ -916,7 +1248,11 @@ async function menuLoadSettings() {
 
 async function menuSaveSettings() {
     try {
-        await backend()?.SavePlcTagSettings(state.settings.plcLinks, state.settings.tags, t('menu.save_settings'));
+        await backend()?.SavePlcTagSettings(
+            state.settings.plcLinks,
+            state.settings.tags,
+            t('menu.save_settings'),
+        );
         state.statusMessage = t('status.saved_settings');
     } catch (err) {
         state.statusMessage = t('status.error_saving_settings', [err]);
@@ -932,7 +1268,10 @@ async function menuTimer() {
     if (value === null) return;
     const interval = Number(value);
     if (!Number.isInteger(interval) || interval < 10 || interval > 60000) {
-        showMessage(t('menu.set_timer_interval'), t('prompt.invalid_interval', ['10', '60000']));
+        showMessage(
+            t('menu.set_timer_interval'),
+            t('prompt.invalid_interval', ['10', '60000']),
+        );
         return;
     }
     state.settings.pollIntervalMs = interval;
@@ -949,7 +1288,10 @@ async function menuTrendWindow() {
     if (value === null) return;
     const seconds = Number(value);
     if (!Number.isInteger(seconds) || seconds < 30 || seconds > 86400) {
-        showMessage(t('menu.x_settings'), t('prompt.invalid_window', ['30', '86400']));
+        showMessage(
+            t('menu.x_settings'),
+            t('prompt.invalid_window', ['30', '86400']),
+        );
         return;
     }
     state.settings.timeWindowSeconds = seconds;
@@ -972,10 +1314,7 @@ async function menuInterpolation() {
 
 async function menuClear() {
     if (
-        !(await showConfirm(
-            t('menu.clear_records'),
-            t('prompt.clear_confirm'),
-        ))
+        !(await showConfirm(t('menu.clear_records'), t('prompt.clear_confirm')))
     )
         return;
     chartRef.value?.clear();

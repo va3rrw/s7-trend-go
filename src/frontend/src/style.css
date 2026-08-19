@@ -120,7 +120,7 @@ select:focus {
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   border: 1px solid var(--border-color);
   z-index: 1000;
-  min-width: 220px;
+  min-width: 200px;
   padding: 4px 0;
 }
 .menu-item:hover .dropdown { display: block; }
@@ -132,13 +132,26 @@ select:focus {
     pointer-events: none;
 }
 .dropdown a {
-  display: block;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 6px 16px;
   color: var(--text-color);
   text-decoration: none;
+  font-size: 12px;
+  gap: 16px;
 }
 .dropdown a:hover { background-color: #0071e3; color: white; }
 .dropdown hr { border: none; border-top: 1px solid #e2e8f0; margin: 4px 0; }
+
+.menu-shortcut {
+  font-size: 12px;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.dropdown a:hover .menu-shortcut {
+  color: rgba(255, 255, 255, 0.85);
+}
 
 /* Toolbar */
 .toolbar {
