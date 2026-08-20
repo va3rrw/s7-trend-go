@@ -16,6 +16,7 @@ func (a *App) StartPolling(settings AppSettings) {
 	a.StopPolling()
 
 	a.mu.Lock()
+	oldLinks := append([]PlcLinkSettings(nil), a.settings.PlcLinks...)
 	a.settings = settings
 	baseCtx := a.ctx
 	if baseCtx == nil {
@@ -27,6 +28,13 @@ func (a *App) StartPolling(settings AppSettings) {
 	done := make(chan struct{})
 	a.pollDone = done
 	a.mu.Unlock()
+
+	for _, old := range oldLinks {
+		current := findLink(settings.PlcLinks, old.Name)
+		if current == nil || old.IpAddress != current.IpAddress || old.Rack != current.Rack || old.Slot != current.Slot {
+			_ = a.Disconnect(old.Name)
+		}
+	}
 
 	interval := settings.PollIntervalMs
 	if interval < 10 {
@@ -100,9 +108,12 @@ func (a *App) StartPolling(settings AppSettings) {
 				Err        error
 			}
 			dataChan := make(chan networkResult, 100)
+			var linkWg sync.WaitGroup
+			linkWg.Add(1)
 
 			// Goroutine 1: The Network Worker (Paced by user sample interval, using AGReadMulti)
 			go func() {
+				defer linkWg.Done()
 				pollTicker := time.NewTicker(time.Duration(interval) * time.Millisecond)
 				defer pollTicker.Stop()
 
@@ -216,6 +227,7 @@ func (a *App) StartPolling(settings AppSettings) {
 			}()
 
 			// Goroutine 2: The Consumer & Wails Emitter (Throttles updates for Wails IPC bridge if necessary)
+			defer linkWg.Wait()
 			uiInterval := time.Duration(interval) * time.Millisecond
 			if uiInterval < 33*time.Millisecond {
 				uiInterval = 33 * time.Millisecond

@@ -69,6 +69,15 @@ func (a *App) GetSettings() AppSettings {
 
 // SaveSettings updates internal settings
 func (a *App) SaveSettings(s AppSettings) {
+	a.mu.RLock()
+	wasPolling := a.isPolling
+	a.mu.RUnlock()
+
+	if wasPolling {
+		a.StartPolling(s)
+		return
+	}
+
 	a.mu.Lock()
 	oldLinks := append([]PlcLinkSettings(nil), a.settings.PlcLinks...)
 	a.settings = s

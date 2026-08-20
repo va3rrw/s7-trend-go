@@ -126,3 +126,70 @@ func TestApp_StartPolling_MaxTagsPerPlcLinkCap(t *testing.T) {
 	app.StopPolling()
 }
 
+func TestApp_StartPolling_UpdateTagsWhilePolling(t *testing.T) {
+	app := NewApp()
+	settings := CreateDefaultSettings()
+	app.StartPolling(settings)
+
+	if !app.isPolling {
+		t.Fatal("expected isPolling to be true")
+	}
+
+	// Update tags while sampling is running
+	newSettings := settings
+	newSettings.Tags = append(newSettings.Tags, TagSettings{
+		Id:       uuid.New(),
+		Name:     "NewTagLive",
+		PlcLink:  "PLC1",
+		Address:  "DB1.DBD4",
+		DataType: DataTypeReal,
+		Enabled:  true,
+	})
+
+	app.StartPolling(newSettings)
+
+	if !app.isPolling {
+		t.Error("expected isPolling to remain true after StartPolling with updated tags")
+	}
+	if len(app.GetSettings().Tags) != len(newSettings.Tags) {
+		t.Errorf("expected %d tags, got %d", len(newSettings.Tags), len(app.GetSettings().Tags))
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	app.StopPolling()
+}
+
+func TestApp_SaveSettings_WhilePolling(t *testing.T) {
+	app := NewApp()
+	settings := CreateDefaultSettings()
+	app.StartPolling(settings)
+
+	if !app.isPolling {
+		t.Fatal("expected isPolling to be true")
+	}
+
+	newSettings := settings
+	newSettings.PollIntervalMs = 250
+	newSettings.Tags = append(newSettings.Tags, TagSettings{
+		Id:       uuid.New(),
+		Name:     "TagFromSaveSettings",
+		PlcLink:  "PLC1",
+		Address:  "DB1.DBD8",
+		DataType: DataTypeReal,
+		Enabled:  true,
+	})
+
+	app.SaveSettings(newSettings)
+
+	if !app.isPolling {
+		t.Error("expected isPolling to remain true after SaveSettings while polling")
+	}
+	if app.GetSettings().PollIntervalMs != 250 {
+		t.Errorf("expected PollIntervalMs 250, got %d", app.GetSettings().PollIntervalMs)
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	app.StopPolling()
+}
+
+

@@ -154,3 +154,5 @@ describe('Keyboard Shortcuts in App.vue', () => {
         expect(wrapper.findComponent({ name: 'PlcTagsDialog' }).props('open')).toBe(true);
     });
 });
+
+

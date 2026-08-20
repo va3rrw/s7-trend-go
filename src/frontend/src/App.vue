@@ -1073,7 +1073,16 @@ let fallbackTimer: number | null = null;
 // ── Settings sync ──────────────────────────────────────────────────
 async function saveSettingsAndRestart() {
     try {
-        await backend()?.UpdateSampling(state.settings);
+        const api = backend();
+        if (state.isSampling) {
+            if (api?.StartPolling) {
+                await api.StartPolling(state.settings);
+            }
+        } else {
+            if (api?.SaveSettings) {
+                await api.SaveSettings(state.settings);
+            }
+        }
     } catch (err) {
         console.error('Failed to update sampling settings', err);
     }
