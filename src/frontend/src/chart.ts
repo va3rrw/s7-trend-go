@@ -20,6 +20,7 @@ import {
     drawBooleanBand,
     drawTimeAxis,
 } from './canvasHelpers';
+import { backend } from './store';
 
 export interface ChartTag {
     id: string;
@@ -499,8 +500,7 @@ export class TrendChart {
     private fetchTimer: number | null = null;
 
     private scheduleHistoryFetch(startMs: number, endMs: number) {
-        if (typeof window === 'undefined') return;
-        const api = (window as any).go?.backend?.App;
+        const api = backend();
         if (!api?.GetHistoryRange) return;
 
         if (this.fetchTimer !== null) {
@@ -641,11 +641,7 @@ export class TrendChart {
             window.clearTimeout(this.fetchTimer);
             this.fetchTimer = null;
         }
-        const api =
-            typeof window !== 'undefined'
-                ? (window as any).go?.backend?.App
-                : null;
-        api?.ClearHistory?.();
+        backend()?.ClearHistory?.();
         this.render();
         this.emitMeasurementUpdate();
     }
