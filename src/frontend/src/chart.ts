@@ -118,6 +118,40 @@ const cursorOverlayPlugin = {
     },
 };
 
+function mergePoints(
+    existing: Point[],
+    fetched: Point[],
+    maxCapacity = 50000,
+): Point[] {
+    if (existing.length === 0) return fetched.slice(-maxCapacity);
+    if (fetched.length === 0) return existing;
+
+    if (fetched[fetched.length - 1].timestamp < existing[0].timestamp) {
+        const combined = fetched.concat(existing);
+        return combined.length > maxCapacity
+            ? combined.slice(combined.length - maxCapacity)
+            : combined;
+    }
+    if (existing[existing.length - 1].timestamp < fetched[0].timestamp) {
+        const combined = existing.concat(fetched);
+        return combined.length > maxCapacity
+            ? combined.slice(combined.length - maxCapacity)
+            : combined;
+    }
+
+    const map = new Map<number, number>();
+    for (const p of existing) map.set(p.timestamp, p.value);
+    for (const p of fetched) map.set(p.timestamp, p.value);
+    const result: Point[] = [];
+    for (const [timestamp, value] of map) {
+        result.push({ timestamp, value });
+    }
+    result.sort((a, b) => a.timestamp - b.timestamp);
+    return result.length > maxCapacity
+        ? result.slice(result.length - maxCapacity)
+        : result;
+}
+
 export class TrendChart {
     private chart: Chart | null = null;
     private readonly canvas: HTMLCanvasElement | null;
@@ -131,6 +165,8 @@ export class TrendChart {
     private axisRanges = new Map<string, { min: number; max: number }>();
     private timeWindowSeconds = 60;
     private viewOffsetSeconds = 0;
+    private lastLiveTimestamp = 0;
+    private pausedAnchorTime: number | null = null;
     private dragging = false;
     private lastPointerX = 0;
     private paused = false;
@@ -348,6 +384,9 @@ export class TrendChart {
                 this.viewOffsetSeconds -=
                     (delta / Math.max(1, this.canvas.clientWidth)) *
                     this.timeWindowSeconds;
+                if (this.viewOffsetSeconds > 0) {
+                    this.viewOffsetSeconds = 0;
+                }
                 this.render();
                 return;
             }
@@ -408,8 +447,13 @@ export class TrendChart {
     }
 
     public setPaused(paused: boolean) {
+        if (this.paused === paused) return;
         this.paused = paused;
-        if (!paused) {
+        if (paused) {
+            this.pausedAnchorTime = this.latestTimestamp();
+            this.viewOffsetSeconds = 0;
+        } else {
+            this.pausedAnchorTime = null;
             this.viewOffsetSeconds = 0;
             this.render();
         }
@@ -425,6 +469,8 @@ export class TrendChart {
     public addDataPoint(id: string, timestamp: string, value: number) {
         if (!Number.isFinite(value)) return;
         const time = Date.parse(timestamp) || Date.now();
+        this.lastLiveTimestamp = Math.max(this.lastLiveTimestamp, time);
+
         let points = this.history.get(id);
         if (!points) {
             points = [];
@@ -432,27 +478,9 @@ export class TrendChart {
         }
         points.push({ timestamp: time, value });
 
-        // When in live mode (viewOffset == 0), retain only current display window plus margin (1.5x window)
-        // Prune expired points in a single O(log N) search + splice instead of O(N) points.shift() in a loop
-        if (this.viewOffsetSeconds === 0) {
-            const cutoff = time - this.timeWindowSeconds * 1500;
-            if (points.length > 0 && points[0].timestamp < cutoff) {
-                let low = 0;
-                let high = points.length;
-                while (low < high) {
-                    const mid = (low + high) >>> 1;
-                    if (points[mid].timestamp < cutoff) {
-                        low = mid + 1;
-                    } else {
-                        high = mid;
-                    }
-                }
-                if (low > 0) {
-                    points.splice(0, low);
-                }
-            }
-        } else if (points.length > 50000) {
-            points.splice(0, 5000);
+        // Retain generous rolling buffer (50,000 points per tag ~1.4h at 100ms)
+        if (points.length > 55000) {
+            points.splice(0, points.length - 50000);
         }
 
         if (!this.paused) this.render();
@@ -490,13 +518,15 @@ export class TrendChart {
 
                 if (res) {
                     for (const [tagId, pts] of Object.entries(res)) {
-                        if (Array.isArray(pts)) {
+                        if (Array.isArray(pts) && pts.length > 0) {
+                            const existing = this.history.get(tagId) ?? [];
+                            const fetched: Point[] = pts.map((p) => ({
+                                timestamp: p.t,
+                                value: p.v,
+                            }));
                             this.history.set(
                                 tagId,
-                                pts.map((p) => ({
-                                    timestamp: p.t,
-                                    value: p.v,
-                                })),
+                                mergePoints(existing, fetched),
                             );
                         }
                     }
@@ -521,8 +551,11 @@ export class TrendChart {
     }
 
     public fitCursorsToWindow() {
-        const latest = this.latestTimestamp();
-        const end = latest + this.viewOffsetSeconds * 1000;
+        const anchor =
+            this.paused && this.pausedAnchorTime !== null
+                ? this.pausedAnchorTime
+                : this.latestTimestamp();
+        const end = anchor + this.viewOffsetSeconds * 1000;
         const start = end - this.timeWindowSeconds * 1000;
         this.cursorA = Math.round(start + (end - start) * 0.25);
         this.cursorB = Math.round(start + (end - start) * 0.75);
@@ -587,6 +620,9 @@ export class TrendChart {
         const ctx = chart.ctx as CanvasRenderingContext2D;
         ctx.save();
 
+        const analogTags = this.tags.filter((t) => t.dataType !== 'Bool');
+        const axes = this.getUsedAxes(analogTags);
+
         // Highlight band between A and B
         const leftX = Math.max(area.left, Math.min(xA, xB));
         const rightX = Math.min(area.right, Math.max(xA, xB));
@@ -616,15 +652,13 @@ export class TrendChart {
             ctx.fillText('A', xA, area.top + 9);
 
             // Intersection markers for active analog tags
-            for (const tag of this.tags) {
-                if (tag.dataType === 'Bool') continue;
+            for (const tag of analogTags) {
                 const valA = interpolateValue(
                     this.history.get(tag.id) ?? [],
                     this.cursorA,
                 );
                 if (valA !== null) {
-                    const axes = this.getUsedAxes(this.tags.filter(t => t.dataType !== 'Bool'));
-                    const axisIdx = Math.max(0, axes.findIndex(a => a.name === tag.yAxis));
+                    const axisIdx = Math.max(0, axes.findIndex((a) => a.name === tag.yAxis));
                     const yScale = chart.scales[`yAxis${axisIdx}`];
                     if (yScale) {
                         const yPix = yScale.getPixelForValue(valA);
@@ -663,15 +697,13 @@ export class TrendChart {
             ctx.fillText('B', xB, area.top + 9);
 
             // Intersection markers for active analog tags
-            for (const tag of this.tags) {
-                if (tag.dataType === 'Bool') continue;
+            for (const tag of analogTags) {
                 const valB = interpolateValue(
                     this.history.get(tag.id) ?? [],
                     this.cursorB,
                 );
                 if (valB !== null) {
-                    const axes = this.getUsedAxes(this.tags.filter(t => t.dataType !== 'Bool'));
-                    const axisIdx = Math.max(0, axes.findIndex(a => a.name === tag.yAxis));
+                    const axisIdx = Math.max(0, axes.findIndex((a) => a.name === tag.yAxis));
                     const yScale = chart.scales[`yAxis${axisIdx}`];
                     if (yScale) {
                         const yPix = yScale.getPixelForValue(valB);
@@ -696,6 +728,8 @@ export class TrendChart {
         this.history.clear();
         this.axisRanges.clear();
         this.viewOffsetSeconds = 0;
+        this.pausedAnchorTime = null;
+        this.lastLiveTimestamp = 0;
         this.fixedIdleTime = Date.now();
         if (this.fetchTimer !== null && typeof window !== 'undefined') {
             window.clearTimeout(this.fetchTimer);
@@ -735,8 +769,11 @@ export class TrendChart {
 
     private doRender() {
         if (!this.chart) return;
-        const latest = this.latestTimestamp();
-        const end = latest + this.viewOffsetSeconds * 1000;
+        const anchor =
+            this.paused && this.pausedAnchorTime !== null
+                ? this.pausedAnchorTime
+                : this.latestTimestamp();
+        const end = anchor + this.viewOffsetSeconds * 1000;
         const start = end - this.timeWindowSeconds * 1000;
 
         // If panning into history, fetch requested range from backend
@@ -838,6 +875,9 @@ export class TrendChart {
     private fixedIdleTime = Date.now();
 
     private latestTimestamp(): number {
+        if (this.lastLiveTimestamp > 0) {
+            return this.lastLiveTimestamp;
+        }
         let maxTs = 0;
         for (const points of this.history.values()) {
             if (points.length > 0) {

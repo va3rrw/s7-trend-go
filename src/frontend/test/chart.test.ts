@@ -135,40 +135,40 @@ describe('TrendChart', () => {
         trend.destroy();
     });
 
-    it('prunes points older than viewport window margin during live streaming', () => {
+    it('retains history points in rolling buffer during live streaming', () => {
         const trend = new TrendChart(canvas, boolBand, timeAxis);
         trend.setWindow(60); // 60 seconds
 
         const baseTime = 1000000;
         // Add point at baseTime
         trend.addDataPoint('tag-1', new Date(baseTime).toISOString(), 10);
-        // Add point at baseTime + 200 seconds (older point is > 1.5x window away)
+        // Add point at baseTime + 200 seconds
         trend.addDataPoint('tag-1', new Date(baseTime + 200000).toISOString(), 20);
 
-        // First point should have been trimmed from local live cache
+        // Both points should be retained in memory for smooth review/panning
         const historyMap = (trend as any).history.get('tag-1');
-        expect(historyMap.length).toBe(1);
-        expect(historyMap[0].value).toBe(20);
+        expect(historyMap.length).toBe(2);
+        expect(historyMap[0].value).toBe(10);
+        expect(historyMap[1].value).toBe(20);
 
         trend.destroy();
     });
 
-    it('efficiently handles high-throughput point streams without performance degradation', () => {
+    it('efficiently handles high-throughput point streams and caps at max buffer capacity', () => {
         const trend = new TrendChart(canvas, boolBand, timeAxis);
-        trend.setWindow(30); // 30 seconds (margin = 45s)
+        trend.setWindow(30);
 
         const baseTime = 1000000;
-        // Stream 10,000 points spanning 100 seconds (100 Hz polling)
-        for (let i = 0; i < 10000; i++) {
+        // Stream 60,000 points
+        for (let i = 0; i < 60000; i++) {
             trend.addDataPoint('tag-fast', new Date(baseTime + i * 10).toISOString(), i);
         }
 
         const pts = (trend as any).history.get('tag-fast');
         expect(pts.length).toBeGreaterThan(0);
-        // Window margin is 30s * 1.5 = 45s -> at 100Hz, should retain ~4500 points
-        expect(pts.length).toBeLessThanOrEqual(4600);
+        expect(pts.length).toBeLessThanOrEqual(55000);
         // Last point should match the last emitted value
-        expect(pts[pts.length - 1].value).toBe(9999);
+        expect(pts[pts.length - 1].value).toBe(59999);
 
         trend.destroy();
     });
