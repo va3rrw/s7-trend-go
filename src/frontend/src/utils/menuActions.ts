@@ -17,12 +17,26 @@ export interface ChartClearable {
 
 export async function menuLoadSettings(t: TranslateFn): Promise<void> {
     try {
-        const loaded = await backend()?.LoadPlcTagSettings(
+        const loaded = await backend()?.LoadSettingsFile(
             t('menu.load_settings'),
         );
-        if (loaded?.plcLinks?.length) {
-            state.settings.plcLinks = loaded.plcLinks;
+        if (loaded) {
+            if (loaded.pollIntervalMs) {
+                state.settings.pollIntervalMs = loaded.pollIntervalMs;
+            }
+            if (loaded.timeWindowSeconds) {
+                state.settings.timeWindowSeconds = loaded.timeWindowSeconds;
+            }
+            if (loaded.interpolation) {
+                state.settings.interpolation = loaded.interpolation;
+            }
+            if (loaded.plcLinks?.length) {
+                state.settings.plcLinks = loaded.plcLinks;
+            }
             state.settings.tags = loaded.tags ?? [];
+            if (loaded.yAxes?.length) {
+                state.settings.yAxes = loaded.yAxes;
+            }
             await saveSettingsAndRestart();
             state.statusMessage = t('status.loaded_settings');
         }
@@ -33,9 +47,8 @@ export async function menuLoadSettings(t: TranslateFn): Promise<void> {
 
 export async function menuSaveSettings(t: TranslateFn): Promise<void> {
     try {
-        await backend()?.SavePlcTagSettings(
-            state.settings.plcLinks,
-            state.settings.tags,
+        await backend()?.SaveSettingsFile(
+            state.settings,
             t('menu.save_settings'),
         );
         state.statusMessage = t('status.saved_settings');

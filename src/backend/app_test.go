@@ -2,6 +2,8 @@ package backend
 
 import (
 	"context"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -133,4 +135,15 @@ func TestApp_HistoryMethods(t *testing.T) {
 		t.Errorf("expected tag-1 to have 0 points after ClearHistory, got %+v", resAfter["tag-1"])
 	}
 }
+
+func TestGetDefaultSettingsDir(t *testing.T) {
+	dir := getDefaultSettingsDir()
+	if dir == "" {
+		t.Fatal("expected non-empty default settings directory")
+	}
+	if !strings.HasSuffix(filepath.ToSlash(dir), "/s7-trend-go") {
+		t.Errorf("expected directory to end with /s7-trend-go, got %s", dir)
+	}
+}
+
 

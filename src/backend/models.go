@@ -48,11 +48,6 @@ type TagSettings struct {
 	Enabled  bool        `json:"enabled"`
 }
 
-type PlcTagConfig struct {
-	PlcLinks []PlcLinkSettings `json:"plcLinks"`
-	Tags     []TagSettings     `json:"tags"`
-}
-
 type YAxisSettings struct {
 	Name      string  `json:"name"`
 	Minimum   float64 `json:"minimum"`

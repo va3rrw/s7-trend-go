@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -13,55 +14,20 @@ import (
 
 // File Operations
 
-func (a *App) SavePlcTagSettings(links []PlcLinkSettings, tags []TagSettings, title string) error {
-	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		Title:           title,
-		DefaultFilename: "plc_tags.json",
-		Filters:         []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
-	})
-	if err != nil || filePath == "" {
-		return err
+func getDefaultSettingsDir() string {
+	configDir, err := os.UserConfigDir()
+	if err != nil || configDir == "" {
+		configDir = os.TempDir()
 	}
-	cfg := PlcTagConfig{
-		PlcLinks: links,
-		Tags:     tags,
-	}
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filePath, data, 0644)
-}
-
-func (a *App) LoadPlcTagSettings(title string) (*PlcTagConfig, error) {
-	filePath, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
-		Title:   title,
-		Filters: []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
-	})
-	if err != nil || filePath == "" {
-		return nil, err
-	}
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-	var cfg PlcTagConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		// Fallback: check if it's full AppSettings file
-		var fullSettings AppSettings
-		if err2 := json.Unmarshal(data, &fullSettings); err2 == nil && len(fullSettings.PlcLinks) > 0 {
-			return &PlcTagConfig{
-				PlcLinks: fullSettings.PlcLinks,
-				Tags:     fullSettings.Tags,
-			}, nil
-		}
-		return nil, err
-	}
-	return &cfg, nil
+	dir := filepath.Join(configDir, "s7-trend-go")
+	_ = os.MkdirAll(dir, 0755)
+	return dir
 }
 
 func (a *App) SaveSettingsFile(settings AppSettings, title string) error {
+	defaultDir := getDefaultSettingsDir()
 	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		DefaultDirectory: defaultDir,
 		Title:           title,
 		DefaultFilename: "s7-trend-settings.json",
 		Filters:         []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
@@ -77,9 +43,11 @@ func (a *App) SaveSettingsFile(settings AppSettings, title string) error {
 }
 
 func (a *App) LoadSettingsFile(title string) (*AppSettings, error) {
+	defaultDir := getDefaultSettingsDir()
 	filePath, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
-		Title:   title,
-		Filters: []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
+		DefaultDirectory: defaultDir,
+		Title:           title,
+		Filters:         []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
 	})
 	if err != nil || filePath == "" {
 		return nil, err
@@ -91,6 +59,21 @@ func (a *App) LoadSettingsFile(title string) (*AppSettings, error) {
 	var settings AppSettings
 	if err := json.Unmarshal(data, &settings); err != nil {
 		return nil, err
+	}
+	if settings.PollIntervalMs == 0 {
+		settings.PollIntervalMs = 100
+	}
+	if settings.TimeWindowSeconds == 0 {
+		settings.TimeWindowSeconds = 60
+	}
+	if settings.Interpolation == "" {
+		settings.Interpolation = InterpolationLine
+	}
+	if len(settings.PlcLinks) == 0 {
+		settings.PlcLinks = CreateDefaultPlcLinks()
+	}
+	if len(settings.YAxes) == 0 {
+		settings.YAxes = CreateDefaultYAxes()
 	}
 	return &settings, nil
 }

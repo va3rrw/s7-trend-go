@@ -22,13 +22,9 @@ export function GetSystemLanguage():Promise<string>;
 
 export function GetVersion():Promise<string>;
 
-export function LoadPlcTagSettings(arg1:string):Promise<backend.PlcTagConfig>;
-
 export function LoadSettingsFile(arg1:string):Promise<backend.AppSettings>;
 
 export function RecordSample(arg1:string,arg2:number,arg3:number):Promise<void>;
-
-export function SavePlcTagSettings(arg1:Array<backend.PlcLinkSettings>,arg2:Array<backend.TagSettings>,arg3:string):Promise<void>;
 
 export function SaveSettings(arg1:backend.AppSettings):Promise<void>;
 

@@ -42,20 +42,12 @@ export function GetVersion() {
   return window['go']['backend']['App']['GetVersion']();
 }
 
-export function LoadPlcTagSettings(arg1) {
-  return window['go']['backend']['App']['LoadPlcTagSettings'](arg1);
-}
-
 export function LoadSettingsFile(arg1) {
   return window['go']['backend']['App']['LoadSettingsFile'](arg1);
 }
 
 export function RecordSample(arg1, arg2, arg3) {
   return window['go']['backend']['App']['RecordSample'](arg1, arg2, arg3);
-}
-
-export function SavePlcTagSettings(arg1, arg2, arg3) {
-  return window['go']['backend']['App']['SavePlcTagSettings'](arg1, arg2, arg3);
 }
 
 export function SaveSettings(arg1) {

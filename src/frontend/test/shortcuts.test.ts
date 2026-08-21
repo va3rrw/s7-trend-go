@@ -64,11 +64,18 @@ describe('Keyboard Shortcuts in App.vue', () => {
     });
 
     it('handles Ctrl+S and Ctrl+L for settings save and load', async () => {
-        const savePlcTagSettingsMock = vi.fn().mockResolvedValue(undefined);
-        const loadPlcTagSettingsMock = vi.fn().mockResolvedValue({ plcLinks: [], tags: [] });
+        const saveSettingsFileMock = vi.fn().mockResolvedValue(undefined);
+        const loadSettingsFileMock = vi.fn().mockResolvedValue({
+            pollIntervalMs: 100,
+            timeWindowSeconds: 60,
+            interpolation: 'Line',
+            plcLinks: [],
+            tags: [],
+            yAxes: [],
+        });
 
-        (window as any).go.backend.App.SavePlcTagSettings = savePlcTagSettingsMock;
-        (window as any).go.backend.App.LoadPlcTagSettings = loadPlcTagSettingsMock;
+        (window as any).go.backend.App.SaveSettingsFile = saveSettingsFileMock;
+        (window as any).go.backend.App.LoadSettingsFile = loadSettingsFileMock;
 
         wrapper = mount(App, {
             global: {
@@ -80,17 +87,17 @@ describe('Keyboard Shortcuts in App.vue', () => {
         // Ctrl + S
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }));
         await flushPromises();
-        expect(savePlcTagSettingsMock).toHaveBeenCalledTimes(1);
+        expect(saveSettingsFileMock).toHaveBeenCalledTimes(1);
 
         // Ctrl + L
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'l', ctrlKey: true }));
         await flushPromises();
-        expect(loadPlcTagSettingsMock).toHaveBeenCalledTimes(1);
+        expect(loadSettingsFileMock).toHaveBeenCalledTimes(1);
 
         // Ctrl + O
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'o', ctrlKey: true }));
         await flushPromises();
-        expect(loadPlcTagSettingsMock).toHaveBeenCalledTimes(2);
+        expect(loadSettingsFileMock).toHaveBeenCalledTimes(2);
     });
 
     it('handles Ctrl+X and Ctrl+Y for X/Y axis settings dialogs', async () => {

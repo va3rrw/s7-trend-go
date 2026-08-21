@@ -168,20 +168,18 @@ func TestModels_JSONSerialization(t *testing.T) {
 		t.Errorf("restored timing mismatch: %+v", restoredTiming)
 	}
 
-	// Test PlcTagConfig serialization
-	plcTagCfg := PlcTagConfig{
-		PlcLinks: CreateDefaultPlcLinks(),
-		Tags:     []TagSettings{tag},
-	}
-	cfgData, err := json.Marshal(plcTagCfg)
+	// Test AppSettings serialization
+	appSettings := CreateDefaultSettings()
+	appSettings.Tags = []TagSettings{tag}
+	cfgData, err := json.Marshal(appSettings)
 	if err != nil {
-		t.Fatalf("failed to marshal PlcTagConfig: %v", err)
+		t.Fatalf("failed to marshal AppSettings: %v", err)
 	}
-	var restoredCfg PlcTagConfig
+	var restoredCfg AppSettings
 	if err := json.Unmarshal(cfgData, &restoredCfg); err != nil {
-		t.Fatalf("failed to unmarshal PlcTagConfig: %v", err)
+		t.Fatalf("failed to unmarshal AppSettings: %v", err)
 	}
-	if len(restoredCfg.PlcLinks) != 1 || len(restoredCfg.Tags) != 1 {
-		t.Errorf("restored PlcTagConfig mismatch: %+v", restoredCfg)
+	if len(restoredCfg.PlcLinks) != 1 || len(restoredCfg.Tags) != 1 || len(restoredCfg.YAxes) != 4 {
+		t.Errorf("restored AppSettings mismatch: %+v", restoredCfg)
 	}
 }

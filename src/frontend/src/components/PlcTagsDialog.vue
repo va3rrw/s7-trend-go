@@ -229,7 +229,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import type { PlcLinkSettings, TagSettings } from '../types';
+import type { PlcLinkSettings, TagSettings, YAxisSettings } from '../types';
 import { PALETTE, newId, MIN_PLC_LINKS, MAX_PLC_LINKS, MAX_TAGS_PER_PLC_LINK } from '../types';
 import { state, backend, showMessage } from '../store';
 import { useI18n } from 'vue-i18n';
@@ -488,10 +488,24 @@ async function testConnection() {
 
 async function loadFromFile() {
     try {
-        const loaded = await backend()?.LoadPlcTagSettings(t('menu.load_settings'));
-        if (loaded?.plcLinks?.length) {
-            links.value = loaded.plcLinks.map((p: PlcLinkSettings) => ({ ...p }));
+        const loaded = await backend()?.LoadSettingsFile(t('menu.load_settings'));
+        if (loaded) {
+            if (loaded.plcLinks?.length) {
+                links.value = loaded.plcLinks.map((p: PlcLinkSettings) => ({ ...p }));
+            }
             tags.value = (loaded.tags ?? []).map((t: TagSettings) => ({ ...t }));
+            if (loaded.yAxes?.length) {
+                state.settings.yAxes = loaded.yAxes.map((a: YAxisSettings) => ({ ...a }));
+            }
+            if (loaded.pollIntervalMs) {
+                state.settings.pollIntervalMs = loaded.pollIntervalMs;
+            }
+            if (loaded.timeWindowSeconds) {
+                state.settings.timeWindowSeconds = loaded.timeWindowSeconds;
+            }
+            if (loaded.interpolation) {
+                state.settings.interpolation = loaded.interpolation;
+            }
             selectedPlcIndex.value = 0;
             selectedTagIndex.value = -1;
             showMessage(t('dialog.plc_tag_config'), t('status.loaded_settings'));
@@ -503,7 +517,12 @@ async function loadFromFile() {
 
 async function saveToFile() {
     try {
-        await backend()?.SavePlcTagSettings(links.value, tags.value, t('menu.save_settings'));
+        const settingsToSave = {
+            ...state.settings,
+            plcLinks: links.value.map((p) => ({ ...p })),
+            tags: tags.value.map((t) => ({ ...t })),
+        };
+        await backend()?.SaveSettingsFile(settingsToSave, t('menu.save_settings'));
         showMessage(t('dialog.plc_tag_config'), t('status.saved_settings'));
     } catch (err: any) {
         showMessage(t('dialog.plc_tag_config'), t('status.error_saving_settings', [err]));
