@@ -125,7 +125,7 @@ export async function menuClear(
     t: TranslateFn,
     showConfirm: ConfirmFn,
     chartRef?: ChartClearable | null,
-    liveValues?: Record<string, string>,
+    liveValues?: Record<string, string> | { value: Record<string, string> },
 ): Promise<void> {
     if (
         !(await showConfirm(t('menu.clear_records'), t('prompt.clear_confirm')))
@@ -134,7 +134,11 @@ export async function menuClear(
     chartRef?.clear();
     resetStats();
     if (liveValues) {
-        Object.keys(liveValues).forEach((k) => delete liveValues[k]);
+        if ('value' in liveValues && typeof (liveValues as any).value === 'object') {
+            (liveValues as any).value = {};
+        } else {
+            Object.keys(liveValues).forEach((k) => delete (liveValues as any)[k]);
+        }
     }
     state.statusMessage = t('status.records_cleared');
 }

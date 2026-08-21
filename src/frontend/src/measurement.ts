@@ -51,6 +51,38 @@ export function interpolateValue(points: Point[], timestamp: number): number | n
     return p1.value + factor * (p2.value - p1.value);
 }
 
+function findFirstIndex(points: Point[], tMin: number): number {
+    let low = 0;
+    let high = points.length - 1;
+    let result = points.length;
+    while (low <= high) {
+        const mid = (low + high) >> 1;
+        if (points[mid].timestamp >= tMin) {
+            result = mid;
+            high = mid - 1;
+        } else {
+            low = mid + 1;
+        }
+    }
+    return result;
+}
+
+function findLastIndex(points: Point[], tMax: number): number {
+    let low = 0;
+    let high = points.length - 1;
+    let result = -1;
+    while (low <= high) {
+        const mid = (low + high) >> 1;
+        if (points[mid].timestamp <= tMax) {
+            result = mid;
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+    return result;
+}
+
 export function calculateTagStats(
     points: Point[],
     cursorA: number,
@@ -69,15 +101,32 @@ export function calculateTagStats(
     const tMin = Math.min(cursorA, cursorB);
     const tMax = Math.max(cursorA, cursorB);
 
-    const inRange = points.filter(
-        (p) => p.timestamp >= tMin && p.timestamp <= tMax,
-    );
+    let min: number | null = null;
+    let max: number | null = null;
+    let sum = 0;
+    let count = 0;
 
-    const values: number[] = inRange.map((p) => p.value);
-    if (valA !== null) values.push(valA);
-    if (valB !== null) values.push(valB);
+    const includeValue = (v: number) => {
+        if (min === null || v < min) min = v;
+        if (max === null || v > max) max = v;
+        sum += v;
+        count++;
+    };
 
-    if (values.length === 0) {
+    let lowIdx = 0;
+    let highIdx = -1;
+    if (points && points.length > 0) {
+        lowIdx = findFirstIndex(points, tMin);
+        highIdx = findLastIndex(points, tMax);
+        for (let i = lowIdx; i <= highIdx; i++) {
+            includeValue(points[i].value);
+        }
+    }
+
+    if (valA !== null) includeValue(valA);
+    if (valB !== null) includeValue(valB);
+
+    if (count === 0) {
         return {
             valA,
             valB,
@@ -91,13 +140,25 @@ export function calculateTagStats(
         };
     }
 
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const sum = values.reduce((acc, v) => acc + v, 0);
-    const mean = sum / values.length;
-    const variance =
-        values.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) /
-        values.length;
+    const mean = sum / count;
+    let varianceSum = 0;
+
+    if (points && points.length > 0 && lowIdx <= highIdx) {
+        for (let i = lowIdx; i <= highIdx; i++) {
+            const diff = points[i].value - mean;
+            varianceSum += diff * diff;
+        }
+    }
+    if (valA !== null) {
+        const diff = valA - mean;
+        varianceSum += diff * diff;
+    }
+    if (valB !== null) {
+        const diff = valB - mean;
+        varianceSum += diff * diff;
+    }
+
+    const variance = varianceSum / count;
     const stdDev = Math.sqrt(variance);
 
     return {
@@ -109,6 +170,6 @@ export function calculateTagStats(
         max,
         mean,
         stdDev,
-        count: values.length,
+        count,
     };
 }

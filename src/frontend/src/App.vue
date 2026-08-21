@@ -111,7 +111,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, reactive, shallowRef, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ChartTag, ChartAxis, CursorMeasurement } from './chart';
 import type { TagSettings } from './types';
@@ -276,7 +276,20 @@ const chartAxes = computed<ChartAxis[]>(() =>
 );
 
 // ── Live Values ────────────────────────────────────────────────────
-const liveValues = reactive<Record<string, string>>({});
+const liveValues = shallowRef<Record<string, string>>({});
+let pendingLiveValues: Record<string, string> = {};
+let liveValuesRaf: number | null = null;
+
+function setLiveValue(tagId: string, valStr: string) {
+    pendingLiveValues[tagId] = valStr;
+    if (liveValuesRaf === null && typeof window !== 'undefined') {
+        liveValuesRaf = window.requestAnimationFrame(() => {
+            liveValuesRaf = null;
+            liveValues.value = { ...liveValues.value, ...pendingLiveValues };
+            pendingLiveValues = {};
+        });
+    }
+}
 
 // ── Dialog save handlers ───────────────────────────────────────────
 async function onPlcTagsSave() {
@@ -373,7 +386,7 @@ onMounted(async () => {
             const valStr = update.value || '-';
             const numVal = Number(update.numericValue);
 
-            liveValues[update.tagId] = valStr;
+            setLiveValue(update.tagId, valStr);
             updateTagValue(update.tagId, valStr, numVal);
             markPlcForTag(update.tagId, update.quality);
 
@@ -418,7 +431,7 @@ onMounted(async () => {
                 .forEach((tag) => {
                     const value = Math.random() * 100;
                     chartRef.value?.addDataPoint(tag.id, now, value);
-                    liveValues[tag.id] = value.toFixed(2);
+                    setLiveValue(tag.id, value.toFixed(2));
                     updateTagValue(tag.id, value.toFixed(2), value);
                 });
         }, 100);
@@ -432,6 +445,10 @@ onMounted(async () => {
 onBeforeUnmount(() => {
     if (typeof window !== 'undefined') {
         window.removeEventListener('keydown', onKeydown);
+    }
+    if (liveValuesRaf !== null && typeof window !== 'undefined') {
+        window.cancelAnimationFrame(liveValuesRaf);
+        liveValuesRaf = null;
     }
     if (fallbackTimer !== null) {
         clearInterval(fallbackTimer);
