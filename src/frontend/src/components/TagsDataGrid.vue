@@ -31,6 +31,33 @@
             <table
                 class="datagrid"
                 id="gridTags">
+                <colgroup>
+                    <!-- Col 1 -->
+                    <col class="col-checkbox" />
+                    <col class="col-tag" />
+                    <col class="col-plc" />
+                    <col class="col-value" />
+                    <col class="col-min" />
+                    <col class="col-max" />
+                    <!-- Divider 1 -->
+                    <col class="col-divider" />
+                    <!-- Col 2 -->
+                    <col class="col-checkbox" />
+                    <col class="col-tag" />
+                    <col class="col-plc" />
+                    <col class="col-value" />
+                    <col class="col-min" />
+                    <col class="col-max" />
+                    <!-- Divider 2 -->
+                    <col class="col-divider" />
+                    <!-- Col 3 -->
+                    <col class="col-checkbox" />
+                    <col class="col-tag" />
+                    <col class="col-plc" />
+                    <col class="col-value" />
+                    <col class="col-min" />
+                    <col class="col-max" />
+                </colgroup>
                 <thead>
                     <tr>
                         <!-- Col 1 headers -->
@@ -42,7 +69,7 @@
                                 @change="toggleAllTags" />
                         </th>
                         <th
-                            class="col-text"
+                            class="col-tag col-text"
                             @click="toggleSort('name')">
                             {{ $t('grid.tag') }}
                             <span
@@ -52,7 +79,7 @@
                             >
                         </th>
                         <th
-                            class="col-text"
+                            class="col-plc col-text"
                             @click="toggleSort('plcLink')">
                             {{ $t('grid.plc') }}
                             <span
@@ -62,7 +89,7 @@
                             >
                         </th>
                         <th
-                            class="col-numeric"
+                            class="col-value col-numeric"
                             @click="toggleSort('value')">
                             {{ $t('grid.value') }}
                             <span
@@ -72,7 +99,7 @@
                             >
                         </th>
                         <th
-                            class="col-numeric"
+                            class="col-min col-numeric"
                             @click="toggleSort('min')">
                             {{ $t('grid.min') }}
                             <span
@@ -82,7 +109,7 @@
                             >
                         </th>
                         <th
-                            class="col-numeric"
+                            class="col-max col-numeric"
                             @click="toggleSort('max')">
                             {{ $t('grid.max') }}
                             <span
@@ -104,7 +131,7 @@
                                 @change="toggleAllTags" />
                         </th>
                         <th
-                            class="col-text"
+                            class="col-tag col-text"
                             @click="toggleSort('name')">
                             {{ $t('grid.tag') }}
                             <span
@@ -114,7 +141,7 @@
                             >
                         </th>
                         <th
-                            class="col-text"
+                            class="col-plc col-text"
                             @click="toggleSort('plcLink')">
                             {{ $t('grid.plc') }}
                             <span
@@ -124,7 +151,7 @@
                             >
                         </th>
                         <th
-                            class="col-numeric"
+                            class="col-value col-numeric"
                             @click="toggleSort('value')">
                             {{ $t('grid.value') }}
                             <span
@@ -134,7 +161,7 @@
                             >
                         </th>
                         <th
-                            class="col-numeric"
+                            class="col-min col-numeric"
                             @click="toggleSort('min')">
                             {{ $t('grid.min') }}
                             <span
@@ -144,7 +171,7 @@
                             >
                         </th>
                         <th
-                            class="col-numeric"
+                            class="col-max col-numeric"
                             @click="toggleSort('max')">
                             {{ $t('grid.max') }}
                             <span
@@ -166,7 +193,7 @@
                                 @change="toggleAllTags" />
                         </th>
                         <th
-                            class="col-text"
+                            class="col-tag col-text"
                             @click="toggleSort('name')">
                             {{ $t('grid.tag') }}
                             <span
@@ -176,7 +203,7 @@
                             >
                         </th>
                         <th
-                            class="col-text"
+                            class="col-plc col-text"
                             @click="toggleSort('plcLink')">
                             {{ $t('grid.plc') }}
                             <span
@@ -186,7 +213,7 @@
                             >
                         </th>
                         <th
-                            class="col-numeric"
+                            class="col-value col-numeric"
                             @click="toggleSort('value')">
                             {{ $t('grid.value') }}
                             <span
@@ -196,7 +223,7 @@
                             >
                         </th>
                         <th
-                            class="col-numeric"
+                            class="col-min col-numeric"
                             @click="toggleSort('min')">
                             {{ $t('grid.min') }}
                             <span
@@ -206,7 +233,7 @@
                             >
                         </th>
                         <th
-                            class="col-numeric"
+                            class="col-max col-numeric"
                             @click="toggleSort('max')">
                             {{ $t('grid.max') }}
                             <span
@@ -253,7 +280,7 @@
                                 " />
                         </td>
                         <td
-                            class="col-text font-medium"
+                            class="col-tag col-text font-medium"
                             :style="{
                                 backgroundColor:
                                     triplet.c1.color || 'transparent',
@@ -262,7 +289,7 @@
                             {{ triplet.c1.name }}
                         </td>
                         <td
-                            class="col-text"
+                            class="col-plc col-text"
                             :style="{
                                 backgroundColor:
                                     triplet.c1.color || 'transparent',
@@ -271,7 +298,7 @@
                             {{ triplet.c1.plcLink }}
                         </td>
                         <td
-                            class="col-numeric font-mono"
+                            class="col-value col-numeric font-mono"
                             :style="{
                                 backgroundColor:
                                     triplet.c1.color || 'transparent',
@@ -280,7 +307,7 @@
                             {{ tagValue(triplet.c1.id) }}
                         </td>
                         <td
-                            class="col-numeric font-mono"
+                            class="col-min col-numeric font-mono"
                             :style="{
                                 backgroundColor:
                                     triplet.c1.color || 'transparent',
@@ -289,7 +316,7 @@
                             {{ tagMin(triplet.c1.id) }}
                         </td>
                         <td
-                            class="col-numeric font-mono"
+                            class="col-max col-numeric font-mono"
                             :style="{
                                 backgroundColor:
                                     triplet.c1.color || 'transparent',
@@ -316,7 +343,7 @@
                                     :checked="triplet.c2?.enabled"
                                     @change="
                                         if (triplet.c2) {
-                                            triplet.c2.enabled = (
+                                             triplet.c2.enabled = (
                                                 $event.target as HTMLInputElement
                                             ).checked;
                                             emit('settingsChange');
@@ -324,7 +351,7 @@
                                     " />
                             </td>
                             <td
-                                class="col-text font-medium"
+                                class="col-tag col-text font-medium"
                                 :style="{
                                     backgroundColor:
                                         triplet.c2?.color ||
@@ -337,7 +364,7 @@
                                 {{ triplet.c2?.name }}
                             </td>
                             <td
-                                class="col-text"
+                                class="col-plc col-text"
                                 :style="{
                                     backgroundColor:
                                         triplet.c2?.color ||
@@ -350,7 +377,7 @@
                                 {{ triplet.c2?.plcLink }}
                             </td>
                             <td
-                                class="col-numeric font-mono"
+                                class="col-value col-numeric font-mono"
                                 :style="{
                                     backgroundColor:
                                         triplet.c2?.color ||
@@ -367,7 +394,7 @@
                                 }}
                             </td>
                             <td
-                                class="col-numeric font-mono"
+                                class="col-min col-numeric font-mono"
                                 :style="{
                                     backgroundColor:
                                         triplet.c2?.color ||
@@ -384,7 +411,7 @@
                                 }}
                             </td>
                             <td
-                                class="col-numeric font-mono"
+                                class="col-max col-numeric font-mono"
                                 :style="{
                                     backgroundColor:
                                         triplet.c2?.color ||
@@ -433,7 +460,7 @@
                                     " />
                             </td>
                             <td
-                                class="col-text font-medium"
+                                class="col-tag col-text font-medium"
                                 :style="{
                                     backgroundColor:
                                         triplet.c3?.color ||
@@ -446,7 +473,7 @@
                                 {{ triplet.c3?.name }}
                             </td>
                             <td
-                                class="col-text"
+                                class="col-plc col-text"
                                 :style="{
                                     backgroundColor:
                                         triplet.c3?.color ||
@@ -459,7 +486,7 @@
                                 {{ triplet.c3?.plcLink }}
                             </td>
                             <td
-                                class="col-numeric font-mono"
+                                class="col-value col-numeric font-mono"
                                 :style="{
                                     backgroundColor:
                                         triplet.c3?.color ||
@@ -476,7 +503,7 @@
                                 }}
                             </td>
                             <td
-                                class="col-numeric font-mono"
+                                class="col-min col-numeric font-mono"
                                 :style="{
                                     backgroundColor:
                                         triplet.c3?.color ||
@@ -493,7 +520,7 @@
                                 }}
                             </td>
                             <td
-                                class="col-numeric font-mono"
+                                class="col-max col-numeric font-mono"
                                 :style="{
                                     backgroundColor:
                                         triplet.c3?.color ||

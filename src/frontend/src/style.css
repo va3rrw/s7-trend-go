@@ -312,11 +312,18 @@ select:focus {
   font-size: 12px;
   width: 100%;
   border-collapse: collapse;
-  table-layout: auto;
+  table-layout: fixed;
+}
+
+.tags-area .datagrid th,
+.tags-area .datagrid td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tags-area .datagrid th {
-  padding: 4px 8px;
+  padding: 4px 6px;
   line-height: 16px;
   background-color: #f8fafc;
   position: sticky;
@@ -338,20 +345,22 @@ select:focus {
 }
 
 .tags-area .datagrid td {
-  padding: 3px 8px;
+  padding: 3px 6px;
   line-height: 18px;
   border-bottom: 1px solid #e2e8f0;
 }
 
 .sort-icon {
   display: inline-block;
-  margin-left: 4px;
+  margin-left: 2px;
   font-size: 10px;
   color: var(--accent);
 }
 
 .col-checkbox {
-  width: 36px;
+  width: 32px;
+  min-width: 32px;
+  max-width: 32px;
   text-align: center !important;
 }
 
@@ -361,15 +370,6 @@ select:focus {
   display: block;
 }
 
-.col-text {
-  text-align: left;
-}
-
-.col-numeric {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
 .col-divider {
   width: 4px;
   min-width: 4px;
@@ -377,6 +377,38 @@ select:focus {
   padding: 0 !important;
   background-color: var(--border-color) !important;
   border: none !important;
+}
+
+.col-tag {
+  width: auto;
+  text-align: left;
+}
+
+.col-plc {
+  width: 18%;
+  text-align: left;
+}
+
+.col-value {
+  width: 18%;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.col-min,
+.col-max {
+  width: 14%;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.col-text {
+  text-align: left;
+}
+
+.col-numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .empty-cell {
