@@ -8,6 +8,7 @@ export interface ShortcutOptions {
     menuTrendWindow: () => void;
     openYAxes: () => void;
     openPlcTags: () => void;
+    menuExport: () => void;
     startSampling: () => void;
     pauseSampling: () => void;
     stopSampling: () => void;
@@ -23,6 +24,20 @@ export function handleKeydown(e: KeyboardEvent, opts: ShortcutOptions): void {
             target.isContentEditable);
 
     const modalOpen = opts.hasModalOpen();
+
+    // Ctrl + E / Cmd + E: Export CSV
+    if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === 'e' || e.key === 'E') &&
+        !e.shiftKey &&
+        !e.altKey
+    ) {
+        if (!isInput && !modalOpen) {
+            e.preventDefault();
+            opts.menuExport();
+            return;
+        }
+    }
 
     // Ctrl + M / Cmd + M / Alt + M: Toggle measurement cursors
     if (

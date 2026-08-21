@@ -119,6 +119,7 @@
     "polling_started": "轮询已开始",
     "polling_failed": "轮询开始失败: {0}",
     "chart_paused_polling": "曲线已暂停；轮询继续",
+    "chart_paused_badge": "已暂停",
     "chart_resumed": "曲线已恢复",
     "polling_stopped": "轮询已停止",
     "sampling_stopped": "采样已停止",

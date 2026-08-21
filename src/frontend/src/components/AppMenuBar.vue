@@ -57,6 +57,7 @@
                     href="#"
                     @click.prevent="emit('exportCsv')">
                     <span>{{ $t('menu.export_csv') }}</span>
+                    <span class="menu-shortcut">Ctrl+E</span>
                 </a>
             </div>
         </div>

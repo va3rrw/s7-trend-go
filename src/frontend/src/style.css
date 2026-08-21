@@ -210,6 +210,71 @@ select:focus {
   cursor: crosshair;
 }
 
+/* Chart Paused Badge Overlay */
+.chart-paused-badge {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  border-radius: 20px;
+  color: #fbbf24;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+  user-select: none;
+  pointer-events: auto;
+}
+
+.paused-indicator-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+  animation: pulse-pause 1.8s infinite ease-in-out;
+}
+
+@keyframes pulse-pause {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.paused-text {
+  text-transform: uppercase;
+}
+
+.paused-resume-btn {
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  display: flex;
+  align-items: center;
+}
+
+.paused-resume-btn:hover {
+  background: #0369a1;
+  transform: scale(1.04);
+}
+
+.paused-resume-btn:active {
+  transform: scale(0.96);
+}
+
 .boolean-band {
   flex: 0 0 auto;
   width: 100% !important;

@@ -160,6 +160,22 @@ describe('Keyboard Shortcuts in App.vue', () => {
         await flushPromises();
         expect(wrapper.findComponent({ name: 'PlcTagsDialog' }).props('open')).toBe(true);
     });
+
+    it('handles Ctrl+E to export CSV', async () => {
+        const exportCSVMock = vi.fn().mockResolvedValue('export.csv');
+        (window as any).go.backend.App.ExportCSV = exportCSVMock;
+
+        wrapper = mount(App, {
+            global: {
+                plugins: [i18n],
+            },
+        });
+        await flushPromises();
+
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', ctrlKey: true }));
+        await flushPromises();
+        expect(exportCSVMock).toHaveBeenCalledTimes(1);
+    });
 });
 
 

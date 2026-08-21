@@ -39,9 +39,12 @@
                 :time-window-seconds="state.settings.timeWindowSeconds"
                 :interpolation="state.settings.interpolation"
                 :cursors-enabled="cursorsEnabled"
+                :is-sampling="state.isSampling"
+                :is-paused="state.isPaused"
                 @drag-start="onChartDragStart"
                 @window-change="onChartWindowChange"
-                @cursor-change="onCursorChange" />
+                @cursor-change="onCursorChange"
+                @resume="pauseSampling(t, chartRef)" />
 
             <!-- Measurement & Statistics Strip -->
             <MeasurementStrip
@@ -351,6 +354,7 @@ function onKeydown(e: KeyboardEvent) {
         openPlcTags: () => {
             plcTagsOpen.value = true;
         },
+        menuExport: () => menuExport(t),
         startSampling: () => startSampling(t, chartRef.value, resetActualSampling),
         pauseSampling: () => pauseSampling(t, chartRef.value),
         stopSampling: () => stopSampling(t, chartRef.value, resetActualSampling),

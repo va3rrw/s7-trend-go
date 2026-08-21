@@ -119,6 +119,7 @@
     "polling_started": "Polling started",
     "polling_failed": "Polling start failed: {0}",
     "chart_paused_polling": "Chart paused; polling continues",
+    "chart_paused_badge": "PAUSED",
     "chart_resumed": "Chart resumed",
     "polling_stopped": "Polling stopped",
     "sampling_stopped": "Sampling stopped",

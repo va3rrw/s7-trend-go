@@ -2,6 +2,20 @@
   <div class="chart-wrapper">
     <div class="chart-plot">
       <canvas ref="canvasRef" />
+      <transition name="fade">
+        <div v-if="isSampling && isPaused" class="chart-paused-badge" id="chartPausedBadge">
+          <span class="paused-indicator-dot"></span>
+          <span class="paused-text">{{ $t('status.chart_paused_badge') }}</span>
+          <button
+            type="button"
+            class="paused-resume-btn"
+            id="btnResumeOverlay"
+            :title="$t('toolbar.resume_chart')"
+            @click.stop="emit('resume')">
+            {{ $t('menu.resume') }}
+          </button>
+        </div>
+      </transition>
     </div>
     <canvas ref="boolBandRef" class="boolean-band hidden" />
     <canvas ref="timeAxisRef" class="time-axis-row" />
@@ -19,12 +33,15 @@ const props = defineProps<{
   timeWindowSeconds: number
   interpolation: string
   cursorsEnabled?: boolean
+  isSampling?: boolean
+  isPaused?: boolean
 }>()
 
 const emit = defineEmits<{
   dragStart: []
   cursorChange: [meas: CursorMeasurement | null]
   windowChange: [seconds: number]
+  resume: []
 }>()
 
 const canvasRef = ref<HTMLCanvasElement>()
