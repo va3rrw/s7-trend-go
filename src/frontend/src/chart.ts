@@ -1,11 +1,25 @@
 import Chart from 'chart.js/auto';
 import {
-    interpolateValue,
     calculateTagStats,
     type Point,
     type CursorMeasurement,
     type TagStats,
 } from './measurement';
+import {
+    CHART_THEME,
+    CHART_LAYOUT,
+    CHART_LIMITS,
+} from './chartConstants';
+import {
+    chooseXGridIntervals,
+    isMajorTick,
+    mergePoints,
+    getCanvasContext,
+    computePlotLayout,
+    renderCursorOverlay,
+    drawBooleanBand,
+    drawTimeAxis,
+} from './canvasHelpers';
 
 export interface ChartTag {
     id: string;
@@ -24,61 +38,6 @@ export interface ChartAxis {
 }
 
 export type { Point, CursorMeasurement, TagStats };
-
-/** Nice time steps (seconds) used for major grid. */
-const NICE_STEPS_SEC = [
-    1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600,
-];
-
-/** Largest nice step that is still ≤ rawSeconds (prefer denser grids). */
-function niceStepAtMost(rawSeconds: number): number {
-    let best = NICE_STEPS_SEC[0];
-    for (const s of NICE_STEPS_SEC) {
-        if (s <= rawSeconds) best = s;
-        else break;
-    }
-    return best;
-}
-
-/**
- * Pick minor + major grid steps from the visible span.
- * - Major (solid): about 10–12 lines across the window
- * - Minor (dashed): exactly 1/10 of major
- */
-function chooseXGridIntervals(spanSeconds: number): {
-    stepMs: number;
-    majorMs: number;
-} {
-    const span = Math.max(1, spanSeconds);
-    let majorSec = niceStepAtMost(span / 12);
-    if (span / majorSec < 6 && majorSec > 1) {
-        const idx = NICE_STEPS_SEC.indexOf(majorSec);
-        if (idx > 0) majorSec = NICE_STEPS_SEC[idx - 1];
-    }
-    while (span / majorSec > 15) {
-        const idx = NICE_STEPS_SEC.indexOf(majorSec);
-        if (idx < 0 || idx >= NICE_STEPS_SEC.length - 1) break;
-        majorSec = NICE_STEPS_SEC[idx + 1];
-    }
-    const minorSec = majorSec / 10;
-    return { stepMs: minorSec * 1000, majorMs: majorSec * 1000 };
-}
-
-/** Fixed-width HH:mm:ss so label width never resizes the plot. */
-function formatTickTime(ms: number): string {
-    const d = new Date(ms);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-function isMajorTick(
-    timestamp: number,
-    majorMs: number,
-    stepMs: number,
-): boolean {
-    const rem = ((timestamp % majorMs) + majorMs) % majorMs;
-    return rem < stepMs * 0.5 || rem > majorMs - stepMs * 0.5;
-}
 
 const secondGridPlugin = {
     id: 'secondGrid',
@@ -100,7 +59,9 @@ const secondGridPlugin = {
             const major = isMajorTick(timestamp, majorMs, stepMs);
             context.beginPath();
             context.setLineDash(major ? [] : [4, 4]);
-            context.strokeStyle = major ? '#5B7182' : '#31414E';
+            context.strokeStyle = major
+                ? CHART_THEME.gridMajor
+                : CHART_THEME.gridMinor;
             context.lineWidth = major ? 1 : 0.8;
             context.moveTo(x, area.top);
             context.lineTo(x, area.bottom);
@@ -118,40 +79,6 @@ const cursorOverlayPlugin = {
     },
 };
 
-function mergePoints(
-    existing: Point[],
-    fetched: Point[],
-    maxCapacity = 50000,
-): Point[] {
-    if (existing.length === 0) return fetched.slice(-maxCapacity);
-    if (fetched.length === 0) return existing;
-
-    if (fetched[fetched.length - 1].timestamp < existing[0].timestamp) {
-        const combined = fetched.concat(existing);
-        return combined.length > maxCapacity
-            ? combined.slice(combined.length - maxCapacity)
-            : combined;
-    }
-    if (existing[existing.length - 1].timestamp < fetched[0].timestamp) {
-        const combined = existing.concat(fetched);
-        return combined.length > maxCapacity
-            ? combined.slice(combined.length - maxCapacity)
-            : combined;
-    }
-
-    const map = new Map<number, number>();
-    for (const p of existing) map.set(p.timestamp, p.value);
-    for (const p of fetched) map.set(p.timestamp, p.value);
-    const result: Point[] = [];
-    for (const [timestamp, value] of map) {
-        result.push({ timestamp, value });
-    }
-    result.sort((a, b) => a.timestamp - b.timestamp);
-    return result.length > maxCapacity
-        ? result.slice(result.length - maxCapacity)
-        : result;
-}
-
 export class TrendChart {
     private chart: Chart | null = null;
     private readonly canvas: HTMLCanvasElement | null;
@@ -163,8 +90,8 @@ export class TrendChart {
     private axes: ChartAxis[] = [];
     private history = new Map<string, Point[]>();
     private axisRanges = new Map<string, { min: number; max: number }>();
-    private baseTimeWindowSeconds = 60;
-    private timeWindowSeconds = 60;
+    private baseTimeWindowSeconds: number = CHART_LIMITS.defaultTimeWindowSec;
+    private timeWindowSeconds: number = CHART_LIMITS.defaultTimeWindowSec;
     private viewOffsetSeconds = 0;
     private lastLiveTimestamp = 0;
     private pausedAnchorTime: number | null = null;
@@ -249,7 +176,6 @@ export class TrendChart {
                     this.render();
                 },
                 layout: {
-                    // Stable padding — X labels live outside Chart.js under the boolean band
                     padding: { top: 4, right: 4, bottom: 0, left: 4 },
                 },
                 interaction: { mode: 'nearest', axis: 'x', intersect: false },
@@ -285,11 +211,10 @@ export class TrendChart {
                         grid: { display: false },
                         border: { display: false },
                         ticks: {
-                            display: false, // drawn under boolean band
+                            display: false,
                             padding: 0,
                         },
                         afterFit: (axis: any) => {
-                            // Collapse X-axis height so plot bottom is stable (no label-width jumps)
                             axis.height = 0;
                         },
                     },
@@ -326,14 +251,14 @@ export class TrendChart {
                     const distA = Math.abs(mouseX - xA);
                     const distB = Math.abs(mouseX - xB);
 
-                    if (distA <= 12 && distA <= distB) {
+                    if (distA <= CHART_LAYOUT.cursorHitTolerance && distA <= distB) {
                         this.activeCursorDrag = 'A';
                         try {
                             this.canvas.setPointerCapture(event.pointerId);
                         } catch {}
                         event.preventDefault();
                         return;
-                    } else if (distB <= 12) {
+                    } else if (distB <= CHART_LAYOUT.cursorHitTolerance) {
                         this.activeCursorDrag = 'B';
                         try {
                             this.canvas.setPointerCapture(event.pointerId);
@@ -399,7 +324,10 @@ export class TrendChart {
                 if (scale && this.cursorA !== null && this.cursorB !== null) {
                     const xA = scale.getPixelForValue(this.cursorA);
                     const xB = scale.getPixelForValue(this.cursorB);
-                    if (Math.abs(mouseX - xA) <= 8 || Math.abs(mouseX - xB) <= 8) {
+                    if (
+                        Math.abs(mouseX - xA) <= CHART_LAYOUT.cursorHoverTolerance ||
+                        Math.abs(mouseX - xB) <= CHART_LAYOUT.cursorHoverTolerance
+                    ) {
                         this.canvas.style.cursor = 'ew-resize';
                         return;
                     }
@@ -454,9 +382,15 @@ export class TrendChart {
                 );
 
                 const oldWindow = this.timeWindowSeconds;
-                const factor = event.deltaY < 0 ? 0.8 : 1.25;
+                const factor =
+                    event.deltaY < 0
+                        ? CHART_LIMITS.zoomInFactor
+                        : CHART_LIMITS.zoomOutFactor;
                 let newWindow = Math.round(oldWindow * factor);
-                newWindow = Math.min(86400, Math.max(30, newWindow));
+                newWindow = Math.min(
+                    CHART_LIMITS.maxTimeWindowSec,
+                    Math.max(CHART_LIMITS.minTimeWindowSec, newWindow),
+                );
                 if (newWindow === oldWindow) return;
 
                 const anchor =
@@ -506,7 +440,10 @@ export class TrendChart {
     }
 
     public setWindow(seconds: number) {
-        const val = Math.min(86400, Math.max(30, seconds));
+        const val = Math.min(
+            CHART_LIMITS.maxTimeWindowSec,
+            Math.max(CHART_LIMITS.minTimeWindowSec, seconds),
+        );
         this.baseTimeWindowSeconds = val;
         if (this.timeWindowSeconds === val) return;
         this.timeWindowSeconds = val;
@@ -548,8 +485,11 @@ export class TrendChart {
         points.push({ timestamp: time, value });
 
         // Retain generous rolling buffer (50,000 points per tag ~1.4h at 100ms)
-        if (points.length > 55000) {
-            points.splice(0, points.length - 50000);
+        if (points.length > CHART_LIMITS.pruneThreshold) {
+            points.splice(
+                0,
+                points.length - CHART_LIMITS.maxHistoryCapacity,
+            );
         }
 
         if (!this.paused) this.render();
@@ -577,8 +517,8 @@ export class TrendChart {
                 if (tagIds.length === 0) return;
 
                 // Add 10% padding around start and end
-                const span = Math.max(1000, endMs - startMs);
-                const pad = span * 0.1;
+                const span = Math.max(CHART_LIMITS.minFetchSpanMs, endMs - startMs);
+                const pad = span * CHART_LIMITS.historyFetchPadRatio;
                 const queryStart = Math.max(0, Math.round(startMs - pad));
                 const queryEnd = Math.round(endMs + pad);
 
@@ -606,7 +546,7 @@ export class TrendChart {
             } finally {
                 this.fetchHistoryPending = false;
             }
-        }, 40);
+        }, CHART_LIMITS.historyFetchDebounceMs);
     }
 
     public setCursorsEnabled(enabled: boolean) {
@@ -678,123 +618,16 @@ export class TrendChart {
     }
 
     public drawCursorOverlay(chart: any) {
-        if (!this.cursorsEnabled) return;
-        const scale = chart.scales.x;
-        const area = chart.chartArea;
-        if (!scale || !area) return;
-
-        const min = Number(scale.min);
-        const max = Number(scale.max);
-        if (this.cursorA === null) this.cursorA = Math.round(min + (max - min) * 0.25);
-        if (this.cursorB === null) this.cursorB = Math.round(min + (max - min) * 0.75);
-
-        const xA = scale.getPixelForValue(this.cursorA);
-        const xB = scale.getPixelForValue(this.cursorB);
-        const ctx = chart.ctx as CanvasRenderingContext2D;
-        ctx.save();
-
         const analogTags = this.tags.filter((t) => t.dataType !== 'Bool');
         const axes = this.getUsedAxes(analogTags);
-
-        // Highlight band between A and B
-        const leftX = Math.max(area.left, Math.min(xA, xB));
-        const rightX = Math.min(area.right, Math.max(xA, xB));
-        if (rightX > leftX) {
-            ctx.fillStyle = 'rgba(56, 189, 248, 0.07)';
-            ctx.fillRect(leftX, area.top, rightX - leftX, area.bottom - area.top);
-        }
-
-        // Draw Cursor A
-        if (xA >= area.left && xA <= area.right) {
-            ctx.beginPath();
-            ctx.setLineDash([4, 2]);
-            ctx.strokeStyle = '#38BDF8';
-            ctx.lineWidth = 1.5;
-            ctx.moveTo(xA, area.top);
-            ctx.lineTo(xA, area.bottom);
-            ctx.stroke();
-
-            // Top handle badge A
-            ctx.setLineDash([]);
-            ctx.fillStyle = '#0284C7';
-            ctx.fillRect(xA - 10, area.top + 2, 20, 14);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 10px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('A', xA, area.top + 9);
-
-            // Intersection markers for active analog tags
-            for (const tag of analogTags) {
-                const valA = interpolateValue(
-                    this.history.get(tag.id) ?? [],
-                    this.cursorA,
-                );
-                if (valA !== null) {
-                    const axisIdx = Math.max(0, axes.findIndex((a) => a.name === tag.yAxis));
-                    const yScale = chart.scales[`yAxis${axisIdx}`];
-                    if (yScale) {
-                        const yPix = yScale.getPixelForValue(valA);
-                        if (yPix >= area.top && yPix <= area.bottom) {
-                            ctx.beginPath();
-                            ctx.arc(xA, yPix, 4, 0, 2 * Math.PI);
-                            ctx.fillStyle = tag.color || '#38BDF8';
-                            ctx.fill();
-                            ctx.strokeStyle = '#FFFFFF';
-                            ctx.lineWidth = 1.5;
-                            ctx.stroke();
-                        }
-                    }
-                }
-            }
-        }
-
-        // Draw Cursor B
-        if (xB >= area.left && xB <= area.right) {
-            ctx.beginPath();
-            ctx.setLineDash([4, 2]);
-            ctx.strokeStyle = '#FBBF24';
-            ctx.lineWidth = 1.5;
-            ctx.moveTo(xB, area.top);
-            ctx.lineTo(xB, area.bottom);
-            ctx.stroke();
-
-            // Top handle badge B
-            ctx.setLineDash([]);
-            ctx.fillStyle = '#D97706';
-            ctx.fillRect(xB - 10, area.top + 2, 20, 14);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 10px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('B', xB, area.top + 9);
-
-            // Intersection markers for active analog tags
-            for (const tag of analogTags) {
-                const valB = interpolateValue(
-                    this.history.get(tag.id) ?? [],
-                    this.cursorB,
-                );
-                if (valB !== null) {
-                    const axisIdx = Math.max(0, axes.findIndex((a) => a.name === tag.yAxis));
-                    const yScale = chart.scales[`yAxis${axisIdx}`];
-                    if (yScale) {
-                        const yPix = yScale.getPixelForValue(valB);
-                        if (yPix >= area.top && yPix <= area.bottom) {
-                            ctx.beginPath();
-                            ctx.arc(xB, yPix, 4, 0, 2 * Math.PI);
-                            ctx.fillStyle = tag.color || '#FBBF24';
-                            ctx.fill();
-                            ctx.strokeStyle = '#FFFFFF';
-                            ctx.lineWidth = 1.5;
-                            ctx.stroke();
-                        }
-                    }
-                }
-            }
-        }
-
-        ctx.restore();
+        renderCursorOverlay(chart, {
+            cursorsEnabled: this.cursorsEnabled,
+            cursorA: this.cursorA,
+            cursorB: this.cursorB,
+            tags: this.tags,
+            axes,
+            history: this.history,
+        });
     }
 
     public clear() {
@@ -882,11 +715,11 @@ export class TrendChart {
                     x: point.timestamp,
                     y: point.value,
                 })),
-                borderColor: tag.color || '#93C5FD',
-                backgroundColor: tag.color || '#93C5FD',
+                borderColor: tag.color || CHART_THEME.defaultSeries,
+                backgroundColor: tag.color || CHART_THEME.defaultSeries,
                 borderWidth: 1,
                 pointRadius: 0,
-                pointHoverRadius: 2,
+                pointHoverRadius: CHART_LAYOUT.analogHoverRadius,
                 pointHoverBorderWidth: 1,
                 tension,
                 stepped,
@@ -926,13 +759,13 @@ export class TrendChart {
                     drawOnChartArea: index === 0,
                     color: (ctx: any) =>
                         ctx.index % 2 !== 0
-                            ? 'rgba(49, 65, 78, 0.5)'
-                            : '#31414E',
+                            ? CHART_THEME.gridAlt
+                            : CHART_THEME.gridMinor,
                     borderDash: (ctx: any) =>
                         ctx.index % 2 !== 0 ? [4, 4] : [],
                 },
                 ticks: {
-                    color: '#CBD5E1',
+                    color: CHART_THEME.textMuted,
                     precision: 0,
                     maxTicksLimit: 21,
                     callback: function (value: number, index: number) {
@@ -1000,8 +833,9 @@ export class TrendChart {
         );
         if (values.length > 0) {
             const pad = Math.max(
-                0.001,
-                (Math.max(...values) - Math.min(...values)) * 0.08,
+                CHART_LIMITS.yAxisMinPad,
+                (Math.max(...values) - Math.min(...values)) *
+                    CHART_LIMITS.yAxisPadRatio,
             );
             if (Math.min(...values) < range.min)
                 range.min = Math.min(...values) - pad;
@@ -1010,43 +844,6 @@ export class TrendChart {
         }
         this.axisRanges.set(axis.name, range);
         return range;
-    }
-
-    /** Plot-area geometry shared by boolean band + time labels. */
-    private plotLayout(
-        area: { left: number; right: number; width: number } | undefined,
-    ) {
-        if (!this.canvas || !area) {
-            return { left: 0, right: 0, width: 0, canvasW: 0 };
-        }
-        const canvasW = this.canvas.clientWidth || this.canvas.width;
-        return {
-            left: area.left,
-            right: canvasW - area.right,
-            width: area.width,
-            canvasW,
-        };
-    }
-
-    private getCanvasContext(
-        canvas: HTMLCanvasElement,
-        width: number,
-        height: number,
-    ): CanvasRenderingContext2D | null {
-        const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
-        const targetW = Math.max(1, Math.round(width * dpr));
-        const targetH = Math.max(1, Math.round(height * dpr));
-
-        if (canvas.width !== targetW || canvas.height !== targetH) {
-            canvas.width = targetW;
-            canvas.height = targetH;
-        }
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return null;
-
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        return ctx;
     }
 
     private renderBooleanBand(
@@ -1064,147 +861,25 @@ export class TrendChart {
         }
         if (isHidden) return;
 
-        const rowHeight = 24;
+        const rowHeight = CHART_LAYOUT.boolRowHeight;
         const totalHeight = tags.length * rowHeight;
-        const layout = this.plotLayout(area);
+        const layout = computePlotLayout(this.canvas, area);
         const canvasW = layout.canvasW || this.canvas?.clientWidth || 800;
 
         this.boolCanvas.style.height = `${totalHeight}px`;
-        const ctx = this.getCanvasContext(this.boolCanvas, canvasW, totalHeight);
+        const ctx = getCanvasContext(this.boolCanvas, canvasW, totalHeight);
         if (!ctx) return;
 
-        ctx.clearRect(0, 0, canvasW, totalHeight);
-
-        // Background
-        ctx.fillStyle = '#101820';
-        ctx.fillRect(0, 0, canvasW, totalHeight);
-
-        const span = Math.max(1, end - start);
-        const spanSeconds = span / 1000;
-        const { stepMs, majorMs } = chooseXGridIntervals(spanSeconds);
-        const firstGrid = Math.ceil(start / stepMs) * stepMs;
-
-        tags.forEach((tag, index) => {
-            const topY = index * rowHeight;
-
-            // Bottom border for each row
-            ctx.strokeStyle = '#536572';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([]);
-            ctx.beginPath();
-            ctx.moveTo(0, topY + rowHeight - 0.5);
-            ctx.lineTo(canvasW, topY + rowHeight - 0.5);
-            ctx.stroke();
-
-            // Tag Name in left gutter
-            if (layout.left > 0) {
-                ctx.save();
-                ctx.beginPath();
-                ctx.rect(0, topY, layout.left, rowHeight);
-                ctx.clip();
-                ctx.font =
-                    '11px "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif';
-                ctx.fillStyle = '#CBD5E1';
-                ctx.textAlign = 'left';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(tag.name, 6, topY + rowHeight / 2);
-                ctx.restore();
-            }
-
-            // Grid lines and data blocks in track area
-            if (layout.width > 0) {
-                ctx.save();
-                ctx.beginPath();
-                ctx.rect(layout.left, topY, layout.width, rowHeight);
-                ctx.clip();
-
-                // Vertical grid lines
-                for (
-                    let timestamp = firstGrid;
-                    timestamp <= end;
-                    timestamp += stepMs
-                ) {
-                    const x =
-                        layout.left + ((timestamp - start) / span) * layout.width;
-                    if (x < layout.left || x > layout.left + layout.width) continue;
-
-                    const major = isMajorTick(timestamp, majorMs, stepMs);
-                    ctx.strokeStyle = major ? '#5B7182' : '#31414E';
-                    ctx.lineWidth = major ? 1 : 0.8;
-                    ctx.setLineDash(major ? [] : [4, 4]);
-
-                    ctx.beginPath();
-                    ctx.moveTo(Math.round(x) + 0.5, topY);
-                    ctx.lineTo(Math.round(x) + 0.5, topY + rowHeight);
-                    ctx.stroke();
-                }
-
-                // Data high state blocks
-                const points = this.history.get(tag.id) ?? [];
-                ctx.fillStyle = tag.color || '#93C5FD';
-                ctx.setLineDash([]);
-
-                const barTop = topY + 6;
-                const barHeight = 12;
-
-                points.forEach((point, pIndex) => {
-                    const next = points[pIndex + 1]?.timestamp ?? end;
-                    if (
-                        point.value <= 0.5 ||
-                        next <= start ||
-                        point.timestamp >= end
-                    ) {
-                        return;
-                    }
-
-                    const clampedStart = Math.max(point.timestamp, start);
-                    const clampedEnd = Math.min(next, end);
-
-                    const x1 =
-                        layout.left +
-                        ((clampedStart - start) / span) * layout.width;
-                    const x2 =
-                        layout.left +
-                        ((clampedEnd - start) / span) * layout.width;
-                    const blockWidth = Math.max(1, x2 - x1);
-
-                    ctx.fillRect(x1, barTop, blockWidth, barHeight);
-                });
-
-                ctx.restore();
-            }
+        drawBooleanBand(ctx, {
+            start,
+            end,
+            layout,
+            boolTags: tags,
+            history: this.history,
+            cursorsEnabled: this.cursorsEnabled,
+            cursorA: this.cursorA,
+            cursorB: this.cursorB,
         });
-
-        // Draw Cursor guidelines across boolean band
-        if (this.cursorsEnabled && layout.width > 0) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(layout.left, 0, layout.width, totalHeight);
-            ctx.clip();
-
-            if (this.cursorA !== null && this.cursorA >= start && this.cursorA <= end) {
-                const xA = layout.left + ((this.cursorA - start) / span) * layout.width;
-                ctx.beginPath();
-                ctx.setLineDash([4, 2]);
-                ctx.strokeStyle = '#38BDF8';
-                ctx.lineWidth = 1.5;
-                ctx.moveTo(xA, 0);
-                ctx.lineTo(xA, totalHeight);
-                ctx.stroke();
-            }
-
-            if (this.cursorB !== null && this.cursorB >= start && this.cursorB <= end) {
-                const xB = layout.left + ((this.cursorB - start) / span) * layout.width;
-                ctx.beginPath();
-                ctx.setLineDash([4, 2]);
-                ctx.strokeStyle = '#FBBF24';
-                ctx.lineWidth = 1.5;
-                ctx.moveTo(xB, 0);
-                ctx.lineTo(xB, totalHeight);
-                ctx.stroke();
-            }
-            ctx.restore();
-        }
     }
 
     private renderTimeAxis(
@@ -1213,85 +888,21 @@ export class TrendChart {
         area: { left: number; right: number; width: number } | undefined,
     ) {
         if (!this.timeCanvas) return;
-        const layout = this.plotLayout(area);
+        const layout = computePlotLayout(this.canvas, area);
         const canvasW = layout.canvasW || this.canvas?.clientWidth || 800;
-        const height = 22;
+        const height = CHART_LAYOUT.timeAxisHeight;
 
         this.timeCanvas.style.height = `${height}px`;
-        const ctx = this.getCanvasContext(this.timeCanvas, canvasW, height);
+        const ctx = getCanvasContext(this.timeCanvas, canvasW, height);
         if (!ctx) return;
 
-        ctx.clearRect(0, 0, canvasW, height);
-
-        // Background
-        ctx.fillStyle = '#0C1118';
-        ctx.fillRect(0, 0, canvasW, height);
-
-        // Top border line
-        ctx.strokeStyle = '#31414E';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([]);
-        ctx.beginPath();
-        ctx.moveTo(0, 0.5);
-        ctx.lineTo(canvasW, 0.5);
-        ctx.stroke();
-
-        if (layout.width <= 0) return;
-
-        const span = Math.max(1, end - start);
-        const spanSeconds = span / 1000;
-        const { majorMs } = chooseXGridIntervals(spanSeconds);
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(layout.left, 0, layout.width, height);
-        ctx.clip();
-
-        ctx.font =
-            '10px ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace';
-        ctx.fillStyle = '#CBD5E1';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        const first = Math.ceil(start / majorMs) * majorMs;
-        for (
-            let timestamp = first;
-            timestamp <= end + 0.5;
-            timestamp += majorMs
-        ) {
-            const x =
-                layout.left + ((timestamp - start) / span) * layout.width;
-            if (x < layout.left - 20 || x > layout.left + layout.width + 20)
-                continue;
-            const timeStr = formatTickTime(timestamp);
-            ctx.fillText(timeStr, x, height / 2);
-        }
-
-        // Draw Cursor indicators on time axis
-        if (this.cursorsEnabled) {
-            if (this.cursorA !== null && this.cursorA >= start && this.cursorA <= end) {
-                const xA = layout.left + ((this.cursorA - start) / span) * layout.width;
-                ctx.fillStyle = '#0284C7';
-                ctx.fillRect(xA - 8, 3, 16, 16);
-                ctx.fillStyle = '#FFFFFF';
-                ctx.font = 'bold 9px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('A', xA, 11);
-            }
-
-            if (this.cursorB !== null && this.cursorB >= start && this.cursorB <= end) {
-                const xB = layout.left + ((this.cursorB - start) / span) * layout.width;
-                ctx.fillStyle = '#D97706';
-                ctx.fillRect(xB - 8, 3, 16, 16);
-                ctx.fillStyle = '#FFFFFF';
-                ctx.font = 'bold 9px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('B', xB, 11);
-            }
-        }
-
-        ctx.restore();
+        drawTimeAxis(ctx, {
+            start,
+            end,
+            layout,
+            cursorsEnabled: this.cursorsEnabled,
+            cursorA: this.cursorA,
+            cursorB: this.cursorB,
+        });
     }
 }

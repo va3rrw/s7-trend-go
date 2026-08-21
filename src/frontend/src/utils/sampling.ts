@@ -1,5 +1,4 @@
-import { state, backend, getTag, updateTagValue, markPlcForTag } from '../store';
-import type { TrendChart } from '../chart';
+import { state, backend } from '../store';
 
 export interface SamplingChartRef {
     setPaused(paused: boolean): void;
