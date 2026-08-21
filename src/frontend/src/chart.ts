@@ -163,6 +163,7 @@ export class TrendChart {
     private axes: ChartAxis[] = [];
     private history = new Map<string, Point[]>();
     private axisRanges = new Map<string, { min: number; max: number }>();
+    private baseTimeWindowSeconds = 60;
     private timeWindowSeconds = 60;
     private viewOffsetSeconds = 0;
     private lastLiveTimestamp = 0;
@@ -506,6 +507,7 @@ export class TrendChart {
 
     public setWindow(seconds: number) {
         const val = Math.min(86400, Math.max(30, seconds));
+        this.baseTimeWindowSeconds = val;
         if (this.timeWindowSeconds === val) return;
         this.timeWindowSeconds = val;
         this.render();
@@ -520,6 +522,8 @@ export class TrendChart {
         } else {
             this.pausedAnchorTime = null;
             this.viewOffsetSeconds = 0;
+            this.timeWindowSeconds = this.baseTimeWindowSeconds;
+            this.onWindowChange?.(this.baseTimeWindowSeconds);
             this.render();
         }
     }

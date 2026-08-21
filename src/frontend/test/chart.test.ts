@@ -233,8 +233,9 @@ describe('TrendChart', () => {
         const zoomedInWindow = onWinChange.mock.calls[0][0];
         expect(zoomedInWindow).toBeLessThan(60);
 
-        // Reset and test zoom out triggers onDragStart as well
+        // Reset and verify unpausing resets the window back to original configured 60s
         trend.setPaused(false);
+        expect(onWinChange).toHaveBeenCalledWith(60);
         onDragStart.mockClear();
 
         // Dispatch wheel event scrolling DOWN (zoom out)
@@ -247,8 +248,12 @@ describe('TrendChart', () => {
         });
         canvas.dispatchEvent(zoomOutEvent);
         expect(onDragStart).toHaveBeenCalledTimes(1);
-        const zoomedOutWindow = onWinChange.mock.calls[1][0];
-        expect(zoomedOutWindow).toBeGreaterThan(zoomedInWindow);
+        const zoomedOutWindow = onWinChange.mock.calls[onWinChange.mock.calls.length - 1][0];
+        expect(zoomedOutWindow).toBeGreaterThan(60);
+
+        // Resume after zoom out and verify it resets back to 60s
+        trend.setPaused(false);
+        expect(onWinChange.mock.calls[onWinChange.mock.calls.length - 1][0]).toBe(60);
 
         trend.destroy();
     });

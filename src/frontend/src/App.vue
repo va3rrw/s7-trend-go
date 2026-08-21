@@ -71,7 +71,7 @@
         <!-- Status Bar -->
         <AppStatusBar
             :status-message="state.statusMessage"
-            :time-window-seconds="state.settings.timeWindowSeconds"
+            :time-window-seconds="activeTimeWindow"
             :poll-interval-ms="state.settings.pollIntervalMs"
             :actual-sampling-text="actualSamplingText" />
     </div>
@@ -122,7 +122,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, shallowRef, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, reactive, shallowRef, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ChartTag, ChartAxis, CursorMeasurement } from './chart';
 import type { TagSettings } from './types';
@@ -352,11 +352,20 @@ function onChartDragStart() {
     if (!state.isSampling || state.isPaused) return;
     state.isPaused = true;
     chartRef.value?.setPaused(true);
-    state.statusMessage = 'Chart paused for review; polling continues';
+    state.statusMessage = t('status.chart_paused_polling');
 }
 
+// ── Active View Window (for status bar display during zoom review) ──
+const activeTimeWindow = ref(state.settings.timeWindowSeconds);
+watch(
+    () => state.settings.timeWindowSeconds,
+    (val) => {
+        activeTimeWindow.value = val;
+    },
+);
+
 function onChartWindowChange(seconds: number) {
-    state.settings.timeWindowSeconds = seconds;
+    activeTimeWindow.value = seconds;
 }
 
 // ── Resizer ────────────────────────────────────────────────────────
