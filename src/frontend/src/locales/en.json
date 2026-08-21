@@ -130,7 +130,7 @@
     "polling_at": "Polling at {0} ms; chart paused",
     "sampling_at": "Sampling at {0} ms",
     "interval": "Interval:",
-    "actual": "Actual:",
+    "actual": "Poll time:",
     "window": "Window:",
     "connected_to": "Connected to {0} ({1})",
     "test_connection_failed": "Test connection failed: {0}",

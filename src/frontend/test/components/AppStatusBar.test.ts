@@ -20,6 +20,7 @@ describe('AppStatusBar.vue', () => {
         expect(wrapper.text()).toContain('Sampling active');
         expect(wrapper.text()).toContain('120 s');
         expect(wrapper.text()).toContain('250 ms');
+        expect(wrapper.text()).toContain('Poll time:');
         expect(wrapper.text()).toContain('PLC1: 15ms');
     });
 });

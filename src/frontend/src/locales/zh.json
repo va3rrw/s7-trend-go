@@ -130,7 +130,7 @@
     "polling_at": "以 {0} ms 轮询；曲线已暂停",
     "sampling_at": "以 {0} ms 采样",
     "interval": "设定:",
-    "actual": "实际:",
+    "actual": "轮询耗时:",
     "window": "窗口:",
     "connected_to": "已连接到 {0} ({1})",
     "test_connection_failed": "测试连接失败: {0}",
