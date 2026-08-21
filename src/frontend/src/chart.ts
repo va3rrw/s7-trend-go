@@ -427,20 +427,36 @@ export class TrendChart {
     public addDataPoint(id: string, timestamp: string, value: number) {
         if (!Number.isFinite(value)) return;
         const time = Date.parse(timestamp) || Date.now();
-        const points = this.history.get(id) ?? [];
+        let points = this.history.get(id);
+        if (!points) {
+            points = [];
+            this.history.set(id, points);
+        }
         points.push({ timestamp: time, value });
 
-        // When in live mode (viewOffset == 0), retain only current display window plus margin
+        // When in live mode (viewOffset == 0), retain only current display window plus margin (1.5x window)
+        // Prune expired points in a single O(log N) search + splice instead of O(N) points.shift() in a loop
         if (this.viewOffsetSeconds === 0) {
             const cutoff = time - this.timeWindowSeconds * 1500;
-            while (points.length > 0 && points[0].timestamp < cutoff) {
-                points.shift();
+            if (points.length > 0 && points[0].timestamp < cutoff) {
+                let low = 0;
+                let high = points.length;
+                while (low < high) {
+                    const mid = (low + high) >>> 1;
+                    if (points[mid].timestamp < cutoff) {
+                        low = mid + 1;
+                    } else {
+                        high = mid;
+                    }
+                }
+                if (low > 0) {
+                    points.splice(0, low);
+                }
             }
         } else if (points.length > 50000) {
             points.splice(0, 5000);
         }
 
-        this.history.set(id, points);
         if (!this.paused) this.render();
     }
 

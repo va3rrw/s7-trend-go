@@ -153,6 +153,26 @@ describe('TrendChart', () => {
         trend.destroy();
     });
 
+    it('efficiently handles high-throughput point streams without performance degradation', () => {
+        const trend = new TrendChart(canvas, boolBand, timeAxis);
+        trend.setWindow(30); // 30 seconds (margin = 45s)
+
+        const baseTime = 1000000;
+        // Stream 10,000 points spanning 100 seconds (100 Hz polling)
+        for (let i = 0; i < 10000; i++) {
+            trend.addDataPoint('tag-fast', new Date(baseTime + i * 10).toISOString(), i);
+        }
+
+        const pts = (trend as any).history.get('tag-fast');
+        expect(pts.length).toBeGreaterThan(0);
+        // Window margin is 30s * 1.5 = 45s -> at 100Hz, should retain ~4500 points
+        expect(pts.length).toBeLessThanOrEqual(4600);
+        // Last point should match the last emitted value
+        expect(pts[pts.length - 1].value).toBe(9999);
+
+        trend.destroy();
+    });
+
     it('enables cursors, calculates measurements, and emits cursor changes', () => {
         const trend = new TrendChart(canvas, boolBand, timeAxis);
         trend.setTags(
