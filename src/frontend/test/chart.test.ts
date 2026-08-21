@@ -211,9 +211,10 @@ describe('TrendChart', () => {
         trend.destroy();
     });
 
-    it('handles mouse wheel zoom in and zoom out centered on cursor', () => {
+    it('handles mouse wheel zoom in and zoom out centered on cursor and triggers pause', () => {
         const onWinChange = vi.fn();
-        const trend = new TrendChart(canvas, boolBand, timeAxis);
+        const onDragStart = vi.fn();
+        const trend = new TrendChart(canvas, boolBand, timeAxis, onDragStart);
         trend.setOnWindowChange(onWinChange);
         trend.setWindow(60);
 
@@ -228,8 +229,13 @@ describe('TrendChart', () => {
         canvas.dispatchEvent(zoomInEvent);
 
         expect(onWinChange).toHaveBeenCalled();
-        const zoomedWindow = onWinChange.mock.calls[0][0];
-        expect(zoomedWindow).toBeLessThan(60);
+        expect(onDragStart).toHaveBeenCalledTimes(1);
+        const zoomedInWindow = onWinChange.mock.calls[0][0];
+        expect(zoomedInWindow).toBeLessThan(60);
+
+        // Reset and test zoom out triggers onDragStart as well
+        trend.setPaused(false);
+        onDragStart.mockClear();
 
         // Dispatch wheel event scrolling DOWN (zoom out)
         const zoomOutEvent = new WheelEvent('wheel', {
@@ -240,7 +246,9 @@ describe('TrendChart', () => {
             cancelable: true,
         });
         canvas.dispatchEvent(zoomOutEvent);
-        expect(onWinChange.mock.calls.length).toBe(2);
+        expect(onDragStart).toHaveBeenCalledTimes(1);
+        const zoomedOutWindow = onWinChange.mock.calls[1][0];
+        expect(zoomedOutWindow).toBeGreaterThan(zoomedInWindow);
 
         trend.destroy();
     });

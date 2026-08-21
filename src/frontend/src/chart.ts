@@ -474,8 +474,8 @@ export class TrendChart {
                     newOffset = 0;
                 }
 
-                // If zooming into past while running live, trigger pause
-                if (!this.paused && newOffset < -0.5) {
+                // Any wheel zoom while running live pauses the chart for review
+                if (!this.paused) {
                     this.paused = true;
                     this.pausedAnchorTime = anchor;
                     this.onDragStart?.();
@@ -845,8 +845,15 @@ export class TrendChart {
         const end = anchor + this.viewOffsetSeconds * 1000;
         const start = end - this.timeWindowSeconds * 1000;
 
-        // If panning into history, fetch requested range from backend
-        if (this.viewOffsetSeconds < 0) {
+        // If panning or zooming into history beyond in-memory buffer, fetch from backend
+        let earliestInMemory = Infinity;
+        for (const tag of this.tags) {
+            const pts = this.history.get(tag.id);
+            if (pts && pts.length > 0) {
+                earliestInMemory = Math.min(earliestInMemory, pts[0].timestamp);
+            }
+        }
+        if (this.viewOffsetSeconds < 0 || start < earliestInMemory) {
             this.scheduleHistoryFetch(start, end);
         }
 
