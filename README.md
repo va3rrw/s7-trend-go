@@ -14,7 +14,7 @@ Based on a very old but useful tool **S7 Trend Values**.
 - **S7 Tag Support**: Read DB, Memory (M), Inputs (I), and Outputs (Q) memory areas supporting `Bool`, `Byte`, `Word`, `Int`, `DWord`, `DInt`, `Real`, `LReal`, and `String` data types.
 - **High-Performance Real-Time Charting**: High-frequency polling (10ms to 60,000ms) with customizable time windows (30s to 3,600s).
 - **Multi-Axis Y Scaling**: Configure independent Y-axes with automatic scaling or explicit minimum and maximum range bounds.
-- **Sample Interpolation**: Choose between `Line` and `Differential` interpolation modes for trend visualization.
+- **Sample Interpolation**: Choose between `Line` and `Step` interpolation modes for trend visualization.
 - **Import & Export**: Save and reload PLC configurations, tag lists, Y-axes setups, and exported sample records.
 - **Localization**: Built-in support for English (`en`) and Simplified Chinese (`zh`).
 

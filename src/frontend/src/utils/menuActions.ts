@@ -113,7 +113,7 @@ export async function menuInterpolation(
         t('menu.samples_interpolation'),
         t('prompt.mode'),
         state.settings.interpolation,
-        ['Line', 'Differential'],
+        ['Line', 'Step'],
     );
     if (value === null) return;
     state.settings.interpolation = value;

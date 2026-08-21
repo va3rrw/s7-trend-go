@@ -134,7 +134,6 @@ export class TrendChart {
     private dragging = false;
     private lastPointerX = 0;
     private paused = false;
-    private differential = false;
     private renderPending = false;
     private resizeObserver: ResizeObserver | null = null;
     private onDragStart?: () => void;
@@ -420,7 +419,6 @@ export class TrendChart {
 
     public setInterpolation(mode: string) {
         this.interpolationMode = mode;
-        this.differential = mode === 'Differential';
         this.render();
     }
 
@@ -763,12 +761,9 @@ export class TrendChart {
 
             return {
                 label: tag.name,
-                data: points.map((point, index) => ({
+                data: points.map((point) => ({
                     x: point.timestamp,
-                    y: this.differential
-                        ? point.value -
-                          (points[index - 1]?.value ?? point.value)
-                        : point.value,
+                    y: point.value,
                 })),
                 borderColor: tag.color || '#93C5FD',
                 backgroundColor: tag.color || '#93C5FD',

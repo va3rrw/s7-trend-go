@@ -51,7 +51,7 @@ func TestApp_Settings(t *testing.T) {
 	modified := original
 	modified.PollIntervalMs = 500
 	modified.TimeWindowSeconds = 180
-	modified.Interpolation = InterpolationDifferential
+	modified.Interpolation = InterpolationStep
 
 	app.SaveSettings(modified)
 
@@ -62,8 +62,8 @@ func TestApp_Settings(t *testing.T) {
 	if current.TimeWindowSeconds != 180 {
 		t.Errorf("expected TimeWindowSeconds 180, got %d", current.TimeWindowSeconds)
 	}
-	if current.Interpolation != InterpolationDifferential {
-		t.Errorf("expected Interpolation Differential, got %s", current.Interpolation)
+	if current.Interpolation != InterpolationStep {
+		t.Errorf("expected Interpolation Step, got %s", current.Interpolation)
 	}
 }
 

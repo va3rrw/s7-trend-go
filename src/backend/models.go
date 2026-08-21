@@ -67,8 +67,8 @@ func CreateDefaultYAxes() []YAxisSettings {
 type InterpolationMode string
 
 const (
-	InterpolationLine         InterpolationMode = "Line"
-	InterpolationDifferential InterpolationMode = "Differential"
+	InterpolationLine InterpolationMode = "Line"
+	InterpolationStep InterpolationMode = "Step"
 )
 
 type AppSettings struct {

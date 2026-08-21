@@ -91,7 +91,7 @@ func TestModels_JSONSerialization(t *testing.T) {
 	settings := AppSettings{
 		PollIntervalMs:    250,
 		TimeWindowSeconds: 120,
-		Interpolation:     InterpolationDifferential,
+		Interpolation:     InterpolationStep,
 		PlcLinks:          CreateDefaultPlcLinks(),
 		Tags:              []TagSettings{tag},
 		YAxes:             CreateDefaultYAxes(),
@@ -113,8 +113,8 @@ func TestModels_JSONSerialization(t *testing.T) {
 	if restored.TimeWindowSeconds != 120 {
 		t.Errorf("restored.TimeWindowSeconds = %d, expected 120", restored.TimeWindowSeconds)
 	}
-	if restored.Interpolation != InterpolationDifferential {
-		t.Errorf("restored.Interpolation = %s, expected Differential", restored.Interpolation)
+	if restored.Interpolation != InterpolationStep {
+		t.Errorf("restored.Interpolation = %s, expected Step", restored.Interpolation)
 	}
 	if len(restored.Tags) != 1 {
 		t.Fatalf("restored tags length = %d, expected 1", len(restored.Tags))
