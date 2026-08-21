@@ -101,6 +101,28 @@ describe('TrendChart', () => {
         trend.destroy();
     });
 
+    it('renders more than 8 boolean tags in the boolean band without 8-tag limit', async () => {
+        const boolCanvas = document.createElement('canvas');
+        const timeCanvas = document.createElement('canvas');
+        const trend = new TrendChart(canvas, boolCanvas, timeCanvas);
+
+        const tags = Array.from({ length: 16 }, (_, i) => ({
+            id: `bool-${i}`,
+            name: `Bit_${i}`,
+            color: '#86EFAC',
+            dataType: 'Bool',
+            yAxis: 'Y-Axis 1',
+            enabled: true,
+        }));
+        trend.setTags(tags, [{ name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true }]);
+
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        // 16 rows * 24px = 384px height
+        expect(boolCanvas.style.height).toBe('384px');
+        trend.destroy();
+    });
+
     it('handles window resize events cleanly', () => {
         const boolCanvas = document.createElement('canvas');
         const timeCanvas = document.createElement('canvas');

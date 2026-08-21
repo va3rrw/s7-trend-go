@@ -212,7 +212,6 @@ select:focus {
 
 .boolean-band {
   flex: 0 0 auto;
-  max-height: 260px;
   width: 100% !important;
   border-top: 1px solid #8EA1B0;
   background: #101820;

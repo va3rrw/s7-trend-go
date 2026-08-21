@@ -924,9 +924,7 @@ export class TrendChart {
         area: { left: number; right: number; width: number } | undefined,
     ) {
         if (!this.boolCanvas) return;
-        const tags = this.tags
-            .filter((tag) => tag.dataType === 'Bool')
-            .slice(0, 8);
+        const tags = this.tags.filter((tag) => tag.dataType === 'Bool');
 
         const isHidden = tags.length === 0;
         this.boolCanvas.classList.toggle('hidden', isHidden);
