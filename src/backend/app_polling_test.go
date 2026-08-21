@@ -192,4 +192,28 @@ func TestApp_SaveSettings_WhilePolling(t *testing.T) {
 	app.StopPolling()
 }
 
+func TestApp_StartPolling_ReconnectionBackoff(t *testing.T) {
+	app := NewApp()
+	settings := CreateDefaultSettings()
+	settings.PollIntervalMs = 10
+	settings.PlcLinks = []PlcLinkSettings{
+		{Name: "PLC1", IpAddress: "127.0.0.1", Rack: 0, Slot: 1}, // Unreachable S7 port
+	}
+	settings.Tags = []TagSettings{
+		{
+			Id:       uuid.New(),
+			Name:     "Tag1",
+			PlcLink:  "PLC1",
+			Address:  "DB1.DBD0",
+			DataType: DataTypeReal,
+			Enabled:  true,
+		},
+	}
+
+	app.StartPolling(settings)
+	time.Sleep(100 * time.Millisecond)
+	app.StopPolling()
+}
+
+
 

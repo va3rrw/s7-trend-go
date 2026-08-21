@@ -117,14 +117,38 @@ func (a *App) StartPolling(settings AppSettings) {
 				pollTicker := time.NewTicker(time.Duration(interval) * time.Millisecond)
 				defer pollTicker.Stop()
 
+				var (
+					backoff        = 1 * time.Second
+					maxBackoff     = 30 * time.Second
+					nextRetryTime  time.Time
+					lastConnectErr error
+				)
+
 				for {
 					select {
 					case <-pollCtx.Done():
 						return
 					case <-pollTicker.C:
 						if !a.CheckStatus(lName) {
+							now := time.Now()
+							if !nextRetryTime.IsZero() && now.Before(nextRetryTime) {
+								// Currently in backoff delay; do not flood reconnect attempts
+								select {
+								case <-pollCtx.Done():
+									return
+								case dataChan <- networkResult{Err: lastConnectErr}:
+								}
+								continue
+							}
+
 							err := a.Connect(lName, link.IpAddress, link.Rack, link.Slot)
 							if err != nil {
+								lastConnectErr = err
+								nextRetryTime = now.Add(backoff)
+								backoff *= 2
+								if backoff > maxBackoff {
+									backoff = maxBackoff
+								}
 								select {
 								case <-pollCtx.Done():
 									return
@@ -132,6 +156,11 @@ func (a *App) StartPolling(settings AppSettings) {
 								}
 								continue
 							}
+
+							// Connection succeeded; reset backoff
+							backoff = 1 * time.Second
+							nextRetryTime = time.Time{}
+							lastConnectErr = nil
 						}
 
 						a.mu.RLock()
@@ -200,12 +229,22 @@ func (a *App) StartPolling(settings AppSettings) {
 
 						if err != nil {
 							a.invalidateConnection(lName, conn)
+							lastConnectErr = err
+							nextRetryTime = time.Now().Add(backoff)
+							backoff *= 2
+							if backoff > maxBackoff {
+								backoff = maxBackoff
+							}
 							select {
 							case <-pollCtx.Done():
 								return
 							case dataChan <- networkResult{Err: err, DurationMs: readDurationMs}:
 							}
 						} else {
+							backoff = 1 * time.Second
+							nextRetryTime = time.Time{}
+							lastConnectErr = nil
+
 							fullItems := make([]gos7.S7DataItem, len(pTags))
 							for idx, pt := range pTags {
 								if pt.Err != nil {
