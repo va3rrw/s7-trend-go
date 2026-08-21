@@ -18,8 +18,8 @@ fi
 echo "Version: v$VER (from VERSION)"
 
 # ── Sync version into Go / Wails / frontend ─────────────────────────
-cat > "$ROOT/src/version.go" <<EOF
-package main
+cat > "$ROOT/src/backend/version.go" <<EOF
+package backend
 
 // AppVersion is synced from VERSION by build.sh (not auto-bumped).
 const AppVersion = "$VER"
@@ -51,6 +51,13 @@ else
   sed -i "s/\"productVersion\": \"[^\"]*\"/\"productVersion\": \"$VER\"/" "$ROOT/src/wails.json"
   sed -i "s/\"outputfilename\": \"[^\"]*\"/\"outputfilename\": \"$EXE_BASENAME\"/" "$ROOT/src/wails.json"
 fi
+
+# ── Run test suites ─────────────────────────────────────────────────
+echo "Running frontend tests..."
+(cd "$ROOT/src/frontend" && npm test)
+
+echo "Running Go tests..."
+(cd "$ROOT/src" && go test -race ./...)
 
 # ── Build Windows executable ────────────────────────────────────────
 echo "Building Windows executable ($EXE_NAME)..."
