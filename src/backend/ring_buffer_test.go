@@ -104,3 +104,75 @@ func TestTagRingBuffer_Clear(t *testing.T) {
 		t.Errorf("expected 0 items from GetRange after clear")
 	}
 }
+
+func TestTagRingBuffer_DynamicGrowth(t *testing.T) {
+	// 1. Large capacity ring buffer starts with small initial allocation
+	rb := NewTagRingBuffer(500000)
+	if rb.AllocatedCapacity() != 1024 {
+		t.Errorf("expected initial allocated capacity 1024, got %d", rb.AllocatedCapacity())
+	}
+	if rb.Capacity() != 500000 {
+		t.Errorf("expected max capacity 500000, got %d", rb.Capacity())
+	}
+
+	// Push 1024 items
+	for i := 1; i <= 1024; i++ {
+		rb.Push(int64(i*10), float64(i))
+	}
+	if rb.Size() != 1024 {
+		t.Errorf("expected size 1024, got %d", rb.Size())
+	}
+	if rb.AllocatedCapacity() != 1024 {
+		t.Errorf("expected allocated capacity 1024, got %d", rb.AllocatedCapacity())
+	}
+
+	// Push 1025th item -> should dynamically grow to 2048
+	rb.Push(10250, 1025.0)
+	if rb.Size() != 1025 {
+		t.Errorf("expected size 1025, got %d", rb.Size())
+	}
+	if rb.AllocatedCapacity() != 2048 {
+		t.Errorf("expected allocated capacity 2048 after growth, got %d", rb.AllocatedCapacity())
+	}
+
+	// Verify all 1025 items preserved in correct order
+	all := rb.GetAll()
+	if len(all) != 1025 {
+		t.Fatalf("expected 1025 items, got %d", len(all))
+	}
+	if all[0].Timestamp != 10 || all[0].Value != 1.0 {
+		t.Errorf("expected first item (10, 1.0), got (%d, %f)", all[0].Timestamp, all[0].Value)
+	}
+	if all[1024].Timestamp != 10250 || all[1024].Value != 1025.0 {
+		t.Errorf("expected last item (10250, 1025.0), got (%d, %f)", all[1024].Timestamp, all[1024].Value)
+	}
+
+	// Verify GetRange across the growth boundary
+	rng := rb.GetRange(10200, 10250)
+	if len(rng) != 6 {
+		t.Fatalf("expected 6 items in range [10200, 10250], got %d", len(rng))
+	}
+	if rng[0].Timestamp != 10200 || rng[5].Timestamp != 10250 {
+		t.Errorf("expected range [10200, 10250], got [%d, %d]", rng[0].Timestamp, rng[5].Timestamp)
+	}
+
+	// 2. Small capacity buffer (e.g. 50 items < 1024)
+	small := NewTagRingBuffer(50)
+	if small.AllocatedCapacity() != 50 {
+		t.Errorf("expected initial allocated capacity 50, got %d", small.AllocatedCapacity())
+	}
+	for i := 1; i <= 60; i++ {
+		small.Push(int64(i*10), float64(i))
+	}
+	if small.Size() != 50 {
+		t.Errorf("expected size clamped to 50, got %d", small.Size())
+	}
+	if small.AllocatedCapacity() != 50 {
+		t.Errorf("expected allocated capacity to stay 50, got %d", small.AllocatedCapacity())
+	}
+	smallAll := small.GetAll()
+	if len(smallAll) != 50 || smallAll[0].Timestamp != 110 || smallAll[49].Timestamp != 600 {
+		t.Errorf("expected small buffer items from 110 to 600, got first=%d, last=%d", smallAll[0].Timestamp, smallAll[49].Timestamp)
+	}
+}
+
