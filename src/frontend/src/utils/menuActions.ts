@@ -21,6 +21,7 @@ export async function menuLoadSettings(t: TranslateFn): Promise<void> {
             t('menu.load_settings'),
         );
         if (loaded) {
+            resetStats();
             if (loaded.pollIntervalMs) {
                 state.settings.pollIntervalMs = loaded.pollIntervalMs;
             }

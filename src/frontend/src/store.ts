@@ -60,8 +60,12 @@ export function updateTagValue(
     }
 }
 
-export function resetStats() {
-    state.sampledRange = {};
+export function resetStats(tagId?: string) {
+    if (tagId) {
+        delete state.sampledRange[tagId];
+    } else {
+        state.sampledRange = {};
+    }
 }
 
 export function getTag(id: string): TagSettings | undefined {

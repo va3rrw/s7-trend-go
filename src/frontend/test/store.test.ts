@@ -40,15 +40,22 @@ describe('store.ts', () => {
         updateTagValue('tag-1', '10.5', 10.5);
         updateTagValue('tag-1', '25.0', 25.0);
         updateTagValue('tag-1', '5.2', 5.2);
+        updateTagValue('tag-2', '100', 100);
 
         const range = state.sampledRange['tag-1'];
         expect(range).toBeDefined();
         expect(range?.min).toBe(5.2);
         expect(range?.max).toBe(25.0);
+        expect(state.sampledRange['tag-2']?.min).toBe(100);
 
         // Undefined or NaN should not break the range
         updateTagValue('tag-1', 'NaN', NaN);
         expect(state.sampledRange['tag-1']?.min).toBe(5.2);
+
+        // Reset single tag
+        resetStats('tag-2');
+        expect(state.sampledRange['tag-2']).toBeUndefined();
+        expect(state.sampledRange['tag-1']).toBeDefined();
 
         // Reset clears all stats
         resetStats();
