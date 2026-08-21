@@ -112,6 +112,13 @@
         :existing-tags="state.settings.tags"
         @save="onDblEditSave"
         @close="dblEditOpen = false" />
+
+    <!-- App Exit Confirmation Dialog -->
+    <ExitConfirmDialog
+        :open="exitConfirmOpen"
+        @save="onExitSave"
+        @dont-save="onExitDontSave"
+        @cancel="onExitCancel" />
 </template>
 
 <script setup lang="ts">
@@ -143,6 +150,7 @@ import PromptDialog from './components/PromptDialog.vue';
 import MessageDialog from './components/MessageDialog.vue';
 import AboutDialog from './components/AboutDialog.vue';
 import TagEditorDialog from './components/TagEditorDialog.vue';
+import ExitConfirmDialog from './components/ExitConfirmDialog.vue';
 
 // Utils
 import {
@@ -249,6 +257,42 @@ function onDblEditSave(updatedTag: TagSettings) {
         onSettingsChanged();
     }
     dblEditOpen.value = false;
+}
+
+// ── App Exit Confirmation ──────────────────────────────────────────
+const exitConfirmOpen = ref(false);
+
+async function onExitSave() {
+    exitConfirmOpen.value = false;
+    try {
+        const api = backend();
+        if (api?.SaveCurrentSettings) {
+            await api.SaveCurrentSettings();
+        } else if (api?.SaveSettingsFile) {
+            await api.SaveSettingsFile(state.settings, t('menu.save_settings'));
+        }
+        if (api?.QuitApp) {
+            await api.QuitApp();
+        } else {
+            wailsRuntime()?.Quit?.();
+        }
+    } catch {
+        // User cancelled file save dialog; keep app open
+    }
+}
+
+async function onExitDontSave() {
+    exitConfirmOpen.value = false;
+    const api = backend();
+    if (api?.QuitApp) {
+        await api.QuitApp();
+    } else {
+        wailsRuntime()?.Quit?.();
+    }
+}
+
+function onExitCancel() {
+    exitConfirmOpen.value = false;
 }
 
 // ── Polling Interval Tracking ──────────────────────────────────────
@@ -365,6 +409,7 @@ function onKeydown(e: KeyboardEvent) {
 let fallbackTimer: number | null = null;
 let unlistenPollUpdate: (() => void) | null = null;
 let unlistenPollTiming: (() => void) | null = null;
+let unlistenRequestExit: (() => void) | null = null;
 
 onMounted(async () => {
     try {
@@ -390,6 +435,10 @@ onMounted(async () => {
     // Wails event listeners
     const rt = wailsRuntime();
     if (rt?.EventsOn) {
+        unlistenRequestExit = rt.EventsOn('app:request-exit', () => {
+            exitConfirmOpen.value = true;
+        });
+
         unlistenPollUpdate = rt.EventsOn('poll_update', (update: any) => {
             if (!state.isSampling) return;
             const valStr = update.value || '-';
@@ -462,6 +511,13 @@ onBeforeUnmount(() => {
     if (fallbackTimer !== null) {
         clearInterval(fallbackTimer);
         fallbackTimer = null;
+    }
+    if (typeof unlistenRequestExit === 'function') {
+        unlistenRequestExit();
+        unlistenRequestExit = null;
+    } else {
+        const rt = wailsRuntime();
+        rt?.EventsOff?.('app:request-exit');
     }
     if (typeof unlistenPollUpdate === 'function') {
         unlistenPollUpdate();

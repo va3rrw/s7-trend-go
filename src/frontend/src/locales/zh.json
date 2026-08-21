@@ -92,11 +92,15 @@
     "about_title": "关于 S7 Trend Go",
     "about_desc1": "只读 S7-300/400/1200/1500 监视器",
     "about_desc2": "针对非优化 DB 的绝对寻址",
-    "about_desc3": "由 Go + gos7 + Wails + Vue 驱动"
+    "about_desc3": "由 Go + gos7 + Wails + Vue 驱动",
+    "exit_confirm_title": "保存设置",
+    "exit_confirm_msg": "配置已被修改。是否在退出前保存更改？"
   },
   "buttons": {
     "ok": "确定",
     "cancel": "取消",
+    "save": "保存",
+    "dont_save": "不保存",
     "add": "添加",
     "edit": "编辑",
     "remove": "移除",

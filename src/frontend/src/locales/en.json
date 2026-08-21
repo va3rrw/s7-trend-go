@@ -92,11 +92,15 @@
     "about_title": "About S7 Trend Go",
     "about_desc1": "Read-only S7-300/400/1200/1500 monitor",
     "about_desc2": "Absolute addressing for non-optimized DBs",
-    "about_desc3": "Powered by Go + gos7 + Wails + Vue"
+    "about_desc3": "Powered by Go + gos7 + Wails + Vue",
+    "exit_confirm_title": "Save Settings",
+    "exit_confirm_msg": "Settings have been modified. Do you want to save changes before exiting?"
   },
   "buttons": {
     "ok": "OK",
     "cancel": "Cancel",
+    "save": "Save",
+    "dont_save": "Don't Save",
     "add": "Add",
     "edit": "Edit",
     "remove": "Remove",

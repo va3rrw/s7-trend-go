@@ -198,7 +198,7 @@ func TestApp_SettingsChangedAndState(t *testing.T) {
 		t.Error("expected HasSettingsChanged == true after second modification")
 	}
 
-	if err := app.SaveCurrentSettings(context.Background()); err != nil {
+	if err := app.SaveCurrentSettings(); err != nil {
 		t.Fatalf("SaveCurrentSettings failed: %v", err)
 	}
 
@@ -217,6 +217,30 @@ func TestApp_SettingsChangedAndState(t *testing.T) {
 	}
 	if loadedSettings.PollIntervalMs != 1200 {
 		t.Errorf("expected saved PollIntervalMs 1200, got %d", loadedSettings.PollIntervalMs)
+	}
+}
+
+func TestApp_BeforeClose(t *testing.T) {
+	app := NewApp()
+
+	// Settings not changed -> BeforeClose returns false (allow exit)
+	if app.BeforeClose(context.Background()) {
+		t.Error("expected BeforeClose to return false when settings have not changed")
+	}
+
+	// Modify settings -> BeforeClose returns true (prevent close to show frontend dialog)
+	s := app.GetSettings()
+	s.PollIntervalMs = 999
+	app.SaveSettings(s)
+
+	if !app.BeforeClose(context.Background()) {
+		t.Error("expected BeforeClose to return true when settings changed")
+	}
+
+	// Force exit -> BeforeClose returns false (allow exit)
+	app.QuitApp()
+	if app.BeforeClose(context.Background()) {
+		t.Error("expected BeforeClose to return false when forceExit is true")
 	}
 }
 

@@ -54,12 +54,16 @@ export function LoadSettingsFile(arg1) {
   return window['go']['backend']['App']['LoadSettingsFile'](arg1);
 }
 
+export function QuitApp() {
+  return window['go']['backend']['App']['QuitApp']();
+}
+
 export function RecordSample(arg1, arg2, arg3) {
   return window['go']['backend']['App']['RecordSample'](arg1, arg2, arg3);
 }
 
-export function SaveCurrentSettings(arg1) {
-  return window['go']['backend']['App']['SaveCurrentSettings'](arg1);
+export function SaveCurrentSettings() {
+  return window['go']['backend']['App']['SaveCurrentSettings']();
 }
 
 export function SaveSettings(arg1) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -39,6 +38,7 @@ type App struct {
 	settings          AppSettings
 	savedSettingsJSON string
 	lastSettingsPath  string
+	forceExit         bool
 	mu                sync.RWMutex
 	cancelPoll        context.CancelFunc
 	isPolling         bool
@@ -81,54 +81,34 @@ func (a *App) GetLastSettingsPath() string {
 	return a.lastSettingsPath
 }
 
+// QuitApp forces application exit without prompting
+func (a *App) QuitApp() {
+	a.mu.Lock()
+	a.forceExit = true
+	a.mu.Unlock()
+	if a.ctx != nil {
+		runtime.Quit(a.ctx)
+	}
+}
+
 // BeforeClose is called by Wails before the application window closes
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
+	a.mu.RLock()
+	force := a.forceExit
+	a.mu.RUnlock()
+	if force {
+		return false
+	}
+
 	if !a.HasSettingsChanged() {
 		return false
 	}
 
-	lang := a.GetSystemLanguage()
-	isZh := strings.HasPrefix(strings.ToLower(lang), "zh")
-
-	title := "Save Settings"
-	message := "Settings have been modified. Do you want to save changes before exiting?"
-	saveBtn := "Save"
-	dontSaveBtn := "Don't Save"
-	cancelBtn := "Cancel"
-
-	if isZh {
-		title = "保存设置"
-		message = "配置已被修改。是否在退出前保存更改？"
-		saveBtn = "保存"
-		dontSaveBtn = "不保存"
-		cancelBtn = "取消"
+	// Notify frontend to display the custom in-app exit confirmation dialog
+	if ctx != nil && a.ctx != nil {
+		runtime.EventsEmit(ctx, "app:request-exit")
 	}
-
-	res, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
-		Type:          runtime.QuestionDialog,
-		Title:         title,
-		Message:       message,
-		Buttons:       []string{saveBtn, dontSaveBtn, cancelBtn},
-		DefaultButton: saveBtn,
-		CancelButton:  cancelBtn,
-	})
-	if err != nil {
-		return false
-	}
-
-	if res == saveBtn || res == "Save" || res == "Yes" {
-		if err := a.SaveCurrentSettings(ctx); err != nil {
-			return true // cancel exit if saving failed or was cancelled
-		}
-		return false
-	}
-	if res == dontSaveBtn || res == "Don't Save" || res == "No" {
-		return false
-	}
-	if res == cancelBtn || res == "Cancel" {
-		return true
-	}
-	return false
+	return true
 }
 
 func (a *App) Startup(ctx context.Context) {

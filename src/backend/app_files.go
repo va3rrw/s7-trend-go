@@ -2,7 +2,6 @@ package backend
 
 import (
 	"bufio"
-	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -91,7 +90,7 @@ func getDefaultSettingsDir() string {
 
 // SaveCurrentSettings writes current in-memory settings to the last-used settings file path,
 // or opens a save file dialog if no file path is set yet.
-func (a *App) SaveCurrentSettings(ctx context.Context) error {
+func (a *App) SaveCurrentSettings() error {
 	a.mu.RLock()
 	lastPath := a.lastSettingsPath
 	settings := a.settings
