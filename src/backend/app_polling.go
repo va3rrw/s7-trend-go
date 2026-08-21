@@ -371,7 +371,10 @@ func (a *App) StopPolling() {
 		cancel()
 	}
 	if done != nil {
-		<-done
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+		}
 	}
 }
 

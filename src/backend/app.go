@@ -149,26 +149,24 @@ func (a *App) GetSettings() AppSettings {
 
 // SaveSettings updates internal settings
 func (a *App) SaveSettings(s AppSettings) {
-	a.mu.RLock()
+	a.mu.Lock()
 	wasPolling := a.isPolling
-	a.mu.RUnlock()
+	if !wasPolling {
+		oldLinks := append([]PlcLinkSettings(nil), a.settings.PlcLinks...)
+		a.settings = s
+		a.mu.Unlock()
 
-	if wasPolling {
-		a.StartPolling(s)
+		for _, old := range oldLinks {
+			current := findLink(s.PlcLinks, old.Name)
+			if current == nil || old.IpAddress != current.IpAddress || old.Rack != current.Rack || old.Slot != current.Slot {
+				_ = a.Disconnect(old.Name)
+			}
+		}
 		return
 	}
-
-	a.mu.Lock()
-	oldLinks := append([]PlcLinkSettings(nil), a.settings.PlcLinks...)
-	a.settings = s
 	a.mu.Unlock()
 
-	for _, old := range oldLinks {
-		current := findLink(s.PlcLinks, old.Name)
-		if current == nil || old.IpAddress != current.IpAddress || old.Rack != current.Rack || old.Slot != current.Slot {
-			_ = a.Disconnect(old.Name)
-		}
-	}
+	a.StartPolling(s)
 }
 
 func findLink(links []PlcLinkSettings, name string) *PlcLinkSettings {
@@ -250,15 +248,15 @@ func (a *App) DisconnectAll() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	for linkName, conn := range a.plcs {
+	for _, conn := range a.plcs {
 		conn.mu.Lock()
 		if conn.IsConnected {
-			conn.Handler.Close()
+			_ = conn.Handler.Close()
+			conn.IsConnected = false
 		}
-		conn.IsConnected = false
 		conn.mu.Unlock()
-		delete(a.plcs, linkName)
 	}
+	a.plcs = make(map[string]*PlcConnection)
 }
 
 func (a *App) CheckStatus(linkName string) bool {
