@@ -354,6 +354,15 @@ onMounted(async () => {
         console.error('Error fetching OS language', e);
     }
 
+    try {
+        const initialSettings = await backend()?.GetSettings?.();
+        if (initialSettings && initialSettings.plcLinks?.length) {
+            state.settings = initialSettings;
+        }
+    } catch (e) {
+        console.error('Error fetching initial settings', e);
+    }
+
     // Wails event listeners
     const rt = wailsRuntime();
     if (rt?.EventsOn) {

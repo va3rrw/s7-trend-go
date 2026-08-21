@@ -30,6 +30,10 @@ export function GetHistoryRange(arg1, arg2, arg3) {
   return window['go']['backend']['App']['GetHistoryRange'](arg1, arg2, arg3);
 }
 
+export function GetLastSettingsPath() {
+  return window['go']['backend']['App']['GetLastSettingsPath']();
+}
+
 export function GetSettings() {
   return window['go']['backend']['App']['GetSettings']();
 }
@@ -42,12 +46,20 @@ export function GetVersion() {
   return window['go']['backend']['App']['GetVersion']();
 }
 
+export function HasSettingsChanged() {
+  return window['go']['backend']['App']['HasSettingsChanged']();
+}
+
 export function LoadSettingsFile(arg1) {
   return window['go']['backend']['App']['LoadSettingsFile'](arg1);
 }
 
 export function RecordSample(arg1, arg2, arg3) {
   return window['go']['backend']['App']['RecordSample'](arg1, arg2, arg3);
+}
+
+export function SaveCurrentSettings(arg1) {
+  return window['go']['backend']['App']['SaveCurrentSettings'](arg1);
 }
 
 export function SaveSettings(arg1) {

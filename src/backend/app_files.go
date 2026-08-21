@@ -2,8 +2,10 @@ package backend
 
 import (
 	"bufio"
+	"context"
 	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,6 +15,68 @@ import (
 )
 
 // File Operations
+
+type AppState struct {
+	LastSettingsFile string `json:"lastSettingsFile"`
+}
+
+func getAppStateFilePath() string {
+	return filepath.Join(getDefaultSettingsDir(), "app_state.json")
+}
+
+func (a *App) loadAppState() {
+	statePath := getAppStateFilePath()
+	data, err := os.ReadFile(statePath)
+	if err != nil {
+		return
+	}
+	var state AppState
+	if err := json.Unmarshal(data, &state); err != nil {
+		return
+	}
+	if state.LastSettingsFile != "" {
+		if _, err := os.Stat(state.LastSettingsFile); err == nil {
+			settingsData, err := os.ReadFile(state.LastSettingsFile)
+			if err == nil {
+				var settings AppSettings
+				if err := json.Unmarshal(settingsData, &settings); err == nil {
+					if settings.PollIntervalMs == 0 {
+						settings.PollIntervalMs = 100
+					}
+					if settings.TimeWindowSeconds == 0 {
+						settings.TimeWindowSeconds = 60
+					}
+					if settings.Interpolation == "" {
+						settings.Interpolation = InterpolationLine
+					}
+					if len(settings.PlcLinks) == 0 {
+						settings.PlcLinks = CreateDefaultPlcLinks()
+					}
+					if len(settings.YAxes) == 0 {
+						settings.YAxes = CreateDefaultYAxes()
+					}
+					a.mu.Lock()
+					a.settings = settings
+					a.lastSettingsPath = state.LastSettingsFile
+					a.savedSettingsJSON = a.serializeSettingsLocked()
+					a.mu.Unlock()
+				}
+			}
+		}
+	}
+}
+
+func (a *App) saveAppState(lastFile string) {
+	statePath := getAppStateFilePath()
+	state := AppState{
+		LastSettingsFile: lastFile,
+	}
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(statePath, data, 0644)
+}
 
 func getDefaultSettingsDir() string {
 	configDir, err := os.UserConfigDir()
@@ -24,32 +88,94 @@ func getDefaultSettingsDir() string {
 	return dir
 }
 
+// SaveCurrentSettings writes current in-memory settings to the last-used settings file path,
+// or opens a save file dialog if no file path is set yet.
+func (a *App) SaveCurrentSettings(ctx context.Context) error {
+	a.mu.RLock()
+	lastPath := a.lastSettingsPath
+	settings := a.settings
+	a.mu.RUnlock()
+
+	if lastPath != "" {
+		data, err := json.MarshalIndent(settings, "", "  ")
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(lastPath, data, 0644); err != nil {
+			return err
+		}
+		a.mu.Lock()
+		a.savedSettingsJSON = a.serializeSettingsLocked()
+		a.mu.Unlock()
+		return nil
+	}
+
+	return a.SaveSettingsFile(settings, "Save Settings")
+}
+
 func (a *App) SaveSettingsFile(settings AppSettings, title string) error {
 	defaultDir := getDefaultSettingsDir()
+	defaultFilename := "s7-trend-settings.json"
+
+	a.mu.RLock()
+	lastPath := a.lastSettingsPath
+	a.mu.RUnlock()
+
+	if lastPath != "" {
+		defaultFilename = filepath.Base(lastPath)
+		defaultDir = filepath.Dir(lastPath)
+	}
+
 	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		DefaultDirectory: defaultDir,
 		Title:           title,
-		DefaultFilename: "s7-trend-settings.json",
+		DefaultFilename: defaultFilename,
 		Filters:         []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
 	})
 	if err != nil || filePath == "" {
+		if filePath == "" {
+			return fmt.Errorf("cancelled")
+		}
 		return err
 	}
 	data, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filePath, data, 0644)
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		return err
+	}
+
+	a.mu.Lock()
+	a.settings = settings
+	a.lastSettingsPath = filePath
+	a.savedSettingsJSON = a.serializeSettingsLocked()
+	a.mu.Unlock()
+
+	a.saveAppState(filePath)
+	return nil
 }
 
 func (a *App) LoadSettingsFile(title string) (*AppSettings, error) {
 	defaultDir := getDefaultSettingsDir()
+
+	a.mu.RLock()
+	lastPath := a.lastSettingsPath
+	a.mu.RUnlock()
+
+	if lastPath != "" {
+		defaultDir = filepath.Dir(lastPath)
+	}
+
 	filePath, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		DefaultDirectory: defaultDir,
 		Title:           title,
 		Filters:         []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
 	})
 	if err != nil || filePath == "" {
+		if filePath == "" {
+			return nil, fmt.Errorf("cancelled")
+		}
 		return nil, err
 	}
 	data, err := os.ReadFile(filePath)
@@ -75,6 +201,14 @@ func (a *App) LoadSettingsFile(title string) (*AppSettings, error) {
 	if len(settings.YAxes) == 0 {
 		settings.YAxes = CreateDefaultYAxes()
 	}
+
+	a.mu.Lock()
+	a.settings = settings
+	a.lastSettingsPath = filePath
+	a.savedSettingsJSON = a.serializeSettingsLocked()
+	a.mu.Unlock()
+
+	a.saveAppState(filePath)
 	return &settings, nil
 }
 

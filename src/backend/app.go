@@ -2,12 +2,15 @@ package backend
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/jeandeaual/go-locale"
 	"github.com/robinson/gos7"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 func (a *App) GetSystemLanguage() string {
@@ -31,24 +34,101 @@ type PlcConnection struct {
 }
 
 type App struct {
-	ctx        context.Context
-	plcs       map[string]*PlcConnection
-	settings   AppSettings
-	mu         sync.RWMutex
-	cancelPoll context.CancelFunc
-	isPolling  bool
-	pollDone   chan struct{}
+	ctx               context.Context
+	plcs              map[string]*PlcConnection
+	settings          AppSettings
+	savedSettingsJSON string
+	lastSettingsPath  string
+	mu                sync.RWMutex
+	cancelPoll        context.CancelFunc
+	isPolling         bool
+	pollDone          chan struct{}
 
 	historyMu sync.RWMutex
 	history   map[string]*TagRingBuffer
 }
 
 func NewApp() *App {
-	return &App{
+	app := &App{
 		plcs:     make(map[string]*PlcConnection),
 		settings: CreateDefaultSettings(),
 		history:  make(map[string]*TagRingBuffer),
 	}
+	app.savedSettingsJSON = app.serializeSettingsLocked()
+	app.loadAppState()
+	return app
+}
+
+func (a *App) serializeSettingsLocked() string {
+	data, err := json.Marshal(a.settings)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+// HasSettingsChanged returns true if current in-memory settings differ from last saved baseline
+func (a *App) HasSettingsChanged() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.serializeSettingsLocked() != a.savedSettingsJSON
+}
+
+// GetLastSettingsPath returns the path to the currently active / last-used settings file
+func (a *App) GetLastSettingsPath() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.lastSettingsPath
+}
+
+// BeforeClose is called by Wails before the application window closes
+func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
+	if !a.HasSettingsChanged() {
+		return false
+	}
+
+	lang := a.GetSystemLanguage()
+	isZh := strings.HasPrefix(strings.ToLower(lang), "zh")
+
+	title := "Save Settings"
+	message := "Settings have been modified. Do you want to save changes before exiting?"
+	saveBtn := "Save"
+	dontSaveBtn := "Don't Save"
+	cancelBtn := "Cancel"
+
+	if isZh {
+		title = "保存设置"
+		message = "配置已被修改。是否在退出前保存更改？"
+		saveBtn = "保存"
+		dontSaveBtn = "不保存"
+		cancelBtn = "取消"
+	}
+
+	res, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+		Type:          runtime.QuestionDialog,
+		Title:         title,
+		Message:       message,
+		Buttons:       []string{saveBtn, dontSaveBtn, cancelBtn},
+		DefaultButton: saveBtn,
+		CancelButton:  cancelBtn,
+	})
+	if err != nil {
+		return false
+	}
+
+	if res == saveBtn || res == "Save" || res == "Yes" {
+		if err := a.SaveCurrentSettings(ctx); err != nil {
+			return true // cancel exit if saving failed or was cancelled
+		}
+		return false
+	}
+	if res == dontSaveBtn || res == "Don't Save" || res == "No" {
+		return false
+	}
+	if res == cancelBtn || res == "Cancel" {
+		return true
+	}
+	return false
 }
 
 func (a *App) Startup(ctx context.Context) {
@@ -62,8 +142,8 @@ func (a *App) Shutdown(ctx context.Context) {
 
 // GetSettings returns current application settings
 func (a *App) GetSettings() AppSettings {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	return a.settings
 }
 

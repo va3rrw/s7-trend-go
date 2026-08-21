@@ -2,6 +2,8 @@ package backend
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -145,5 +147,76 @@ func TestGetDefaultSettingsDir(t *testing.T) {
 		t.Errorf("expected directory to end with /s7-trend-go, got %s", dir)
 	}
 }
+
+func TestApp_SettingsChangedAndState(t *testing.T) {
+	app := NewApp()
+	if app.HasSettingsChanged() {
+		t.Error("expected new app to have HasSettingsChanged == false")
+	}
+
+	// Change settings
+	s := app.GetSettings()
+	s.PollIntervalMs = 750
+	app.SaveSettings(s)
+
+	if !app.HasSettingsChanged() {
+		t.Error("expected HasSettingsChanged == true after modifying settings")
+	}
+
+	// Create temp settings file
+	tmpDir := t.TempDir()
+	settingsFile := filepath.Join(tmpDir, "custom-settings.json")
+
+	// Save settings directly to file and mark saved
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		t.Fatalf("failed to marshal settings: %v", err)
+	}
+	if err := os.WriteFile(settingsFile, data, 0644); err != nil {
+		t.Fatalf("failed to write settings file: %v", err)
+	}
+
+	app.mu.Lock()
+	app.lastSettingsPath = settingsFile
+	app.savedSettingsJSON = app.serializeSettingsLocked()
+	app.mu.Unlock()
+	app.saveAppState(settingsFile)
+
+	if app.HasSettingsChanged() {
+		t.Error("expected HasSettingsChanged == false after marking settings saved")
+	}
+	if app.GetLastSettingsPath() != settingsFile {
+		t.Errorf("expected lastSettingsPath %s, got %s", settingsFile, app.GetLastSettingsPath())
+	}
+
+	// SaveCurrentSettings should update the file directly
+	s.PollIntervalMs = 1200
+	app.SaveSettings(s)
+	if !app.HasSettingsChanged() {
+		t.Error("expected HasSettingsChanged == true after second modification")
+	}
+
+	if err := app.SaveCurrentSettings(context.Background()); err != nil {
+		t.Fatalf("SaveCurrentSettings failed: %v", err)
+	}
+
+	if app.HasSettingsChanged() {
+		t.Error("expected HasSettingsChanged == false after SaveCurrentSettings")
+	}
+
+	// Verify loaded file content on disk
+	readBack, err := os.ReadFile(settingsFile)
+	if err != nil {
+		t.Fatalf("failed to read back settings file: %v", err)
+	}
+	var loadedSettings AppSettings
+	if err := json.Unmarshal(readBack, &loadedSettings); err != nil {
+		t.Fatalf("failed to unmarshal saved settings: %v", err)
+	}
+	if loadedSettings.PollIntervalMs != 1200 {
+		t.Errorf("expected saved PollIntervalMs 1200, got %d", loadedSettings.PollIntervalMs)
+	}
+}
+
 
 
