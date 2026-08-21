@@ -275,15 +275,23 @@ func (a *App) CheckStatus(linkName string) bool {
 
 // RecordSample stores a data point into the tag's backend ring buffer
 func (a *App) RecordSample(tagId string, timestampMs int64, value float64) {
-	a.historyMu.Lock()
+	a.historyMu.RLock()
 	rb, exists := a.history[tagId]
+	if exists {
+		rb.Push(timestampMs, value)
+		a.historyMu.RUnlock()
+		return
+	}
+	a.historyMu.RUnlock()
+
+	a.historyMu.Lock()
+	rb, exists = a.history[tagId]
 	if !exists {
 		rb = NewTagRingBuffer(500000)
 		a.history[tagId] = rb
 	}
-	a.historyMu.Unlock()
-
 	rb.Push(timestampMs, value)
+	a.historyMu.Unlock()
 }
 
 // GetHistoryRange returns sample points for requested tagIds within [startMs, endMs]

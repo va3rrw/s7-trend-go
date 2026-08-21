@@ -3,10 +3,12 @@ package backend
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNewApp(t *testing.T) {
@@ -217,6 +219,36 @@ func TestApp_SettingsChangedAndState(t *testing.T) {
 		t.Errorf("expected saved PollIntervalMs 1200, got %d", loadedSettings.PollIntervalMs)
 	}
 }
+
+func TestApp_RecordSample_Concurrent(t *testing.T) {
+	app := NewApp()
+	done := make(chan struct{})
+
+	// Concurrently record samples
+	for i := 0; i < 8; i++ {
+		go func(worker int) {
+			for j := 0; j < 500; j++ {
+				tagId := fmt.Sprintf("tag-%d", j%4)
+				app.RecordSample(tagId, int64(j*10), float64(worker*100+j))
+			}
+			done <- struct{}{}
+		}(i)
+	}
+
+	// Concurrently clear history
+	go func() {
+		for i := 0; i < 10; i++ {
+			time.Sleep(1 * time.Millisecond)
+			app.ClearHistory()
+		}
+		done <- struct{}{}
+	}()
+
+	for i := 0; i < 9; i++ {
+		<-done
+	}
+}
+
 
 
 

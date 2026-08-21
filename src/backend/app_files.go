@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"time"
 
@@ -240,9 +241,6 @@ func (a *App) ExportCSV(title string) error {
 		return err
 	}
 
-	a.historyMu.RLock()
-	defer a.historyMu.RUnlock()
-
 	tagMap := make(map[string]TagSettings)
 	a.mu.RLock()
 	for _, t := range a.settings.Tags {
@@ -250,6 +248,14 @@ func (a *App) ExportCSV(title string) error {
 	}
 	a.mu.RUnlock()
 
+	a.historyMu.RLock()
+	type csvRecord struct {
+		TimestampMs int64
+		TagName     string
+		TagAddr     string
+		Value       float64
+	}
+	var records []csvRecord
 	for tagIdStr, rb := range a.history {
 		tag, exists := tagMap[tagIdStr]
 		tagName := tagIdStr
@@ -260,15 +266,33 @@ func (a *App) ExportCSV(title string) error {
 		}
 		points := rb.GetAll()
 		for _, pt := range points {
-			tStr := time.UnixMilli(pt.Timestamp).Format(time.RFC3339Nano)
-			if err := writer.Write([]string{
-				tStr,
-				tagName,
-				tagAddr,
-				strconv.FormatFloat(pt.Value, 'f', -1, 64),
-			}); err != nil {
-				return err
-			}
+			records = append(records, csvRecord{
+				TimestampMs: pt.Timestamp,
+				TagName:     tagName,
+				TagAddr:     tagAddr,
+				Value:       pt.Value,
+			})
+		}
+	}
+	a.historyMu.RUnlock()
+
+	// Sort chronologically by timestamp, then deterministically by tag name
+	sort.SliceStable(records, func(i, j int) bool {
+		if records[i].TimestampMs != records[j].TimestampMs {
+			return records[i].TimestampMs < records[j].TimestampMs
+		}
+		return records[i].TagName < records[j].TagName
+	})
+
+	for _, rec := range records {
+		tStr := time.UnixMilli(rec.TimestampMs).Format(time.RFC3339Nano)
+		if err := writer.Write([]string{
+			tStr,
+			rec.TagName,
+			rec.TagAddr,
+			strconv.FormatFloat(rec.Value, 'f', -1, 64),
+		}); err != nil {
+			return err
 		}
 	}
 	return nil

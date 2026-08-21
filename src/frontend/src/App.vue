@@ -341,6 +341,8 @@ function onKeydown(e: KeyboardEvent) {
 
 // ── Lifecycle ──────────────────────────────────────────────────────
 let fallbackTimer: number | null = null;
+let unlistenPollUpdate: (() => void) | null = null;
+let unlistenPollTiming: (() => void) | null = null;
 
 onMounted(async () => {
     try {
@@ -366,7 +368,7 @@ onMounted(async () => {
     // Wails event listeners
     const rt = wailsRuntime();
     if (rt?.EventsOn) {
-        rt.EventsOn('poll_update', (update: any) => {
+        unlistenPollUpdate = rt.EventsOn('poll_update', (update: any) => {
             if (!state.isSampling) return;
             const valStr = update.value || '-';
             const numVal = Number(update.numericValue);
@@ -387,7 +389,7 @@ onMounted(async () => {
             }
         });
 
-        rt.EventsOn('poll_timing', (timing: any) => {
+        unlistenPollTiming = rt.EventsOn('poll_timing', (timing: any) => {
             if (!state.isSampling) return;
             const ms = Number(timing?.actualIntervalMs);
             const link = String(timing?.plcLink || '');
@@ -431,6 +433,23 @@ onBeforeUnmount(() => {
     if (typeof window !== 'undefined') {
         window.removeEventListener('keydown', onKeydown);
     }
-    if (fallbackTimer !== null) clearInterval(fallbackTimer);
+    if (fallbackTimer !== null) {
+        clearInterval(fallbackTimer);
+        fallbackTimer = null;
+    }
+    if (typeof unlistenPollUpdate === 'function') {
+        unlistenPollUpdate();
+        unlistenPollUpdate = null;
+    } else {
+        const rt = wailsRuntime();
+        rt?.EventsOff?.('poll_update');
+    }
+    if (typeof unlistenPollTiming === 'function') {
+        unlistenPollTiming();
+        unlistenPollTiming = null;
+    } else {
+        const rt = wailsRuntime();
+        rt?.EventsOff?.('poll_timing');
+    }
 });
 </script>
