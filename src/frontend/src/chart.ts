@@ -173,6 +173,7 @@ export class TrendChart {
     private renderPending = false;
     private resizeObserver: ResizeObserver | null = null;
     private onDragStart?: () => void;
+    private onWindowChange?: (seconds: number) => void;
     private cursorsEnabled = false;
     private cursorA: number | null = null;
     private cursorB: number | null = null;
@@ -425,6 +426,68 @@ export class TrendChart {
             this.dragging = false;
             if (this.canvas) this.canvas.style.cursor = 'crosshair';
         });
+
+        this.canvas.addEventListener(
+            'wheel',
+            (event: WheelEvent) => {
+                if (!this.canvas || !this.chart) return;
+                event.preventDefault();
+
+                const rect = this.canvas.getBoundingClientRect();
+                const mouseX = event.clientX - rect.left;
+                const area = this.chart.chartArea || {
+                    left: 0,
+                    right: this.canvas.clientWidth,
+                    width: this.canvas.clientWidth,
+                };
+                const plotLeft = area.left ?? 0;
+                const plotWidth = Math.max(
+                    1,
+                    area.width ||
+                        (area.right !== undefined ? area.right - plotLeft : 0) ||
+                        this.canvas.clientWidth,
+                );
+                const mouseRatio = Math.max(
+                    0,
+                    Math.min(1, (mouseX - plotLeft) / plotWidth),
+                );
+
+                const oldWindow = this.timeWindowSeconds;
+                const factor = event.deltaY < 0 ? 0.8 : 1.25;
+                let newWindow = Math.round(oldWindow * factor);
+                newWindow = Math.min(86400, Math.max(30, newWindow));
+                if (newWindow === oldWindow) return;
+
+                const anchor =
+                    this.paused && this.pausedAnchorTime !== null
+                        ? this.pausedAnchorTime
+                        : this.latestTimestamp();
+                const oldEnd = anchor + this.viewOffsetSeconds * 1000;
+                const oldStart = oldEnd - oldWindow * 1000;
+                const tMouse = oldStart + mouseRatio * (oldEnd - oldStart);
+
+                const newStart = tMouse - mouseRatio * (newWindow * 1000);
+                const newEnd = newStart + newWindow * 1000;
+                let newOffset = (newEnd - anchor) / 1000;
+
+                if (newOffset > 0) {
+                    newOffset = 0;
+                }
+
+                // If zooming into past while running live, trigger pause
+                if (!this.paused && newOffset < -0.5) {
+                    this.paused = true;
+                    this.pausedAnchorTime = anchor;
+                    this.onDragStart?.();
+                }
+
+                this.timeWindowSeconds = newWindow;
+                this.viewOffsetSeconds = newOffset;
+                this.onWindowChange?.(newWindow);
+                this.render();
+            },
+            { passive: false },
+        );
     }
 
     public setTags(tags: ChartTag[], axes: ChartAxis[]) {
@@ -442,7 +505,9 @@ export class TrendChart {
     }
 
     public setWindow(seconds: number) {
-        this.timeWindowSeconds = Math.min(86400, Math.max(30, seconds));
+        const val = Math.min(86400, Math.max(30, seconds));
+        if (this.timeWindowSeconds === val) return;
+        this.timeWindowSeconds = val;
         this.render();
     }
 
@@ -566,6 +631,10 @@ export class TrendChart {
     public setOnCursorChange(cb?: (meas: CursorMeasurement | null) => void) {
         this.onCursorChange = cb;
         this.emitMeasurementUpdate();
+    }
+
+    public setOnWindowChange(cb?: (seconds: number) => void) {
+        this.onWindowChange = cb;
     }
 
     public getMeasurements(): CursorMeasurement | null {

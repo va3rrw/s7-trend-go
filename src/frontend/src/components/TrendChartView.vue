@@ -24,6 +24,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   dragStart: []
   cursorChange: [meas: CursorMeasurement | null]
+  windowChange: [seconds: number]
 }>()
 
 const canvasRef = ref<HTMLCanvasElement>()
@@ -43,6 +44,7 @@ onMounted(() => {
     chart.setWindow(props.timeWindowSeconds)
     chart.setInterpolation(props.interpolation)
     chart.setOnCursorChange((meas) => emit('cursorChange', meas))
+    chart.setOnWindowChange((seconds) => emit('windowChange', seconds))
     if (props.cursorsEnabled) {
       chart.setCursorsEnabled(true)
     }

@@ -40,6 +40,7 @@
                 :interpolation="state.settings.interpolation"
                 :cursors-enabled="cursorsEnabled"
                 @drag-start="onChartDragStart"
+                @window-change="onChartWindowChange"
                 @cursor-change="onCursorChange" />
 
             <!-- Measurement & Statistics Strip -->
@@ -305,6 +306,10 @@ function onChartDragStart() {
     state.isPaused = true;
     chartRef.value?.setPaused(true);
     state.statusMessage = 'Chart paused for review; polling continues';
+}
+
+function onChartWindowChange(seconds: number) {
+    state.settings.timeWindowSeconds = seconds;
 }
 
 // ── Resizer ────────────────────────────────────────────────────────

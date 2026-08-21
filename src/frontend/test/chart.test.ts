@@ -210,6 +210,40 @@ describe('TrendChart', () => {
 
         trend.destroy();
     });
+
+    it('handles mouse wheel zoom in and zoom out centered on cursor', () => {
+        const onWinChange = vi.fn();
+        const trend = new TrendChart(canvas, boolBand, timeAxis);
+        trend.setOnWindowChange(onWinChange);
+        trend.setWindow(60);
+
+        // Dispatch wheel event scrolling UP (zoom in)
+        const zoomInEvent = new WheelEvent('wheel', {
+            deltaY: -100,
+            clientX: 200,
+            clientY: 100,
+            bubbles: true,
+            cancelable: true,
+        });
+        canvas.dispatchEvent(zoomInEvent);
+
+        expect(onWinChange).toHaveBeenCalled();
+        const zoomedWindow = onWinChange.mock.calls[0][0];
+        expect(zoomedWindow).toBeLessThan(60);
+
+        // Dispatch wheel event scrolling DOWN (zoom out)
+        const zoomOutEvent = new WheelEvent('wheel', {
+            deltaY: 100,
+            clientX: 200,
+            clientY: 100,
+            bubbles: true,
+            cancelable: true,
+        });
+        canvas.dispatchEvent(zoomOutEvent);
+        expect(onWinChange.mock.calls.length).toBe(2);
+
+        trend.destroy();
+    });
 });
 
 
