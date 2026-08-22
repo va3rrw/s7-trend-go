@@ -11,9 +11,9 @@
             @toggle-cursors="toggleCursors"
             @export-csv="menuExport(t)"
             @set-timer="menuTimer(t, showPrompt, showMessage)"
-            @start-sampling="startSampling(t, chartRef, resetActualSampling)"
-            @pause-sampling="pauseSampling(t, chartRef)"
-            @stop-sampling="stopSampling(t, chartRef, resetActualSampling)"
+            @start-sampling="onStartSampling"
+            @pause-sampling="onPauseSampling"
+            @stop-sampling="onStopSampling"
             @set-interpolation="menuInterpolation(t, showPrompt)"
             @clear-records="menuClear(t, showConfirm, chartRef, liveValues)"
             @set-locale="locale = $event"
@@ -26,9 +26,9 @@
             @open-y-axes="yAxesOpen = true"
             @open-trend-window="menuTrendWindow(t, showPrompt, showMessage)"
             @toggle-cursors="toggleCursors"
-            @start-sampling="startSampling(t, chartRef, resetActualSampling)"
-            @pause-sampling="pauseSampling(t, chartRef)"
-            @stop-sampling="stopSampling(t, chartRef, resetActualSampling)" />
+            @start-sampling="onStartSampling"
+            @pause-sampling="onPauseSampling"
+            @stop-sampling="onStopSampling" />
 
         <!-- Main Content Area -->
         <div class="main-content">
@@ -44,7 +44,7 @@
                 @drag-start="onChartDragStart"
                 @window-change="onChartWindowChange"
                 @cursor-change="onCursorChange"
-                @resume="pauseSampling(t, chartRef)" />
+                @resume="onPauseSampling" />
 
             <!-- Measurement & Statistics Strip -->
             <MeasurementStrip
@@ -181,6 +181,27 @@ const measurementData = ref<CursorMeasurement | null>(null);
 
 function toggleCursors() {
     cursorsEnabled.value = !cursorsEnabled.value;
+    if (cursorsEnabled.value && state.isSampling && !state.isPaused) {
+        state.isPaused = true;
+        chartRef.value?.setPaused(true);
+        state.statusMessage = t('status.chart_paused_polling');
+    }
+}
+
+function onStartSampling() {
+    cursorsEnabled.value = false;
+    startSampling(t, chartRef.value, resetActualSampling);
+}
+
+function onPauseSampling() {
+    pauseSampling(t, chartRef.value, () => {
+        cursorsEnabled.value = false;
+    });
+}
+
+function onStopSampling() {
+    cursorsEnabled.value = false;
+    stopSampling(t, chartRef.value, resetActualSampling);
 }
 
 function onCursorChange(m: CursorMeasurement | null) {
@@ -408,9 +429,9 @@ function onKeydown(e: KeyboardEvent) {
             plcTagsOpen.value = true;
         },
         menuExport: () => menuExport(t),
-        startSampling: () => startSampling(t, chartRef.value, resetActualSampling),
-        pauseSampling: () => pauseSampling(t, chartRef.value),
-        stopSampling: () => stopSampling(t, chartRef.value, resetActualSampling),
+        startSampling: onStartSampling,
+        pauseSampling: onPauseSampling,
+        stopSampling: onStopSampling,
     });
 }
 

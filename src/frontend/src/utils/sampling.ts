@@ -64,10 +64,14 @@ export async function startSampling(
 export function pauseSampling(
     t: (key: string, args?: any[]) => string,
     chartRef?: SamplingChartRef | null,
+    onResume?: () => void,
 ): void {
     if (!state.isSampling) return;
     state.isPaused = !state.isPaused;
     chartRef?.setPaused(state.isPaused);
+    if (!state.isPaused) {
+        onResume?.();
+    }
     state.statusMessage = state.isPaused
         ? t('status.chart_paused_polling')
         : t('status.chart_resumed');

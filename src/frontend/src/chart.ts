@@ -461,6 +461,10 @@ export class TrendChart {
             this.pausedAnchorTime = null;
             this.viewOffsetSeconds = 0;
             this.timeWindowSeconds = this.baseTimeWindowSeconds;
+            if (this.cursorsEnabled) {
+                this.cursorsEnabled = false;
+                this.emitMeasurementUpdate();
+            }
             this.onWindowChange?.(this.baseTimeWindowSeconds);
             this.render();
         }
@@ -551,8 +555,18 @@ export class TrendChart {
 
     public setCursorsEnabled(enabled: boolean) {
         this.cursorsEnabled = enabled;
-        if (enabled && (this.cursorA === null || this.cursorB === null)) {
-            this.fitCursorsToWindow();
+        if (enabled) {
+            if (!this.paused) {
+                this.paused = true;
+                this.pausedAnchorTime = this.latestTimestamp();
+                this.onDragStart?.();
+            }
+            if (this.cursorA === null || this.cursorB === null) {
+                this.fitCursorsToWindow();
+            } else {
+                this.render();
+                this.emitMeasurementUpdate();
+            }
         } else {
             this.render();
             this.emitMeasurementUpdate();

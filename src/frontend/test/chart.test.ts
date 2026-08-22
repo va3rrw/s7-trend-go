@@ -257,6 +257,31 @@ describe('TrendChart', () => {
 
         trend.destroy();
     });
+
+    it('pauses live chart and triggers drag start callback when cursors are enabled, and deactivates cursors on resume', () => {
+        const onDragStart = vi.fn();
+        const onCursorChange = vi.fn();
+        const trend = new TrendChart(canvas, boolBand, timeAxis, onDragStart);
+        trend.setOnCursorChange(onCursorChange);
+
+        expect((trend as any).paused).toBe(false);
+
+        // Enable cursors while chart is live
+        trend.setCursorsEnabled(true);
+
+        expect((trend as any).paused).toBe(true);
+        expect((trend as any).pausedAnchorTime).not.toBeNull();
+        expect((trend as any).cursorsEnabled).toBe(true);
+        expect(onDragStart).toHaveBeenCalledTimes(1);
+
+        // Resuming chart should deactivate cursors
+        trend.setPaused(false);
+        expect((trend as any).paused).toBe(false);
+        expect((trend as any).cursorsEnabled).toBe(false);
+        expect(trend.getMeasurements()).toBeNull();
+
+        trend.destroy();
+    });
 });
 
 
