@@ -54,7 +54,22 @@ fi
 
 # ── Run test suites ─────────────────────────────────────────────────
 echo "Running frontend tests..."
-(cd "$ROOT/src/frontend" && npm test)
+(
+  cd "$ROOT/src/frontend"
+  if command -v pnpm >/dev/null 2>&1; then
+    if [[ ! -d "node_modules" ]]; then
+      echo "Installing frontend dependencies with pnpm..."
+      pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+    fi
+    pnpm test
+  else
+    if [[ ! -d "node_modules" ]]; then
+      echo "Installing frontend dependencies with npm..."
+      npm install
+    fi
+    npm test
+  fi
+)
 
 echo "Running Go tests..."
 (cd "$ROOT/src" && go test -race ./...)
