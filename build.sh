@@ -52,7 +52,7 @@ else
   sed -i "s/\"outputfilename\": \"[^\"]*\"/\"outputfilename\": \"$EXE_BASENAME\"/" "$ROOT/src/wails.json"
 fi
 
-# ── Run test suites ─────────────────────────────────────────────────
+# ── Run test suites & build frontend assets ────────────────────────
 echo "Running frontend tests..."
 (
   cd "$ROOT/src/frontend"
@@ -62,12 +62,16 @@ echo "Running frontend tests..."
       pnpm install --frozen-lockfile 2>/dev/null || pnpm install
     fi
     pnpm test
+    echo "Building frontend assets..."
+    pnpm run build
   else
     if [[ ! -d "node_modules" ]]; then
       echo "Installing frontend dependencies with npm..."
       npm install
     fi
     npm test
+    echo "Building frontend assets..."
+    npm run build
   fi
 )
 
