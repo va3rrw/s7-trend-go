@@ -72,7 +72,7 @@ echo "Running frontend tests..."
 )
 
 echo "Running Go tests..."
-(cd "$ROOT/src" && go test -race ./...)
+(cd "$ROOT/src" && go test -race ./backend/...)
 
 # ── Build Windows executable ────────────────────────────────────────
 echo "Building Windows executable ($EXE_NAME)..."
