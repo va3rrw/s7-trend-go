@@ -49,6 +49,11 @@ type App struct {
 	sampleMu      sync.Mutex
 	lastSampleAt  map[string]int64
 	lastBoolValue map[string]float64
+
+	trayMu      sync.Mutex
+	trayEnabled bool
+	trayIcon    []byte
+	tray        *trayController
 }
 
 func NewApp() *App {
@@ -102,9 +107,40 @@ func (a *App) GetLastSettingsPath() string {
 func (a *App) QuitApp() {
 	a.mu.Lock()
 	a.forceExit = true
+	ctx := a.ctx
 	a.mu.Unlock()
-	if a.ctx != nil {
-		runtime.Quit(a.ctx)
+	if ctx != nil {
+		runtime.Quit(ctx)
+	}
+}
+
+func (a *App) requestExitFromTray() {
+	a.mu.RLock()
+	ctx := a.ctx
+	a.mu.RUnlock()
+	if ctx == nil {
+		return
+	}
+
+	if a.HasSettingsChanged() {
+		runtime.WindowShow(ctx)
+		runtime.WindowUnminimise(ctx)
+		runtime.EventsEmit(ctx, "app:request-exit")
+		return
+	}
+	a.QuitApp()
+}
+
+// EnableTray enables close-to-tray behavior and uses iconBytes for the tray
+// icon. It is called by main before Wails starts.
+func (a *App) EnableTray(iconBytes []byte) {
+	a.trayMu.Lock()
+	a.trayEnabled = true
+	a.trayIcon = append([]byte(nil), iconBytes...)
+	ctx := a.ctx
+	a.trayMu.Unlock()
+	if ctx != nil {
+		a.startTray(ctx)
 	}
 }
 
@@ -112,9 +148,18 @@ func (a *App) QuitApp() {
 func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 	a.mu.RLock()
 	force := a.forceExit
+	appCtx := a.ctx
 	a.mu.RUnlock()
 	if force {
 		return false
+	}
+
+	a.trayMu.Lock()
+	trayEnabled := a.trayEnabled
+	a.trayMu.Unlock()
+	if trayEnabled && appCtx != nil {
+		runtime.WindowHide(appCtx)
+		return true
 	}
 
 	if !a.HasSettingsChanged() {
@@ -129,10 +174,20 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 }
 
 func (a *App) Startup(ctx context.Context) {
+	a.mu.Lock()
 	a.ctx = ctx
+	a.mu.Unlock()
+
+	a.trayMu.Lock()
+	trayEnabled := a.trayEnabled
+	a.trayMu.Unlock()
+	if trayEnabled {
+		a.startTray(ctx)
+	}
 }
 
 func (a *App) Shutdown(ctx context.Context) {
+	a.stopTray()
 	a.StopPolling()
 	a.DisconnectAll()
 	if a.history != nil {

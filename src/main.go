@@ -13,9 +13,13 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+//go:embed build/appicon.png
+var trayIcon []byte
+
 func main() {
 	// Create an instance of the app structure
 	app := backend.NewApp()
+	app.EnableTray(trayIcon)
 
 	// Create application with options
 	err := wails.Run(&options.App{

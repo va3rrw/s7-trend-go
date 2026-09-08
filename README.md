@@ -18,6 +18,7 @@ Based on a very old but useful tool **S7 Trend Values**.
 - **Import & Export**: Save and reload PLC configurations, tag lists, Y-axes setups, and exported sample records.
 - **Persistent Trend History**: Store timestamped samples in a local SQLite database with indexed range queries.
 - **Per-Tag Storage Cadence**: Numeric tags can use a slower storage interval; Bool tags store only their initial state and changes.
+- **System Tray Operation**: Closing the window hides the app to the Windows system tray; restore and exit actions are available from the tray icon.
 - **Localization**: Built-in support for English (`en`) and Simplified Chinese (`zh`).
 
 ## Architecture & Tech Stack
@@ -33,6 +34,10 @@ Trend history is stored in `history.db` under the same default application confi
 SQLite was selected for this desktop workload because it is embedded, file-based, transactional, and supports indexed time-range queries without requiring a server. Samples use Unix millisecond timestamps and are indexed by tag and timestamp. The frontend requests history through the existing Wails history API, which now reads from SQLite rather than an in-memory ring buffer.
 
 Each tag has a **Storage interval (ms)** setting. `0` follows the global PLC poll interval. A numeric tag interval cannot be lower than the global poll interval. Bool tags ignore repeated values and persist only the first observed state and subsequent transitions.
+
+## System Tray
+
+The standalone application starts with a system tray icon using the same source artwork as the application icon. Closing the main window hides it while PLC polling and history storage continue in the background. Left-clicking or double-clicking the tray icon, or choosing **Restore**, shows the window again. Choosing **Exit** uses the app's themed exit confirmation when settings are dirty, then performs a full application shutdown.
 
 ## Prerequisites
 

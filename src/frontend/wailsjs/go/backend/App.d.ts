@@ -12,6 +12,8 @@ export function Disconnect(arg1:string):Promise<void>;
 
 export function DisconnectAll():Promise<void>;
 
+export function EnableTray(arg1:Array<number>):Promise<void>;
+
 export function ExportCSV(arg1:string):Promise<void>;
 
 export function GetHistoryRange(arg1:Array<string>,arg2:number,arg3:number):Promise<Record<string, Array<backend.SamplePoint>>>;

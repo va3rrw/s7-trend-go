@@ -22,6 +22,10 @@ export function DisconnectAll() {
   return window['go']['backend']['App']['DisconnectAll']();
 }
 
+export function EnableTray(arg1) {
+  return window['go']['backend']['App']['EnableTray'](arg1);
+}
+
 export function ExportCSV(arg1) {
   return window['go']['backend']['App']['ExportCSV'](arg1);
 }
