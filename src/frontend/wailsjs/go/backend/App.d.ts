@@ -24,6 +24,8 @@ export function GetSettings():Promise<backend.AppSettings>;
 
 export function GetSystemLanguage():Promise<string>;
 
+export function GetTreePanelWidth():Promise<number>;
+
 export function GetVersion():Promise<string>;
 
 export function HasSettingsChanged():Promise<boolean>;
@@ -41,6 +43,8 @@ export function SaveCurrentSettings():Promise<void>;
 export function SaveSettings(arg1:backend.AppSettings):Promise<void>;
 
 export function SaveSettingsFile(arg1:backend.AppSettings,arg2:string):Promise<void>;
+
+export function SetTreePanelWidth(arg1:number):Promise<void>;
 
 export function StartPolling(arg1:backend.AppSettings):Promise<void>;
 

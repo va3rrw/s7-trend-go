@@ -38,9 +38,9 @@ describe('Sampling Settings Sync in App.vue', () => {
 
         state.isSampling = true;
 
-        // Emit save from PlcTagsDialog
-        const plcTagsDialog = wrapper.findComponent({ name: 'PlcTagsDialog' });
-        plcTagsDialog.vm.$emit('save');
+        // Emit a settings change from the persistent PLC/tag tree.
+        const plcTagTree = wrapper.findComponent({ name: 'PlcTagTree' });
+        plcTagTree.vm.$emit('settingsChange');
         await flushPromises();
 
         expect(startPollingMock).toHaveBeenCalledTimes(1);
@@ -63,9 +63,9 @@ describe('Sampling Settings Sync in App.vue', () => {
 
         state.isSampling = false;
 
-        // Emit save from PlcTagsDialog
-        const plcTagsDialog = wrapper.findComponent({ name: 'PlcTagsDialog' });
-        plcTagsDialog.vm.$emit('save');
+        // Emit a settings change from the persistent PLC/tag tree.
+        const plcTagTree = wrapper.findComponent({ name: 'PlcTagTree' });
+        plcTagTree.vm.$emit('settingsChange');
         await flushPromises();
 
         expect(saveSettingsMock).toHaveBeenCalledTimes(1);

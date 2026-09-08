@@ -14,6 +14,7 @@
   /* Dark I-beam for WebView2 (system text cursor is often white → invisible on light fields).
      Compact 11×16 beam; hotspot at center (5, 8). */
   --cursor-text: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='16' viewBox='0 0 11 16'%3E%3Cpath d='M2.5 1h6M5.5 1v14M2.5 15h6' stroke='%231e293b' stroke-width='1.25' stroke-linecap='square' fill='none'/%3E%3C/svg%3E") 5 8, text;
+  --cursor-resize: url("/cursors/resize-horizontal.svg") 12 12, col-resize;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -189,6 +190,80 @@ select:focus {
   padding: 6px;
   gap: 0;
   min-height: 0;
+}
+
+.analysis-row {
+  flex: 1;
+  min-width: 0;
+  min-height: 180px;
+  display: flex;
+  gap: 2px;
+}
+
+.chart-panel {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tree-resizer {
+  flex: 0 0 2px;
+  width: 2px;
+  cursor: var(--cursor-resize);
+  position: relative;
+  touch-action: none;
+}
+
+.tree-resizer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 10px;
+  cursor: var(--cursor-resize);
+}
+
+.tree-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: transparent;
+  pointer-events: none;
+}
+
+.tree-resizer:hover::after,
+.tree-resizer:active::after,
+.tree-resizer:focus-visible::after {
+  background: #94a3b8;
+}
+
+.tree-show-rail {
+  flex: 0 0 24px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.tree-show-rail .icon-glyph {
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: auto;
+}
+
+.tree-show-rail:hover {
+  background: #f1f5f9;
 }
 
 /* Chart */

@@ -33,27 +33,54 @@
 
         <!-- Main Content Area -->
         <div class="main-content">
-            <TrendChartView
-                ref="chartRef"
-                :tags="chartTags"
-                :axes="chartAxes"
-                :time-window-seconds="state.settings.timeWindowSeconds"
-                :interpolation="state.settings.interpolation"
-                :cursors-enabled="cursorsEnabled"
-                :is-sampling="state.isSampling"
-                :is-paused="state.isPaused"
-                @drag-start="onChartDragStart"
-                @window-change="onChartWindowChange"
-                @cursor-change="onCursorChange"
-                @resume="onPauseSampling" />
+            <div class="analysis-row">
+                <PlcTagTree
+                    v-if="treePanelVisible"
+                    :plc-links="state.settings.plcLinks"
+                    :tags="state.settings.tags"
+                    :panel-width="treePanelWidth"
+                    @hide="treePanelVisible = false"
+                    @settings-change="onSettingsChanged"
+                    @edit-plc="onTreePlcEdit"
+                    @edit-tag="onTreeTagEdit" />
+                <div
+                    v-if="treePanelVisible"
+                    class="tree-resizer"
+                    role="separator"
+                    aria-orientation="vertical"
+                    @pointerdown="onTreeResizerPointerDown" />
+                <button
+                    v-else
+                    class="tree-show-rail"
+                    type="button"
+                    :title="$t('buttons.show_panel')"
+                    @click="showTreePanel">
+                    <span class="i-ix-chevron-right icon-glyph" aria-hidden="true" />
+                </button>
 
-            <!-- Measurement & Statistics Strip -->
-            <MeasurementStrip
-                :open="cursorsEnabled"
-                :measurement="measurementData"
-                :tags="state.settings.tags"
-                @close="cursorsEnabled = false"
-                @fit-window="fitCursors" />
+                <section class="chart-panel">
+                    <TrendChartView
+                        ref="chartRef"
+                        :tags="chartTags"
+                        :axes="chartAxes"
+                        :time-window-seconds="state.settings.timeWindowSeconds"
+                        :interpolation="state.settings.interpolation"
+                        :cursors-enabled="cursorsEnabled"
+                        :is-sampling="state.isSampling"
+                        :is-paused="state.isPaused"
+                        @drag-start="onChartDragStart"
+                        @window-change="onChartWindowChange"
+                        @cursor-change="onCursorChange"
+                        @resume="onPauseSampling" />
+
+                    <MeasurementStrip
+                        :open="cursorsEnabled"
+                        :measurement="measurementData"
+                        :tags="state.settings.tags"
+                        @close="cursorsEnabled = false"
+                        @fit-window="fitCursors" />
+                </section>
+            </div>
 
             <!-- Resizer -->
             <div
@@ -65,8 +92,7 @@
                 :tags="state.settings.tags"
                 :live-values="liveValues"
                 :sampled-range="state.sampledRange"
-                @edit-tag="onRowDblClick"
-                @settings-change="onSettingsChanged" />
+                @edit-tag="onRowDblClick" />
         </div>
 
         <!-- Status Bar -->
@@ -82,6 +108,13 @@
         :open="plcTagsOpen"
         @close="plcTagsOpen = false"
         @save="onPlcTagsSave" />
+    <PlcEditorDialog
+        :open="plcEditorOpen"
+        :plc="editingPlc"
+        :existing-names="state.settings.plcLinks.map((plc) => plc.name)"
+        :original-name="editingPlcOriginalName"
+        @close="onPlcEditorClose"
+        @save="onPlcEditorSave" />
     <YAxesDialog
         :open="yAxesOpen"
         @close="yAxesOpen = false"
@@ -111,8 +144,9 @@
         :tag="dblEditTag"
         :index="dblEditIndex"
         :existing-tags="state.settings.tags"
+        :hide-plc="true"
         @save="onDblEditSave"
-        @close="dblEditOpen = false" />
+        @close="onDblEditClose" />
 
     <!-- App Exit Confirmation Dialog -->
     <ExitConfirmDialog
@@ -126,7 +160,7 @@
 import { ref, reactive, shallowRef, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ChartTag, ChartAxis, CursorMeasurement } from './chart';
-import type { TagSettings } from './types';
+import type { PlcLinkSettings, TagSettings } from './types';
 import {
     state,
     backend,
@@ -145,7 +179,9 @@ import AppStatusBar from './components/AppStatusBar.vue';
 import TagsDataGrid from './components/TagsDataGrid.vue';
 import TrendChartView from './components/TrendChartView.vue';
 import MeasurementStrip from './components/MeasurementStrip.vue';
+import PlcTagTree from './components/PlcTagTree.vue';
 import PlcTagsDialog from './components/PlcTagsDialog.vue';
+import PlcEditorDialog from './components/PlcEditorDialog.vue';
 import YAxesDialog from './components/YAxesDialog.vue';
 import PromptDialog from './components/PromptDialog.vue';
 import MessageDialog from './components/MessageDialog.vue';
@@ -215,9 +251,16 @@ function fitCursors() {
 }
 
 // ── Dialog visibility & helpers ────────────────────────────────────
+const treePanelVisible = ref(true);
+const treePanelWidth = ref(250);
 const plcTagsOpen = ref(false);
 const yAxesOpen = ref(false);
 const aboutOpen = ref(false);
+
+const plcEditorOpen = ref(false);
+const editingPlc = ref<PlcLinkSettings | null>(null);
+const editingPlcOriginalName = ref('');
+const pendingNewPlc = ref(false);
 
 const promptOpen = ref(false);
 const promptTitle = ref('');
@@ -258,17 +301,85 @@ function onMsgClose(result: boolean) {
     uiState.msgResolve = null;
 }
 
-// ── Double-click tag editor ────────────────────────────────────────
+// ── Tree and property editors ──────────────────────────────────────
 const dblEditOpen = ref(false);
 const dblEditTag = ref<TagSettings | null>(null);
 const dblEditIndex = ref(-1);
+const pendingNewTagId = ref<string | null>(null);
+
+function showTreePanel() {
+    treePanelVisible.value = true;
+}
+
+function onTreePlcEdit(plc: PlcLinkSettings, isNew: boolean) {
+    editingPlc.value = { ...plc };
+    editingPlcOriginalName.value = plc.name;
+    pendingNewPlc.value = isNew;
+    plcEditorOpen.value = true;
+}
+
+async function onPlcEditorSave(updatedPlc: PlcLinkSettings) {
+    const target = state.settings.plcLinks.find(
+        (plc) => plc.name === editingPlcOriginalName.value,
+    );
+    if (!target) {
+        onPlcEditorClose();
+        return;
+    }
+
+    if (target.name !== updatedPlc.name) {
+        state.settings.tags.forEach((tag) => {
+            if (tag.plcLink === target.name) tag.plcLink = updatedPlc.name;
+        });
+    }
+    Object.assign(target, updatedPlc);
+    await onSettingsChanged();
+    onPlcEditorClose(true);
+}
+
+function onPlcEditorClose(saved = false) {
+    if (!saved && pendingNewPlc.value) {
+        const index = state.settings.plcLinks.findIndex(
+            (plc) => plc.name === editingPlcOriginalName.value,
+        );
+        if (index >= 0) {
+            state.settings.plcLinks.splice(index, 1);
+            onSettingsChanged();
+        }
+    }
+    plcEditorOpen.value = false;
+    editingPlc.value = null;
+    editingPlcOriginalName.value = '';
+    pendingNewPlc.value = false;
+}
+
+function onTreeTagEdit(tag: TagSettings, isNew: boolean) {
+    openTagEditor(tag, isNew);
+}
 
 function onRowDblClick(tag: TagSettings) {
+    openTagEditor(tag, false);
+}
+
+function openTagEditor(tag: TagSettings, isNew: boolean) {
     const idx = state.settings.tags.findIndex((t) => t.id === tag.id);
     if (idx < 0) return;
     dblEditIndex.value = idx;
     dblEditTag.value = { ...tag };
+    pendingNewTagId.value = isNew ? tag.id : null;
     dblEditOpen.value = true;
+}
+
+function clearTreeFocus() {
+    window.setTimeout(() => {
+        const activeElement = document.activeElement;
+        if (
+            activeElement instanceof HTMLElement &&
+            activeElement.closest('.plc-tree-panel')
+        ) {
+            activeElement.blur();
+        }
+    }, 0);
 }
 
 function onDblEditSave(updatedTag: TagSettings) {
@@ -279,7 +390,28 @@ function onDblEditSave(updatedTag: TagSettings) {
         state.settings.tags[dblEditIndex.value] = updatedTag;
         onSettingsChanged();
     }
+    pendingNewTagId.value = null;
     dblEditOpen.value = false;
+    dblEditTag.value = null;
+    dblEditIndex.value = -1;
+    clearTreeFocus();
+}
+
+function onDblEditClose() {
+    if (pendingNewTagId.value) {
+        const index = state.settings.tags.findIndex(
+            (tag) => tag.id === pendingNewTagId.value,
+        );
+        if (index >= 0) {
+            state.settings.tags.splice(index, 1);
+            onSettingsChanged();
+        }
+    }
+    pendingNewTagId.value = null;
+    dblEditOpen.value = false;
+    dblEditTag.value = null;
+    dblEditIndex.value = -1;
+    clearTreeFocus();
 }
 
 // ── App Exit Confirmation ──────────────────────────────────────────
@@ -366,6 +498,7 @@ function setLiveValue(tagId: string, valStr: string) {
 async function onPlcTagsSave() {
     await onSettingsChanged();
 }
+
 async function onYAxesSave() {
     await onSettingsChanged();
 }
@@ -410,11 +543,43 @@ function onResizerPointerDown(e: PointerEvent) {
     window.addEventListener('pointerup', onUp);
 }
 
+const TREE_PANEL_MIN_WIDTH = 220;
+const TREE_PANEL_MAX_WIDTH = 420;
+
+function setTreePanelWidth(width: number) {
+    const nextWidth = Math.min(
+        TREE_PANEL_MAX_WIDTH,
+        Math.max(TREE_PANEL_MIN_WIDTH, Math.round(width)),
+    );
+    if (nextWidth === treePanelWidth.value) return;
+    treePanelWidth.value = nextWidth;
+    void backend()?.SetTreePanelWidth?.(nextWidth);
+}
+
+function onTreeResizerPointerDown(e: PointerEvent) {
+    const startX = e.clientX;
+    const startWidth = treePanelWidth.value;
+
+    function onMove(ev: PointerEvent) {
+        setTreePanelWidth(startWidth + ev.clientX - startX);
+    }
+    function onUp() {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        document.body.style.userSelect = '';
+    }
+
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+}
+
 // ── Keyboard Shortcuts ─────────────────────────────────────────────
 function onKeydown(e: KeyboardEvent) {
     handleKeydown(e, {
         hasModalOpen: () =>
             plcTagsOpen.value ||
+            plcEditorOpen.value ||
             yAxesOpen.value ||
             aboutOpen.value ||
             promptOpen.value ||
@@ -456,7 +621,12 @@ onMounted(async () => {
     }
 
     try {
-        const initialSettings = await backend()?.GetSettings?.();
+        const api = backend();
+        const savedTreePanelWidth = await api?.GetTreePanelWidth?.();
+        if (Number.isFinite(savedTreePanelWidth)) {
+            setTreePanelWidth(Number(savedTreePanelWidth));
+        }
+        const initialSettings = await api?.GetSettings?.();
         if (initialSettings && initialSettings.plcLinks?.length) {
             state.settings = initialSettings;
         }

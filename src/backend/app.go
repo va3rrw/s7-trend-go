@@ -44,16 +44,17 @@ type App struct {
 	isPolling         bool
 	pollDone          chan struct{}
 
-	history       *HistoryStore
-	historyErr    error
-	sampleMu      sync.Mutex
-	lastSampleAt  map[string]int64
-	lastBoolValue map[string]float64
-	windowWidth   int
-	windowHeight  int
-	windowX       int
-	windowY       int
-	windowPosSet  bool
+	history        *HistoryStore
+	historyErr     error
+	sampleMu       sync.Mutex
+	lastSampleAt   map[string]int64
+	lastBoolValue  map[string]float64
+	windowWidth    int
+	windowHeight   int
+	windowX        int
+	windowY        int
+	windowPosSet   bool
+	treePanelWidth int
 
 	trayMu      sync.Mutex
 	trayEnabled bool
@@ -74,12 +75,13 @@ func NewAppWithHistoryPath(historyPath string) *App {
 func newApp(historyPath string) *App {
 	history, historyErr := OpenHistoryStore(historyPath)
 	app := &App{
-		plcs:          make(map[string]*PlcConnection),
-		settings:      CreateDefaultSettings(),
-		history:       history,
-		historyErr:    historyErr,
-		lastSampleAt:  make(map[string]int64),
-		lastBoolValue: make(map[string]float64),
+		plcs:           make(map[string]*PlcConnection),
+		settings:       CreateDefaultSettings(),
+		history:        history,
+		historyErr:     historyErr,
+		lastSampleAt:   make(map[string]int64),
+		lastBoolValue:  make(map[string]float64),
+		treePanelWidth: defaultTreePanelWidth,
 	}
 	app.savedSettingsJSON = app.serializeSettingsLocked()
 	app.loadAppState()

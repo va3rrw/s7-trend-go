@@ -46,6 +46,10 @@ export function GetSystemLanguage() {
   return window['go']['backend']['App']['GetSystemLanguage']();
 }
 
+export function GetTreePanelWidth() {
+  return window['go']['backend']['App']['GetTreePanelWidth']();
+}
+
 export function GetVersion() {
   return window['go']['backend']['App']['GetVersion']();
 }
@@ -80,6 +84,10 @@ export function SaveSettings(arg1) {
 
 export function SaveSettingsFile(arg1, arg2) {
   return window['go']['backend']['App']['SaveSettingsFile'](arg1, arg2);
+}
+
+export function SetTreePanelWidth(arg1) {
+  return window['go']['backend']['App']['SetTreePanelWidth'](arg1);
 }
 
 export function StartPolling(arg1) {

@@ -25,7 +25,14 @@ type AppState struct {
 	WindowX           int    `json:"windowX,omitempty"`
 	WindowY           int    `json:"windowY,omitempty"`
 	WindowPositionSet bool   `json:"windowPositionSet,omitempty"`
+	TreePanelWidth    int    `json:"treePanelWidth,omitempty"`
 }
+
+const (
+	defaultTreePanelWidth = 250
+	minTreePanelWidth     = 220
+	maxTreePanelWidth     = 420
+)
 
 func getAppStateFilePath() string {
 	return filepath.Join(getDefaultSettingsDir(), "app_state.json")
@@ -47,6 +54,9 @@ func (a *App) loadAppState() {
 	a.windowX = state.WindowX
 	a.windowY = state.WindowY
 	a.windowPosSet = state.WindowPositionSet
+	if state.TreePanelWidth >= minTreePanelWidth && state.TreePanelWidth <= maxTreePanelWidth {
+		a.treePanelWidth = state.TreePanelWidth
+	}
 	a.mu.Unlock()
 	if state.LastSettingsFile != "" {
 		if _, err := os.Stat(state.LastSettingsFile); err == nil {
@@ -76,6 +86,7 @@ func (a *App) saveAppState(lastFile string) {
 		WindowX:           a.windowX,
 		WindowY:           a.windowY,
 		WindowPositionSet: a.windowPosSet,
+		TreePanelWidth:    a.treePanelWidth,
 	}
 	a.mu.RUnlock()
 	data, err := json.MarshalIndent(state, "", "  ")
@@ -83,6 +94,29 @@ func (a *App) saveAppState(lastFile string) {
 		return
 	}
 	_ = os.WriteFile(statePath, data, 0644)
+}
+
+// GetTreePanelWidth returns the restored PLC/tag tree width in pixels.
+func (a *App) GetTreePanelWidth() int {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if a.treePanelWidth < minTreePanelWidth || a.treePanelWidth > maxTreePanelWidth {
+		return defaultTreePanelWidth
+	}
+	return a.treePanelWidth
+}
+
+// SetTreePanelWidth updates the PLC/tag tree width. It is persisted with the
+// rest of the app state when the application closes.
+func (a *App) SetTreePanelWidth(width int) {
+	if width < minTreePanelWidth {
+		width = minTreePanelWidth
+	} else if width > maxTreePanelWidth {
+		width = maxTreePanelWidth
+	}
+	a.mu.Lock()
+	a.treePanelWidth = width
+	a.mu.Unlock()
 }
 
 func (a *App) restoreWindowState(ctx context.Context) {

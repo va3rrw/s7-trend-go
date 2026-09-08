@@ -147,7 +147,7 @@ describe('Keyboard Shortcuts in App.vue', () => {
         expect(wrapper.findComponent({ name: 'MeasurementStrip' }).props('open')).toBe(false);
     });
 
-    it('handles Ctrl+T to open PLC/Tag settings dialog', async () => {
+    it('handles Ctrl+T to open the PLC/tag settings dialog', async () => {
         wrapper = mount(App, {
             global: {
                 plugins: [i18n],
@@ -155,7 +155,8 @@ describe('Keyboard Shortcuts in App.vue', () => {
         });
         await flushPromises();
 
-        expect(wrapper.findComponent({ name: 'PlcTagsDialog' }).props('open')).toBe(false);
+        const plcTagsDialog = wrapper.findComponent({ name: 'PlcTagsDialog' });
+        expect(plcTagsDialog.props('open')).toBe(false);
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 't', ctrlKey: true }));
         await flushPromises();
         expect(wrapper.findComponent({ name: 'PlcTagsDialog' }).props('open')).toBe(true);
@@ -177,5 +178,3 @@ describe('Keyboard Shortcuts in App.vue', () => {
         expect(exportCSVMock).toHaveBeenCalledTimes(1);
     });
 });
-
-

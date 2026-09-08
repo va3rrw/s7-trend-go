@@ -47,6 +47,7 @@ export interface BackendApi {
     ): Promise<Record<string, Array<{ t: number; v: number }>>>;
     GetLastSettingsPath(): Promise<string>;
     GetSettings(): Promise<AppSettings>;
+    GetTreePanelWidth?(): Promise<number>;
     GetSystemLanguage(): Promise<string>;
     GetVersion(): Promise<string>;
     HasSettingsChanged(): Promise<boolean>;
@@ -61,6 +62,7 @@ export interface BackendApi {
     SaveCurrentSettings(): Promise<void>;
     SaveSettings(settings: AppSettings): Promise<void>;
     SaveSettingsFile(settings: AppSettings, title: string): Promise<void>;
+    SetTreePanelWidth?(width: number): Promise<void>;
     StartPolling(settings: AppSettings): Promise<void>;
     StopPolling(): Promise<void>;
     TestConnection(link: {
