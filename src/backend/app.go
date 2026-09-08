@@ -49,6 +49,11 @@ type App struct {
 	sampleMu      sync.Mutex
 	lastSampleAt  map[string]int64
 	lastBoolValue map[string]float64
+	windowWidth   int
+	windowHeight  int
+	windowX       int
+	windowY       int
+	windowPosSet  bool
 
 	trayMu      sync.Mutex
 	trayEnabled bool
@@ -151,6 +156,7 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 	appCtx := a.ctx
 	a.mu.RUnlock()
 	if force {
+		a.saveWindowState(ctx)
 		return false
 	}
 
@@ -163,6 +169,7 @@ func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
 	}
 
 	if !a.HasSettingsChanged() {
+		a.saveWindowState(ctx)
 		return false
 	}
 
@@ -177,6 +184,7 @@ func (a *App) Startup(ctx context.Context) {
 	a.mu.Lock()
 	a.ctx = ctx
 	a.mu.Unlock()
+	a.restoreWindowState(ctx)
 
 	a.trayMu.Lock()
 	trayEnabled := a.trayEnabled

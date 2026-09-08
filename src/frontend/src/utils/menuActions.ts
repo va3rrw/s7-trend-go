@@ -157,3 +157,12 @@ export async function menuExport(t: TranslateFn): Promise<void> {
         state.statusMessage = t('status.error_exporting', [err]);
     }
 }
+
+export async function menuOpenStorageFolder(t: TranslateFn): Promise<void> {
+    try {
+        await backend()?.OpenStorageFolder();
+        state.statusMessage = t('status.storage_folder_opened');
+    } catch (err) {
+        state.statusMessage = t('status.error_opening_storage_folder', [err]);
+    }
+}

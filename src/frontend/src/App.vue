@@ -17,6 +17,7 @@
             @set-interpolation="menuInterpolation(t, showPrompt)"
             @clear-records="menuClear(t, showConfirm, chartRef, liveValues)"
             @set-locale="locale = $event"
+            @open-storage-folder="menuOpenStorageFolder(t)"
             @open-about="aboutOpen = true" />
 
         <!-- Toolbar -->
@@ -167,6 +168,7 @@ import {
     menuInterpolation,
     menuClear,
     menuExport,
+    menuOpenStorageFolder,
 } from './utils/menuActions';
 import { handleKeydown } from './utils/shortcuts';
 

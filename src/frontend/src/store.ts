@@ -51,6 +51,7 @@ export interface BackendApi {
     GetVersion(): Promise<string>;
     HasSettingsChanged(): Promise<boolean>;
     LoadSettingsFile(title: string): Promise<AppSettings>;
+    OpenStorageFolder(): Promise<void>;
     QuitApp(): Promise<void>;
     RecordSample(
         tagId: string,

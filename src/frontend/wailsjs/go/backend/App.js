@@ -58,6 +58,10 @@ export function LoadSettingsFile(arg1) {
   return window['go']['backend']['App']['LoadSettingsFile'](arg1);
 }
 
+export function OpenStorageFolder() {
+  return window['go']['backend']['App']['OpenStorageFolder']();
+}
+
 export function QuitApp() {
   return window['go']['backend']['App']['QuitApp']();
 }

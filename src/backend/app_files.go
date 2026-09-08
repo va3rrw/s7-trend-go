@@ -2,11 +2,14 @@ package backend
 
 import (
 	"bufio"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strconv"
 	"time"
 
@@ -16,7 +19,12 @@ import (
 // File Operations
 
 type AppState struct {
-	LastSettingsFile string `json:"lastSettingsFile"`
+	LastSettingsFile  string `json:"lastSettingsFile"`
+	WindowWidth       int    `json:"windowWidth,omitempty"`
+	WindowHeight      int    `json:"windowHeight,omitempty"`
+	WindowX           int    `json:"windowX,omitempty"`
+	WindowY           int    `json:"windowY,omitempty"`
+	WindowPositionSet bool   `json:"windowPositionSet,omitempty"`
 }
 
 func getAppStateFilePath() string {
@@ -33,6 +41,13 @@ func (a *App) loadAppState() {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return
 	}
+	a.mu.Lock()
+	a.windowWidth = state.WindowWidth
+	a.windowHeight = state.WindowHeight
+	a.windowX = state.WindowX
+	a.windowY = state.WindowY
+	a.windowPosSet = state.WindowPositionSet
+	a.mu.Unlock()
 	if state.LastSettingsFile != "" {
 		if _, err := os.Stat(state.LastSettingsFile); err == nil {
 			settingsData, err := os.ReadFile(state.LastSettingsFile)
@@ -53,14 +68,72 @@ func (a *App) loadAppState() {
 
 func (a *App) saveAppState(lastFile string) {
 	statePath := getAppStateFilePath()
+	a.mu.RLock()
 	state := AppState{
-		LastSettingsFile: lastFile,
+		LastSettingsFile:  lastFile,
+		WindowWidth:       a.windowWidth,
+		WindowHeight:      a.windowHeight,
+		WindowX:           a.windowX,
+		WindowY:           a.windowY,
+		WindowPositionSet: a.windowPosSet,
 	}
+	a.mu.RUnlock()
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return
 	}
 	_ = os.WriteFile(statePath, data, 0644)
+}
+
+func (a *App) restoreWindowState(ctx context.Context) {
+	if !hasWailsFrontend(ctx) {
+		return
+	}
+
+	a.mu.RLock()
+	width := a.windowWidth
+	height := a.windowHeight
+	x := a.windowX
+	y := a.windowY
+	positionSet := a.windowPosSet
+	a.mu.RUnlock()
+
+	if width <= 0 || height <= 0 {
+		return
+	}
+	runtime.WindowSetSize(ctx, width, height)
+	if positionSet {
+		runtime.WindowSetPosition(ctx, x, y)
+	}
+}
+
+func (a *App) saveWindowState(ctx context.Context) {
+	if !hasWailsFrontend(ctx) {
+		return
+	}
+
+	a.mu.RLock()
+	lastFile := a.lastSettingsPath
+	a.mu.RUnlock()
+
+	width, height := runtime.WindowGetSize(ctx)
+	x, y := runtime.WindowGetPosition(ctx)
+	if width <= 0 || height <= 0 {
+		return
+	}
+
+	a.mu.Lock()
+	a.windowWidth = width
+	a.windowHeight = height
+	a.windowX = x
+	a.windowY = y
+	a.windowPosSet = true
+	a.mu.Unlock()
+	a.saveAppState(lastFile)
+}
+
+func hasWailsFrontend(ctx context.Context) bool {
+	return ctx != nil && ctx.Value("frontend") != nil
 }
 
 func getDefaultSettingsDir() string {
@@ -71,6 +144,21 @@ func getDefaultSettingsDir() string {
 	dir := filepath.Join(configDir, "s7-trend-go")
 	_ = os.MkdirAll(dir, 0755)
 	return dir
+}
+
+// OpenStorageFolder opens the directory containing app_state.json and history.db.
+func (a *App) OpenStorageFolder() error {
+	dir := getDefaultSettingsDir()
+	var command string
+	switch goruntime.GOOS {
+	case "windows":
+		command = "explorer.exe"
+	case "darwin":
+		command = "open"
+	default:
+		command = "xdg-open"
+	}
+	return exec.Command(command, dir).Start()
 }
 
 // SaveCurrentSettings writes current in-memory settings to the last-used settings file path,

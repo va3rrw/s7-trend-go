@@ -125,6 +125,11 @@
                 <hr />
                 <a
                     href="#"
+                    @click.prevent="emit('openStorageFolder')">
+                    <span>{{ $t('menu.open_storage_folder') }}</span>
+                </a>
+                <a
+                    href="#"
                     @click.prevent="emit('openAbout')">
                     <span>{{ $t('menu.about') }}</span>
                 </a>
@@ -155,6 +160,7 @@ const emit = defineEmits<{
     setInterpolation: [];
     clearRecords: [];
     setLocale: [lang: string];
+    openStorageFolder: [];
     openAbout: [];
 }>();
 </script>

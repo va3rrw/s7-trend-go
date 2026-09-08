@@ -30,6 +30,8 @@ export function HasSettingsChanged():Promise<boolean>;
 
 export function LoadSettingsFile(arg1:string):Promise<backend.AppSettings>;
 
+export function OpenStorageFolder():Promise<void>;
+
 export function QuitApp():Promise<void>;
 
 export function RecordSample(arg1:string,arg2:number,arg3:number):Promise<void>;
