@@ -44,15 +44,32 @@ type App struct {
 	isPolling         bool
 	pollDone          chan struct{}
 
-	historyMu sync.RWMutex
-	history   map[string]*TagRingBuffer
+	history       *HistoryStore
+	historyErr    error
+	sampleMu      sync.Mutex
+	lastSampleAt  map[string]int64
+	lastBoolValue map[string]float64
 }
 
 func NewApp() *App {
+	return newApp(defaultHistoryDatabasePath())
+}
+
+// NewAppWithHistoryPath is useful for isolated deployments and tests that need
+// a database outside the user's normal application data directory.
+func NewAppWithHistoryPath(historyPath string) *App {
+	return newApp(historyPath)
+}
+
+func newApp(historyPath string) *App {
+	history, historyErr := OpenHistoryStore(historyPath)
 	app := &App{
-		plcs:     make(map[string]*PlcConnection),
-		settings: CreateDefaultSettings(),
-		history:  make(map[string]*TagRingBuffer),
+		plcs:          make(map[string]*PlcConnection),
+		settings:      CreateDefaultSettings(),
+		history:       history,
+		historyErr:    historyErr,
+		lastSampleAt:  make(map[string]int64),
+		lastBoolValue: make(map[string]float64),
 	}
 	app.savedSettingsJSON = app.serializeSettingsLocked()
 	app.loadAppState()
@@ -118,6 +135,9 @@ func (a *App) Startup(ctx context.Context) {
 func (a *App) Shutdown(ctx context.Context) {
 	a.StopPolling()
 	a.DisconnectAll()
+	if a.history != nil {
+		_ = a.history.Close()
+	}
 }
 
 // GetSettings returns current application settings
@@ -129,6 +149,7 @@ func (a *App) GetSettings() AppSettings {
 
 // SaveSettings updates internal settings
 func (a *App) SaveSettings(s AppSettings) {
+	s = normalizeSettings(s)
 	a.mu.Lock()
 	wasPolling := a.isPolling
 	if !wasPolling {
@@ -251,50 +272,99 @@ func (a *App) CheckStatus(linkName string) bool {
 	return conn.IsConnected
 }
 
-// RecordSample stores a data point into the tag's backend ring buffer
+// RecordSample persists a data point when the tag's configured storage
+// interval has elapsed. A zero tag interval follows the global poll interval.
 func (a *App) RecordSample(tagId string, timestampMs int64, value float64) {
-	a.historyMu.RLock()
-	rb, exists := a.history[tagId]
-	if exists {
-		rb.Push(timestampMs, value)
-		a.historyMu.RUnlock()
+	if a.history == nil {
 		return
 	}
-	a.historyMu.RUnlock()
 
-	a.historyMu.Lock()
-	rb, exists = a.history[tagId]
-	if !exists {
-		rb = NewTagRingBuffer(500000)
-		a.history[tagId] = rb
+	intervalMs := a.sampleIntervalMs(tagId)
+	a.sampleMu.Lock()
+	if a.isBoolTag(tagId) {
+		if last, exists := a.lastBoolValue[tagId]; exists && last == value {
+			a.sampleMu.Unlock()
+			return
+		}
+		if _, initialized := a.lastBoolValue[tagId]; !initialized {
+			if latest, exists, err := a.history.Latest(tagId); err == nil && exists {
+				a.lastBoolValue[tagId] = latest.Value
+				if latest.Value == value {
+					a.sampleMu.Unlock()
+					return
+				}
+			}
+		}
+	} else if last, exists := a.lastSampleAt[tagId]; exists && timestampMs < last+intervalMs {
+		a.sampleMu.Unlock()
+		return
 	}
-	rb.Push(timestampMs, value)
-	a.historyMu.Unlock()
+
+	err := a.history.Insert(storedSample{
+		TagID:     tagId,
+		Timestamp: timestampMs,
+		Value:     value,
+	})
+	if err == nil {
+		if a.isBoolTag(tagId) {
+			a.lastBoolValue[tagId] = value
+		} else {
+			a.lastSampleAt[tagId] = timestampMs
+		}
+	}
+	a.sampleMu.Unlock()
 }
 
 // GetHistoryRange returns sample points for requested tagIds within [startMs, endMs]
 func (a *App) GetHistoryRange(tagIds []string, startMs, endMs int64) map[string][]SamplePoint {
-	result := make(map[string][]SamplePoint)
-	a.historyMu.RLock()
-	defer a.historyMu.RUnlock()
-
-	for _, tagId := range tagIds {
-		if rb, exists := a.history[tagId]; exists {
-			result[tagId] = rb.GetRange(startMs, endMs)
-		} else {
+	if a.history == nil {
+		result := make(map[string][]SamplePoint, len(tagIds))
+		for _, tagId := range tagIds {
 			result[tagId] = []SamplePoint{}
 		}
+		return result
 	}
+	result, _ := a.history.GetRange(tagIds, startMs, endMs)
 	return result
 }
 
-// ClearHistory clears all recorded samples from backend ring buffers
+// ClearHistory clears all recorded samples from the local history database.
 func (a *App) ClearHistory() {
-	a.historyMu.Lock()
-	defer a.historyMu.Unlock()
-
-	for _, rb := range a.history {
-		rb.Clear()
+	a.sampleMu.Lock()
+	defer a.sampleMu.Unlock()
+	if a.history != nil {
+		_ = a.history.Clear()
 	}
+	a.lastSampleAt = make(map[string]int64)
+	a.lastBoolValue = make(map[string]float64)
 }
 
+func (a *App) sampleIntervalMs(tagID string) int64 {
+	a.mu.RLock()
+	interval := a.settings.PollIntervalMs
+	for _, tag := range a.settings.Tags {
+		if tag.Id.String() == tagID {
+			if tag.SamplingIntervalMs > 0 {
+				interval = tag.SamplingIntervalMs
+			}
+			break
+		}
+	}
+	a.mu.RUnlock()
+
+	if interval < 10 {
+		interval = 10
+	}
+	return int64(interval)
+}
+
+func (a *App) isBoolTag(tagID string) bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	for _, tag := range a.settings.Tags {
+		if tag.Id.String() == tagID {
+			return tag.DataType == DataTypeBool
+		}
+	}
+	return false
+}

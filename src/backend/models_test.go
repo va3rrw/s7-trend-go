@@ -78,14 +78,15 @@ func TestCreateDefaultSettings(t *testing.T) {
 func TestModels_JSONSerialization(t *testing.T) {
 	tagId := uuid.New()
 	tag := TagSettings{
-		Id:       tagId,
-		Name:     "Motor_Speed",
-		PlcLink:  "PLC1",
-		Address:  "DB1.DBD0",
-		DataType: DataTypeReal,
-		YAxis:    "Y-Axis 1",
-		Color:    "#FF0000",
-		Enabled:  true,
+		Id:                 tagId,
+		Name:               "Motor_Speed",
+		PlcLink:            "PLC1",
+		Address:            "DB1.DBD0",
+		DataType:           DataTypeReal,
+		YAxis:              "Y-Axis 1",
+		Color:              "#FF0000",
+		Enabled:            true,
+		SamplingIntervalMs: 750,
 	}
 
 	settings := AppSettings{
@@ -127,6 +128,9 @@ func TestModels_JSONSerialization(t *testing.T) {
 	}
 	if restored.Tags[0].DataType != DataTypeReal {
 		t.Errorf("restored tag DataType = %s, expected Real", restored.Tags[0].DataType)
+	}
+	if restored.Tags[0].SamplingIntervalMs != 750 {
+		t.Errorf("restored tag SamplingIntervalMs = %d, expected 750", restored.Tags[0].SamplingIntervalMs)
 	}
 
 	// Test PollUpdate serialization

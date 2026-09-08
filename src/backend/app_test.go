@@ -112,7 +112,8 @@ func TestApp_Disconnect_NonExistent(t *testing.T) {
 }
 
 func TestApp_HistoryMethods(t *testing.T) {
-	app := NewApp()
+	app := NewAppWithHistoryPath(filepath.Join(t.TempDir(), "history.db"))
+	defer app.Shutdown(context.Background())
 
 	// Record samples for tag-1 and tag-2
 	app.RecordSample("tag-1", 1000, 10.5)
@@ -272,7 +273,3 @@ func TestApp_RecordSample_Concurrent(t *testing.T) {
 		<-done
 	}
 }
-
-
-
-

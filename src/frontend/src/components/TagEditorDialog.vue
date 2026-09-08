@@ -98,6 +98,21 @@
                 </div>
             </div>
             <div class="form-row">
+                <label>{{ $t('dialog.storage_interval') }}</label>
+                <div class="field-control">
+                    <input
+                        v-model.number="form.samplingIntervalMs"
+                        type="number"
+                        min="0"
+                        max="60000"
+                        step="10"
+                        :placeholder="$t('dialog.storage_interval_default')" />
+                    <span class="address-feedback hint-msg">
+                        {{ $t('dialog.storage_interval_hint') }}
+                    </span>
+                </div>
+            </div>
+            <div class="form-row">
                 <label />
                 <label class="checkbox-label">
                     <input
@@ -127,7 +142,14 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
 import type { TagSettings } from '../types';
-import { DATA_TYPES, PALETTE, inferDataType, MAX_TAGS_PER_PLC_LINK } from '../types';
+import {
+    DATA_TYPES,
+    PALETTE,
+    inferDataType,
+    MAX_TAGS_PER_PLC_LINK,
+    MIN_TAG_SAMPLING_MS,
+    MAX_TAG_SAMPLING_MS,
+} from '../types';
 import { state, showMessage } from '../store';
 import { useI18n } from 'vue-i18n';
 import AppDialog from './AppDialog.vue';
@@ -154,6 +176,7 @@ const form = ref<TagSettings>({
     yAxis: '',
     color: PALETTE[0],
     enabled: true,
+    samplingIntervalMs: 0,
 });
 
 watch(
@@ -161,6 +184,7 @@ watch(
     (val) => {
         if (val && props.tag) {
             form.value = { ...props.tag };
+            form.value.samplingIntervalMs = props.tag.samplingIntervalMs ?? 0;
             if (form.value.dataType === 'Bool') {
                 form.value.yAxis = '';
             }
@@ -310,6 +334,28 @@ function save() {
         showMessage(t('dialog.tag_properties'), t('prompt.tag_name_required'));
         return;
     }
+
+    const storageInterval = Number(tag.samplingIntervalMs ?? 0);
+    const minimumStorageInterval = Math.max(
+        MIN_TAG_SAMPLING_MS,
+        state.settings.pollIntervalMs || MIN_TAG_SAMPLING_MS,
+    );
+    if (
+        !Number.isInteger(storageInterval) ||
+        storageInterval < 0 ||
+        storageInterval > MAX_TAG_SAMPLING_MS ||
+        (storageInterval !== 0 && storageInterval < minimumStorageInterval)
+    ) {
+        showMessage(
+            t('dialog.tag_properties'),
+            t('prompt.invalid_tag_sampling_interval', [
+                minimumStorageInterval,
+                MAX_TAG_SAMPLING_MS,
+            ]),
+        );
+        return;
+    }
+    tag.samplingIntervalMs = storageInterval;
     if (
         tag.dataType === 'Bool' &&
         !/(?:^DB\d+\.DBX\d+\.[0-7]$|^[MIQ](?:X)?\d+\.[0-7]$)/i.test(tag.address)

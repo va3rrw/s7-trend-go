@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"time"
 
@@ -40,21 +39,7 @@ func (a *App) loadAppState() {
 			if err == nil {
 				var settings AppSettings
 				if err := json.Unmarshal(settingsData, &settings); err == nil {
-					if settings.PollIntervalMs == 0 {
-						settings.PollIntervalMs = 100
-					}
-					if settings.TimeWindowSeconds == 0 {
-						settings.TimeWindowSeconds = 60
-					}
-					if settings.Interpolation == "" {
-						settings.Interpolation = InterpolationLine
-					}
-					if len(settings.PlcLinks) == 0 {
-						settings.PlcLinks = CreateDefaultPlcLinks()
-					}
-					if len(settings.YAxes) == 0 {
-						settings.YAxes = CreateDefaultYAxes()
-					}
+					settings = normalizeSettings(settings)
 					a.mu.Lock()
 					a.settings = settings
 					a.lastSettingsPath = state.LastSettingsFile
@@ -114,6 +99,7 @@ func (a *App) SaveCurrentSettings() error {
 }
 
 func (a *App) SaveSettingsFile(settings AppSettings, title string) error {
+	settings = normalizeSettings(settings)
 	defaultDir := getDefaultSettingsDir()
 	defaultFilename := "s7-trend-settings.json"
 
@@ -128,9 +114,9 @@ func (a *App) SaveSettingsFile(settings AppSettings, title string) error {
 
 	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		DefaultDirectory: defaultDir,
-		Title:           title,
-		DefaultFilename: defaultFilename,
-		Filters:         []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
+		Title:            title,
+		DefaultFilename:  defaultFilename,
+		Filters:          []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
 	})
 	if err != nil || filePath == "" {
 		if filePath == "" {
@@ -169,8 +155,8 @@ func (a *App) LoadSettingsFile(title string) (*AppSettings, error) {
 
 	filePath, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		DefaultDirectory: defaultDir,
-		Title:           title,
-		Filters:         []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
+		Title:            title,
+		Filters:          []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
 	})
 	if err != nil || filePath == "" {
 		if filePath == "" {
@@ -186,21 +172,7 @@ func (a *App) LoadSettingsFile(title string) (*AppSettings, error) {
 	if err := json.Unmarshal(data, &settings); err != nil {
 		return nil, err
 	}
-	if settings.PollIntervalMs == 0 {
-		settings.PollIntervalMs = 100
-	}
-	if settings.TimeWindowSeconds == 0 {
-		settings.TimeWindowSeconds = 60
-	}
-	if settings.Interpolation == "" {
-		settings.Interpolation = InterpolationLine
-	}
-	if len(settings.PlcLinks) == 0 {
-		settings.PlcLinks = CreateDefaultPlcLinks()
-	}
-	if len(settings.YAxes) == 0 {
-		settings.YAxes = CreateDefaultYAxes()
-	}
+	settings = normalizeSettings(settings)
 
 	a.mu.Lock()
 	a.settings = settings
@@ -212,7 +184,7 @@ func (a *App) LoadSettingsFile(title string) (*AppSettings, error) {
 	return &settings, nil
 }
 
-// ExportCSV streams all recorded sample history from backend ring buffers directly to disk
+// ExportCSV streams all recorded sample history from SQLite directly to disk.
 func (a *App) ExportCSV(title string) error {
 	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		Title:           title,
@@ -247,52 +219,22 @@ func (a *App) ExportCSV(title string) error {
 	}
 	a.mu.RUnlock()
 
-	a.historyMu.RLock()
-	type csvRecord struct {
-		TimestampMs int64
-		TagName     string
-		TagAddr     string
-		Value       float64
+	if a.history == nil {
+		return fmt.Errorf("history database is not available")
 	}
-	var records []csvRecord
-	for tagIdStr, rb := range a.history {
-		tag, exists := tagMap[tagIdStr]
-		tagName := tagIdStr
+	return a.history.IterateAll(func(sample storedSample) error {
+		tag, exists := tagMap[sample.TagID]
+		tagName := sample.TagID
 		tagAddr := ""
 		if exists {
 			tagName = tag.Name
 			tagAddr = tag.Address
 		}
-		points := rb.GetAll()
-		for _, pt := range points {
-			records = append(records, csvRecord{
-				TimestampMs: pt.Timestamp,
-				TagName:     tagName,
-				TagAddr:     tagAddr,
-				Value:       pt.Value,
-			})
-		}
-	}
-	a.historyMu.RUnlock()
-
-	// Sort chronologically by timestamp, then deterministically by tag name
-	sort.SliceStable(records, func(i, j int) bool {
-		if records[i].TimestampMs != records[j].TimestampMs {
-			return records[i].TimestampMs < records[j].TimestampMs
-		}
-		return records[i].TagName < records[j].TagName
+		return writer.Write([]string{
+			time.UnixMilli(sample.Timestamp).Format(time.RFC3339Nano),
+			tagName,
+			tagAddr,
+			strconv.FormatFloat(sample.Value, 'f', -1, 64),
+		})
 	})
-
-	for _, rec := range records {
-		tStr := time.UnixMilli(rec.TimestampMs).Format(time.RFC3339Nano)
-		if err := writer.Write([]string{
-			tStr,
-			rec.TagName,
-			rec.TagAddr,
-			strconv.FormatFloat(rec.Value, 'f', -1, 64),
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
 }

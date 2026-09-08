@@ -15,6 +15,8 @@ export interface TagSettings {
     yAxis: string;
     color: string;
     enabled: boolean;
+    /** 0 follows the global poll interval; Bool tags persist only changes. */
+    samplingIntervalMs?: number;
 }
 
 export interface YAxisSettings {
@@ -43,6 +45,8 @@ export interface SampleRecord {
 export const MIN_PLC_LINKS = 1;
 export const MAX_PLC_LINKS = 8;
 export const MAX_TAGS_PER_PLC_LINK = 16;
+export const MIN_TAG_SAMPLING_MS = 10;
+export const MAX_TAG_SAMPLING_MS = 60000;
 
 export const DATA_TYPES = [
     'Bool',

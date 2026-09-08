@@ -78,6 +78,11 @@ export async function menuTimer(
         return;
     }
     state.settings.pollIntervalMs = interval;
+    state.settings.tags = state.settings.tags.map((tag) =>
+        tag.samplingIntervalMs && tag.samplingIntervalMs < interval
+            ? { ...tag, samplingIntervalMs: interval }
+            : tag,
+    );
     await saveSettingsAndRestart();
     state.statusMessage = t('status.interval_set', [interval]);
 }

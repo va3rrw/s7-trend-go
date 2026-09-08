@@ -16,6 +16,8 @@ Based on a very old but useful tool **S7 Trend Values**.
 - **Multi-Axis Y Scaling**: Configure independent Y-axes with automatic scaling or explicit minimum and maximum range bounds.
 - **Sample Interpolation**: Choose between `Line` and `Step` interpolation modes for trend visualization.
 - **Import & Export**: Save and reload PLC configurations, tag lists, Y-axes setups, and exported sample records.
+- **Persistent Trend History**: Store timestamped samples in a local SQLite database with indexed range queries.
+- **Per-Tag Storage Cadence**: Numeric tags can use a slower storage interval; Bool tags store only their initial state and changes.
 - **Localization**: Built-in support for English (`en`) and Simplified Chinese (`zh`).
 
 ## Architecture & Tech Stack
@@ -23,6 +25,14 @@ Based on a very old but useful tool **S7 Trend Values**.
 - **Backend**: Go 1.25, [Wails v2](https://wails.io/), [gos7](https://github.com/robinson/gos7) S7 protocol library.
 - **Frontend**: Vue 3 (TypeScript), Vite, UnoCSS, HTML5 Canvas / ECharts trend rendering, Vue I18n.
 - **Target OS**: Windows (`windows/amd64`).
+
+## Trend Data Storage
+
+Trend history is stored in `history.db` under the same default application configuration directory used by `app_state.json`. The directory and database schema are created automatically on first launch, so the standalone executable does not need an installer or a separate database service.
+
+SQLite was selected for this desktop workload because it is embedded, file-based, transactional, and supports indexed time-range queries without requiring a server. Samples use Unix millisecond timestamps and are indexed by tag and timestamp. The frontend requests history through the existing Wails history API, which now reads from SQLite rather than an in-memory ring buffer.
+
+Each tag has a **Storage interval (ms)** setting. `0` follows the global PLC poll interval. A numeric tag interval cannot be lower than the global poll interval. Bool tags ignore repeated values and persist only the first observed state and subsequent transitions.
 
 ## Prerequisites
 
@@ -82,4 +92,3 @@ s7-trend-go/
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-

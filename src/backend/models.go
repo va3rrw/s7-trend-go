@@ -35,6 +35,8 @@ const (
 	MinPlcLinks       = 1
 	MaxPlcLinks       = 8
 	MaxTagsPerPlcLink = 16
+	MinTagSamplingMs  = 10
+	MaxTagSamplingMs  = 60000
 )
 
 type TagSettings struct {
@@ -46,6 +48,9 @@ type TagSettings struct {
 	YAxis    string      `json:"yAxis"`
 	Color    string      `json:"color"`
 	Enabled  bool        `json:"enabled"`
+	// SamplingIntervalMs controls numeric persistence. Zero follows the global
+	// PLC poll interval. Bool tags persist only their initial state and changes.
+	SamplingIntervalMs int `json:"samplingIntervalMs"`
 }
 
 type YAxisSettings struct {
@@ -76,7 +81,7 @@ type AppSettings struct {
 	TimeWindowSeconds int               `json:"timeWindowSeconds"`
 	Interpolation     InterpolationMode `json:"interpolation"`
 	PlcLinks          []PlcLinkSettings `json:"plcLinks"`
-	Tags          []TagSettings `json:"tags"`
+	Tags              []TagSettings     `json:"tags"`
 	YAxes             []YAxisSettings   `json:"yAxes"`
 }
 
@@ -86,9 +91,44 @@ func CreateDefaultSettings() AppSettings {
 		TimeWindowSeconds: 60,
 		Interpolation:     InterpolationLine,
 		PlcLinks:          CreateDefaultPlcLinks(),
-		Tags:          []TagSettings{},
+		Tags:              []TagSettings{},
 		YAxes:             CreateDefaultYAxes(),
 	}
+}
+
+func normalizeSettings(settings AppSettings) AppSettings {
+	if settings.PollIntervalMs < MinTagSamplingMs {
+		settings.PollIntervalMs = 100
+	}
+	if settings.PollIntervalMs > MaxTagSamplingMs {
+		settings.PollIntervalMs = MaxTagSamplingMs
+	}
+	if settings.TimeWindowSeconds <= 0 {
+		settings.TimeWindowSeconds = 60
+	}
+	if settings.Interpolation == "" {
+		settings.Interpolation = InterpolationLine
+	}
+	if len(settings.PlcLinks) == 0 {
+		settings.PlcLinks = CreateDefaultPlcLinks()
+	}
+	if len(settings.YAxes) == 0 {
+		settings.YAxes = CreateDefaultYAxes()
+	}
+	for index := range settings.Tags {
+		interval := settings.Tags[index].SamplingIntervalMs
+		if interval != 0 && interval < MinTagSamplingMs {
+			settings.Tags[index].SamplingIntervalMs = MinTagSamplingMs
+		}
+		if interval > MaxTagSamplingMs {
+			settings.Tags[index].SamplingIntervalMs = MaxTagSamplingMs
+		}
+		if settings.Tags[index].SamplingIntervalMs != 0 &&
+			settings.Tags[index].SamplingIntervalMs < settings.PollIntervalMs {
+			settings.Tags[index].SamplingIntervalMs = settings.PollIntervalMs
+		}
+	}
+	return settings
 }
 
 type PollUpdate struct {

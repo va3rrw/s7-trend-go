@@ -384,6 +384,7 @@ function addTag() {
               yAxis: state.settings.yAxes[0]?.name ?? 'Y-Axis 1',
               color: PALETTE[tags.value.length % PALETTE.length],
               enabled: true,
+              samplingIntervalMs: 0,
           };
 
     tags.value.push(tag);

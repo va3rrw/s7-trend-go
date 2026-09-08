@@ -14,6 +14,7 @@ import (
 // StartPolling starts polling loop according to current AppSettings
 func (a *App) StartPolling(settings AppSettings) {
 	a.StopPolling()
+	settings = normalizeSettings(settings)
 
 	a.mu.Lock()
 	oldLinks := append([]PlcLinkSettings(nil), a.settings.PlcLinks...)
@@ -393,5 +394,3 @@ func (a *App) invalidateConnection(linkName string, conn *PlcConnection) {
 	conn.mu.Unlock()
 	delete(a.plcs, linkName)
 }
-
-

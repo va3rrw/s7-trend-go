@@ -214,6 +214,3 @@ func TestApp_StartPolling_ReconnectionBackoff(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	app.StopPolling()
 }
-
-
-

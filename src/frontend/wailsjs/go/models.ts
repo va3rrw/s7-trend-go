@@ -27,6 +27,7 @@ export namespace backend {
 	    yAxis: string;
 	    color: string;
 	    enabled: boolean;
+	    samplingIntervalMs: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new TagSettings(source);
@@ -42,6 +43,7 @@ export namespace backend {
 	        this.yAxis = source["yAxis"];
 	        this.color = source["color"];
 	        this.enabled = source["enabled"];
+	        this.samplingIntervalMs = source["samplingIntervalMs"];
 	    }
 	}
 	export class PlcLinkSettings {
