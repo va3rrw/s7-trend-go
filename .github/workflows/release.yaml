@@ -56,6 +56,32 @@ jobs:
             - name: Generate Changelog
               id: github_release
               uses: mikepenz/release-changelog-builder-action@v5
+              with:
+                  mode: 'COMMIT'
+                  configurationJson: |
+                      {
+                        "template": "#{{CHANGELOG}}\n\n#{{UNCATEGORIZED}}",
+                        "categories": [
+                          {
+                            "title": "### 🚀 Features",
+                            "labels": ["feat"]
+                          },
+                          {
+                            "title": "### 🐛 Bug Fixes",
+                            "labels": ["fix"]
+                          },
+                          {
+                            "title": "### 🧰 Maintenance & Improvements",
+                            "labels": ["chore", "refactor", "perf", "docs", "style", "test", "ci", "build"]
+                          }
+                        ],
+                        "label_extractor": [
+                          {
+                            "pattern": "^([a-zA-Z]+)(\\([\\w\\-\\.]+\\))?(!)?: (.*)",
+                            "target": "$1"
+                          }
+                        ]
+                      }
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
