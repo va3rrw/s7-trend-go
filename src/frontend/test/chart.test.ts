@@ -282,7 +282,22 @@ describe('TrendChart', () => {
 
         trend.destroy();
     });
-});
 
+    it('clears ruler times when resuming the chart', () => {
+        const trend = new TrendChart(canvas, boolBand, timeAxis);
+
+        trend.setCursorsEnabled(true);
+        expect((trend as any).cursorA).not.toBeNull();
+        expect((trend as any).cursorB).not.toBeNull();
+
+        trend.setPaused(false);
+
+        expect((trend as any).cursorsEnabled).toBe(false);
+        expect((trend as any).cursorA).toBeNull();
+        expect((trend as any).cursorB).toBeNull();
+
+        trend.destroy();
+    });
+});
 
 

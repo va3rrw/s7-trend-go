@@ -461,10 +461,10 @@ export class TrendChart {
             this.pausedAnchorTime = null;
             this.viewOffsetSeconds = 0;
             this.timeWindowSeconds = this.baseTimeWindowSeconds;
-            if (this.cursorsEnabled) {
-                this.cursorsEnabled = false;
-                this.emitMeasurementUpdate();
-            }
+            this.cursorsEnabled = false;
+            this.cursorA = null;
+            this.cursorB = null;
+            this.emitMeasurementUpdate();
             this.onWindowChange?.(this.baseTimeWindowSeconds);
             this.render();
         }
