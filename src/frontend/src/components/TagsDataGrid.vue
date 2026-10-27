@@ -27,7 +27,6 @@
                 <colgroup>
                     <template v-for="group in 3" :key="`col-${group}`">
                         <col class="col-tag" />
-                        <col class="col-plc" />
                         <col class="col-value" />
                         <col class="col-min" />
                         <col class="col-max" />
@@ -40,12 +39,6 @@
                             <th class="col-tag col-text" @click="toggleSort('name')">
                                 {{ $t('grid.tag') }}
                                 <span v-if="sortKey === 'name'" class="sort-icon">
-                                    {{ sortAsc ? '▲' : '▼' }}
-                                </span>
-                            </th>
-                            <th class="col-plc col-text" @click="toggleSort('plcLink')">
-                                {{ $t('grid.plc') }}
-                                <span v-if="sortKey === 'plcLink'" class="sort-icon">
                                     {{ sortAsc ? '▲' : '▼' }}
                                 </span>
                             </th>
@@ -73,7 +66,7 @@
                 </thead>
                 <tbody>
                     <tr v-if="tripletTags.length === 0" class="empty-row">
-                        <td colspan="17" class="datagrid-empty">
+                        <td colspan="14" class="datagrid-empty">
                             {{ tags.length === 0 ? $t('grid.no_tags') : $t('grid.no_matching_tags') }}
                         </td>
                     </tr>
@@ -85,12 +78,6 @@
                                     :style="cellStyle(tag)"
                                     @dblclick="emit('editTag', tag)">
                                     {{ tag.name }}
-                                </td>
-                                <td
-                                    class="col-plc col-text"
-                                    :style="cellStyle(tag)"
-                                    @dblclick="emit('editTag', tag)">
-                                    {{ tag.plcLink }}
                                 </td>
                                 <td
                                     class="col-value col-numeric font-mono"
@@ -111,7 +98,7 @@
                                     {{ tagMax(tag.id) }}
                                 </td>
                             </template>
-                            <td v-else colspan="5" class="empty-cell" />
+                            <td v-else colspan="4" class="empty-cell" />
                             <td v-if="index < 2" class="col-divider" />
                         </template>
                     </tr>
@@ -136,7 +123,7 @@ const emit = defineEmits<{
     editTag: [tag: TagSettings];
 }>();
 
-type SortKey = 'name' | 'plcLink' | 'value' | 'min' | 'max';
+type SortKey = 'name' | 'value' | 'min' | 'max';
 
 interface TagTriplet {
     c1: TagSettings;
@@ -181,7 +168,6 @@ const sortedTags = computed(() => {
 
     return [...list].sort((a, b) => {
         if (key === 'name') return a.name.localeCompare(b.name) * direction;
-        if (key === 'plcLink') return a.plcLink.localeCompare(b.plcLink) * direction;
         if (key === 'value') {
             const valueA = parseFloat(props.liveValues[a.id] ?? '');
             const valueB = parseFloat(props.liveValues[b.id] ?? '');

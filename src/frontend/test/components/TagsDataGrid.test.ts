@@ -45,6 +45,8 @@ describe('TagsDataGrid.vue', () => {
 
         expect(wrapper.text()).toContain('Speed');
         expect(wrapper.text()).toContain('12.34');
+        expect(wrapper.find('th.col-plc').exists()).toBe(false);
+        expect(wrapper.find('td.col-plc').exists()).toBe(false);
 
         // Double click tag cell
         const cell = wrapper.findAll('td.col-text')[0];

@@ -524,20 +524,15 @@ select:focus {
   text-align: left;
 }
 
-.col-plc {
-  width: 18%;
-  text-align: left;
-}
-
 .col-value {
-  width: 18%;
+  width: 8%;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
 .col-min,
 .col-max {
-  width: 14%;
+  width: 7%;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
