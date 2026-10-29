@@ -120,9 +120,10 @@ func TestApp_HistoryMethods(t *testing.T) {
 	app.RecordSample("tag-1", 2000, 11.0)
 	app.RecordSample("tag-1", 3000, 12.5)
 	app.RecordSample("tag-2", 2000, 99.9)
+	app.Flush()
 
 	// Query range [1500, 2500]
-	res := app.GetHistoryRange([]string{"tag-1", "tag-2", "tag-3"}, 1500, 2500)
+	res := app.GetHistoryRange([]string{"tag-1", "tag-2", "tag-3"}, 1500, 2500, 0)
 	if len(res["tag-1"]) != 1 || res["tag-1"][0].Timestamp != 2000 {
 		t.Errorf("expected tag-1 to have 1 point at 2000, got %+v", res["tag-1"])
 	}
@@ -135,7 +136,7 @@ func TestApp_HistoryMethods(t *testing.T) {
 
 	// Clear history
 	app.ClearHistory()
-	resAfter := app.GetHistoryRange([]string{"tag-1"}, 0, 5000)
+	resAfter := app.GetHistoryRange([]string{"tag-1"}, 0, 5000, 0)
 	if len(resAfter["tag-1"]) != 0 {
 		t.Errorf("expected tag-1 to have 0 points after ClearHistory, got %+v", resAfter["tag-1"])
 	}

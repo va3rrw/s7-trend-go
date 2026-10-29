@@ -44,6 +44,7 @@ export interface BackendApi {
         tagIds: string[],
         startMs: number,
         endMs: number,
+        maxPoints: number,
     ): Promise<Record<string, Array<{ t: number; v: number }>>>;
     GetLastSettingsPath(): Promise<string>;
     GetSettings(): Promise<AppSettings>;

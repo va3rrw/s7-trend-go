@@ -30,8 +30,12 @@ export function ExportCSV(arg1) {
   return window['go']['backend']['App']['ExportCSV'](arg1);
 }
 
-export function GetHistoryRange(arg1, arg2, arg3) {
-  return window['go']['backend']['App']['GetHistoryRange'](arg1, arg2, arg3);
+export function Flush() {
+  return window['go']['backend']['App']['Flush']();
+}
+
+export function GetHistoryRange(arg1, arg2, arg3, arg4) {
+  return window['go']['backend']['App']['GetHistoryRange'](arg1, arg2, arg3, arg4);
 }
 
 export function GetLastSettingsPath() {

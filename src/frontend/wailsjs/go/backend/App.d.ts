@@ -16,7 +16,9 @@ export function EnableTray(arg1:Array<number>):Promise<void>;
 
 export function ExportCSV(arg1:string):Promise<void>;
 
-export function GetHistoryRange(arg1:Array<string>,arg2:number,arg3:number):Promise<Record<string, Array<backend.SamplePoint>>>;
+export function Flush():Promise<void>;
+
+export function GetHistoryRange(arg1:Array<string>,arg2:number,arg3:number,arg4:number):Promise<Record<string, Array<backend.SamplePoint>>>;
 
 export function GetLastSettingsPath():Promise<string>;
 

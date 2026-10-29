@@ -13,7 +13,6 @@ import {
 import {
     chooseXGridIntervals,
     isMajorTick,
-    mergePoints,
     getCanvasContext,
     computePlotLayout,
     renderCursorOverlay,
@@ -80,6 +79,47 @@ const cursorOverlayPlugin = {
     },
 };
 
+function findFirstIndex(points: Point[], target: number): number {
+    let low = 0;
+    let high = points.length - 1;
+    let result = points.length;
+    while (low <= high) {
+        const mid = (low + high) >> 1;
+        if (points[mid].timestamp >= target) {
+            result = mid;
+            high = mid - 1;
+        } else {
+            low = mid + 1;
+        }
+    }
+    return result;
+}
+
+function findLastIndex(points: Point[], target: number): number {
+    let low = 0;
+    let high = points.length - 1;
+    let result = -1;
+    while (low <= high) {
+        const mid = (low + high) >> 1;
+        if (points[mid].timestamp <= target) {
+            result = mid;
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+    return result;
+}
+
+function sliceSortedRange(points: Point[], start: number, end: number): Point[] {
+    if (points.length === 0 || start > end) return [];
+    if (points[0].timestamp > end || points[points.length - 1].timestamp < start) return [];
+    const low = findFirstIndex(points, start);
+    const high = findLastIndex(points, end);
+    if (low > high || low >= points.length || high < 0) return [];
+    return points.slice(low, high + 1);
+}
+
 export class TrendChart {
     private chart: Chart | null = null;
     private readonly canvas: HTMLCanvasElement | null;
@@ -90,6 +130,12 @@ export class TrendChart {
     private tags: ChartTag[] = [];
     private axes: ChartAxis[] = [];
     private history = new Map<string, Point[]>();
+    private fetchedHistory: {
+        start: number;
+        end: number;
+        data: Map<string, Point[]>;
+    } | null = null;
+    private lastRequestedRange: { start: number; end: number } | null = null;
     private axisRanges = new Map<string, { min: number; max: number }>();
     private baseTimeWindowSeconds: number = CHART_LIMITS.defaultTimeWindowSec;
     private timeWindowSeconds: number = CHART_LIMITS.defaultTimeWindowSec;
@@ -430,10 +476,16 @@ export class TrendChart {
         const oldAxes = JSON.stringify(this.axes);
         const newAxes = JSON.stringify(axes);
         if (oldAxes !== newAxes) this.axisRanges.clear();
+        const oldIds = this.tags.map((t) => t.id).sort().join(',');
         this.tags = tags
             .filter((tag) => tag.enabled !== false)
             .map((tag) => ({ ...tag }));
         this.axes = axes.map((axis) => ({ ...axis }));
+        const newIds = this.tags.map((t) => t.id).sort().join(',');
+        if (oldIds !== newIds) {
+            this.fetchedHistory = null;
+            this.lastRequestedRange = null;
+        }
         const ids = new Set(this.tags.map((tag) => tag.id));
         for (const id of this.history.keys())
             if (!ids.has(id)) this.history.delete(id);
@@ -507,6 +559,21 @@ export class TrendChart {
         const api = backend();
         if (!api?.GetHistoryRange) return;
 
+        if (this.fetchHistoryPending) return;
+
+        const span = Math.max(CHART_LIMITS.minFetchSpanMs, endMs - startMs);
+        const pad = span * CHART_LIMITS.historyFetchPadRatio;
+        const queryStart = Math.max(0, Math.round(startMs - pad));
+        const queryEnd = Math.round(endMs + pad);
+
+        if (
+            this.lastRequestedRange !== null &&
+            this.lastRequestedRange.start === queryStart &&
+            this.lastRequestedRange.end === queryEnd
+        ) {
+            return;
+        }
+
         if (this.fetchTimer !== null) {
             window.clearTimeout(this.fetchTimer);
         }
@@ -515,36 +582,46 @@ export class TrendChart {
             this.fetchTimer = null;
             if (this.fetchHistoryPending) return;
             this.fetchHistoryPending = true;
+            this.lastRequestedRange = { start: queryStart, end: queryEnd };
 
             try {
                 const tagIds = this.tags.map((t) => t.id);
                 if (tagIds.length === 0) return;
 
-                // Add 10% padding around start and end
-                const span = Math.max(CHART_LIMITS.minFetchSpanMs, endMs - startMs);
-                const pad = span * CHART_LIMITS.historyFetchPadRatio;
-                const queryStart = Math.max(0, Math.round(startMs - pad));
-                const queryEnd = Math.round(endMs + pad);
+                const plotWidthPx =
+                    this.chart?.chartArea?.width ||
+                    this.canvas?.clientWidth ||
+                    800;
+                const maxPoints = Math.max(500, Math.round(plotWidthPx * 2));
 
                 const res: Record<string, Array<{ t: number; v: number }>> =
-                    await api.GetHistoryRange(tagIds, queryStart, queryEnd);
+                    await api.GetHistoryRange(
+                        tagIds,
+                        queryStart,
+                        queryEnd,
+                        maxPoints,
+                    );
 
+                const dataMap = new Map<string, Point[]>();
                 if (res) {
                     for (const [tagId, pts] of Object.entries(res)) {
-                        if (Array.isArray(pts) && pts.length > 0) {
-                            const existing = this.history.get(tagId) ?? [];
-                            const fetched: Point[] = pts.map((p) => ({
-                                timestamp: p.t,
-                                value: p.v,
-                            }));
-                            this.history.set(
+                        if (Array.isArray(pts)) {
+                            dataMap.set(
                                 tagId,
-                                mergePoints(existing, fetched),
+                                pts.map((p) => ({
+                                    timestamp: p.t,
+                                    value: p.v,
+                                })),
                             );
                         }
                     }
-                    this.render();
                 }
+                this.fetchedHistory = {
+                    start: queryStart,
+                    end: queryEnd,
+                    data: dataMap,
+                };
+                this.render();
             } catch {
                 /* ignore fetch error */
             } finally {
@@ -595,6 +672,30 @@ export class TrendChart {
         this.onWindowChange = cb;
     }
 
+    public pointsForTag(id: string, start?: number, end?: number): Point[] {
+        const live = this.history.get(id) ?? [];
+        const fetched = this.fetchedHistory?.data.get(id) ?? [];
+
+        let effectiveFetched = fetched;
+        if (live.length > 0 && fetched.length > 0) {
+            const earliestLive = live[0].timestamp;
+            const splitIdx = findFirstIndex(fetched, earliestLive);
+            effectiveFetched = fetched.slice(0, splitIdx);
+        }
+
+        if (start === undefined || end === undefined) {
+            if (effectiveFetched.length === 0) return live;
+            if (live.length === 0) return effectiveFetched;
+            return effectiveFetched.concat(live);
+        }
+
+        const fetchedSlice = sliceSortedRange(effectiveFetched, start, end);
+        const liveSlice = sliceSortedRange(live, start, end);
+        if (fetchedSlice.length === 0) return liveSlice;
+        if (liveSlice.length === 0) return fetchedSlice;
+        return fetchedSlice.concat(liveSlice);
+    }
+
     public getMeasurements(): CursorMeasurement | null {
         if (
             !this.cursorsEnabled ||
@@ -607,8 +708,17 @@ export class TrendChart {
         const deltaTSec = deltaTMs / 1000;
         const tagStats: Record<string, TagStats> = {};
 
+        const anchor =
+            this.paused && this.pausedAnchorTime !== null
+                ? this.pausedAnchorTime
+                : this.latestTimestamp();
+        const winEnd = anchor + this.viewOffsetSeconds * 1000;
+        const winStart = winEnd - this.timeWindowSeconds * 1000;
+        const start = Math.min(winStart, this.cursorA, this.cursorB);
+        const end = Math.max(winEnd, this.cursorA, this.cursorB);
+
         for (const tag of this.tags) {
-            const points = this.history.get(tag.id) ?? [];
+            const points = this.pointsForTag(tag.id, start, end);
             tagStats[tag.id] = calculateTagStats(
                 points,
                 this.cursorA,
@@ -634,18 +744,27 @@ export class TrendChart {
     public drawCursorOverlay(chart: any) {
         const analogTags = this.tags.filter((t) => t.dataType !== 'Bool');
         const axes = this.getUsedAxes(analogTags);
+        const start =
+            chart.scales?.x?.min ??
+            this.latestTimestamp() - this.timeWindowSeconds * 1000;
+        const end = chart.scales?.x?.max ?? this.latestTimestamp();
+        const combinedHistory = {
+            get: (id: string) => this.pointsForTag(id, start, end),
+        } as Map<string, Point[]>;
         renderCursorOverlay(chart, {
             cursorsEnabled: this.cursorsEnabled,
             cursorA: this.cursorA,
             cursorB: this.cursorB,
             tags: this.tags,
             axes,
-            history: this.history,
+            history: combinedHistory,
         });
     }
 
     public clear() {
         this.history.clear();
+        this.fetchedHistory = null;
+        this.lastRequestedRange = null;
         this.axisRanges.clear();
         this.viewOffsetSeconds = 0;
         this.pausedAnchorTime = null;
@@ -679,7 +798,11 @@ export class TrendChart {
         this.renderPending = true;
         requestAnimationFrame(() => {
             this.renderPending = false;
-            this.doRender();
+            try {
+                this.doRender();
+            } catch (err) {
+                console.error(err);
+            }
         });
     }
 
@@ -700,8 +823,16 @@ export class TrendChart {
                 earliestInMemory = Math.min(earliestInMemory, pts[0].timestamp);
             }
         }
-        if (this.viewOffsetSeconds < 0 || start < earliestInMemory) {
-            this.scheduleHistoryFetch(start, end);
+        const needsHistory = this.viewOffsetSeconds < 0 || start < earliestInMemory;
+        if (needsHistory) {
+            const neededEnd = Math.min(end, earliestInMemory);
+            const isCovered =
+                this.fetchedHistory !== null &&
+                this.fetchedHistory.start <= start &&
+                this.fetchedHistory.end >= neededEnd;
+            if (!isCovered) {
+                this.scheduleHistoryFetch(start, end);
+            }
         }
 
         const analogTags = this.tags.filter((tag) => tag.dataType !== 'Bool');
@@ -711,9 +842,7 @@ export class TrendChart {
                 0,
                 axes.findIndex((axis) => axis.name === tag.yAxis),
             );
-            const points = (this.history.get(tag.id) ?? []).filter(
-                (point) => point.timestamp >= start && point.timestamp <= end,
-            );
+            const points = this.pointsForTag(tag.id, start, end);
             let tension = 0;
             let stepped: boolean | 'before' | 'after' | 'middle' = false;
             if (this.interpolationMode === 'Cubic') tension = 0.4;
@@ -759,6 +888,8 @@ export class TrendChart {
             const range = this.getAxisRange(
                 axis,
                 analogTags.filter((tag) => tag.yAxis === axis.name),
+                start,
+                end,
             );
             scales[`yAxis${index}`] = {
                 type: 'linear',
@@ -808,6 +939,14 @@ export class TrendChart {
                 if (ts > maxTs) maxTs = ts;
             }
         }
+        if (this.fetchedHistory) {
+            for (const points of this.fetchedHistory.data.values()) {
+                if (points.length > 0) {
+                    const ts = points[points.length - 1].timestamp;
+                    if (ts > maxTs) maxTs = ts;
+                }
+            }
+        }
         if (maxTs > 0) {
             return maxTs;
         }
@@ -832,25 +971,41 @@ export class TrendChart {
             : [{ name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true }];
     }
 
-    private getAxisRange(axis: ChartAxis, tags: ChartTag[]) {
+    private getAxisRange(
+        axis: ChartAxis,
+        tags: ChartTag[],
+        start?: number,
+        end?: number,
+    ) {
         let range = this.axisRanges.get(axis.name) ?? {
             min: axis.minimum,
             max: axis.maximum,
         };
         if (range.max <= range.min) range = { min: 0, max: 100 };
-        const values = tags.flatMap((tag) =>
-            (this.history.get(tag.id) ?? []).map((point) => point.value),
-        );
-        if (values.length > 0) {
+
+        let dataMin = Infinity;
+        let dataMax = -Infinity;
+        let hasPoints = false;
+
+        for (const tag of tags) {
+            const points = this.pointsForTag(tag.id, start, end);
+            if (!points) continue;
+            for (let i = 0; i < points.length; i++) {
+                const val = points[i].value;
+                if (!Number.isFinite(val)) continue;
+                if (val < dataMin) dataMin = val;
+                if (val > dataMax) dataMax = val;
+                hasPoints = true;
+            }
+        }
+
+        if (hasPoints) {
             const pad = Math.max(
                 CHART_LIMITS.yAxisMinPad,
-                (Math.max(...values) - Math.min(...values)) *
-                    CHART_LIMITS.yAxisPadRatio,
+                (dataMax - dataMin) * CHART_LIMITS.yAxisPadRatio,
             );
-            if (Math.min(...values) < range.min)
-                range.min = Math.min(...values) - pad;
-            if (Math.max(...values) > range.max)
-                range.max = Math.max(...values) + pad;
+            if (dataMin < range.min) range.min = dataMin - pad;
+            if (dataMax > range.max) range.max = dataMax + pad;
         }
         this.axisRanges.set(axis.name, range);
         return range;
@@ -880,12 +1035,15 @@ export class TrendChart {
         const ctx = getCanvasContext(this.boolCanvas, canvasW, totalHeight);
         if (!ctx) return;
 
+        const combinedHistory = {
+            get: (id: string) => this.pointsForTag(id, start, end),
+        } as Map<string, Point[]>;
         drawBooleanBand(ctx, {
             start,
             end,
             layout,
             boolTags: tags,
-            history: this.history,
+            history: combinedHistory,
             cursorsEnabled: this.cursorsEnabled,
             cursorA: this.cursorA,
             cursorB: this.cursorB,

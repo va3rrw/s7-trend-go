@@ -322,6 +322,7 @@ func (a *App) ExportCSV(title string) error {
 		return err
 	}
 	defer file.Close()
+	a.Flush()
 
 	bufWriter := bufio.NewWriterSize(file, 64*1024)
 	writer := csv.NewWriter(bufWriter)

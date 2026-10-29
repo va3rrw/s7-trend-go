@@ -337,6 +337,13 @@ func (a *App) CheckStatus(linkName string) bool {
 	return conn.IsConnected
 }
 
+// Flush waits for all queued history samples to be written to disk.
+func (a *App) Flush() {
+	if a.history != nil {
+		a.history.Flush()
+	}
+}
+
 // RecordSample persists a data point when the tag's configured storage
 // interval has elapsed. A zero tag interval follows the global poll interval.
 func (a *App) RecordSample(tagId string, timestampMs int64, value float64) {
@@ -351,37 +358,24 @@ func (a *App) RecordSample(tagId string, timestampMs int64, value float64) {
 			a.sampleMu.Unlock()
 			return
 		}
-		if _, initialized := a.lastBoolValue[tagId]; !initialized {
-			if latest, exists, err := a.history.Latest(tagId); err == nil && exists {
-				a.lastBoolValue[tagId] = latest.Value
-				if latest.Value == value {
-					a.sampleMu.Unlock()
-					return
-				}
-			}
-		}
+		a.lastBoolValue[tagId] = value
 	} else if last, exists := a.lastSampleAt[tagId]; exists && timestampMs < last+intervalMs {
 		a.sampleMu.Unlock()
 		return
+	} else {
+		a.lastSampleAt[tagId] = timestampMs
 	}
+	a.sampleMu.Unlock()
 
-	err := a.history.Insert(storedSample{
+	_ = a.history.Insert(storedSample{
 		TagID:     tagId,
 		Timestamp: timestampMs,
 		Value:     value,
 	})
-	if err == nil {
-		if a.isBoolTag(tagId) {
-			a.lastBoolValue[tagId] = value
-		} else {
-			a.lastSampleAt[tagId] = timestampMs
-		}
-	}
-	a.sampleMu.Unlock()
 }
 
 // GetHistoryRange returns sample points for requested tagIds within [startMs, endMs]
-func (a *App) GetHistoryRange(tagIds []string, startMs, endMs int64) map[string][]SamplePoint {
+func (a *App) GetHistoryRange(tagIds []string, startMs, endMs int64, maxPoints int) map[string][]SamplePoint {
 	if a.history == nil {
 		result := make(map[string][]SamplePoint, len(tagIds))
 		for _, tagId := range tagIds {
@@ -389,12 +383,13 @@ func (a *App) GetHistoryRange(tagIds []string, startMs, endMs int64) map[string]
 		}
 		return result
 	}
-	result, _ := a.history.GetRange(tagIds, startMs, endMs)
+	result, _ := a.history.GetRange(tagIds, startMs, endMs, maxPoints)
 	return result
 }
 
 // ClearHistory clears all recorded samples from the local history database.
 func (a *App) ClearHistory() {
+	a.Flush()
 	a.sampleMu.Lock()
 	defer a.sampleMu.Unlock()
 	if a.history != nil {

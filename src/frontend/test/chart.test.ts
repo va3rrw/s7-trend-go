@@ -298,6 +298,251 @@ describe('TrendChart', () => {
 
         trend.destroy();
     });
+
+    it('handles large datasets without call stack overflow in getAxisRange (regression)', () => {
+        const trend = new TrendChart(canvas, boolBand, timeAxis);
+        const tags = Array.from({ length: 12 }, (_, i) => ({
+            id: `tag-${i}`,
+            name: `Tag_${i}`,
+            color: '#38BDF8',
+            dataType: 'Real',
+            yAxis: 'Y-Axis 1',
+            enabled: true,
+        }));
+        const axis = { name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true };
+        trend.setTags(tags, [axis]);
+
+        const baseTime = 1000000;
+        // 12 tags x 15,000 points = 180,000 values (> 125,000 V8 call stack spread limit)
+        for (let j = 0; j < 15000; j++) {
+            const timeStr = new Date(baseTime + j * 200).toISOString();
+            for (let i = 0; i < 12; i++) {
+                // Ensure data exceeds default 0..100 bounds on both sides
+                trend.addDataPoint(`tag-${i}`, timeStr, (j % 50) * 3 - 25 + i);
+            }
+        }
+
+        let range: { min: number; max: number } | undefined;
+        expect(() => {
+            range = (trend as any).getAxisRange(axis, tags);
+        }).not.toThrow();
+
+        expect(range).toBeDefined();
+        // Min value is -25, max value is 49*3 - 25 + 11 = 133
+        // Both exceed 0..100, so range should cover the full data
+        expect(range!.min).toBeLessThanOrEqual(-25);
+        expect(range!.max).toBeGreaterThanOrEqual(133);
+
+        trend.destroy();
+    });
+
+    it('applies padding and expansion semantics correctly in getAxisRange', () => {
+        const trend = new TrendChart(canvas, boolBand, timeAxis);
+        const tags = [
+            {
+                id: 'tag-1',
+                name: 'Analog_1',
+                color: '#FF0000',
+                dataType: 'Real',
+                yAxis: 'Y-Axis 1',
+                enabled: true,
+            },
+        ];
+        const axis = { name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true };
+
+        // 1. With no points, returns initial range without modification
+        const emptyRange = (trend as any).getAxisRange(axis, tags);
+        expect(emptyRange).toEqual({ min: 0, max: 100 });
+
+        // 2. If range.max <= range.min, resets to { min: 0, max: 100 }
+        const invalidAxis = { name: 'Y-Axis 2', minimum: 50, maximum: 20, autoScale: true };
+        const resetRange = (trend as any).getAxisRange(invalidAxis, []);
+        expect(resetRange).toEqual({ min: 0, max: 100 });
+
+        // 3. Data within range does not expand range
+        trend.addDataPoint('tag-1', new Date(1000).toISOString(), 50);
+        const insideRange = (trend as any).getAxisRange(axis, tags);
+        expect(insideRange).toEqual({ min: 0, max: 100 });
+
+        // 4. Data exceeding range expands with padding = Math.max(0.001, (max-min)*0.08)
+        // Data range: [-50, 150], diff = 200, pad = 200 * 0.08 = 16
+        trend.addDataPoint('tag-1', new Date(2000).toISOString(), -50);
+        trend.addDataPoint('tag-1', new Date(3000).toISOString(), 150);
+        const expandedRange = (trend as any).getAxisRange(axis, tags);
+        expect(expandedRange.min).toBeCloseTo(-50 - 16, 5);
+        expect(expandedRange.max).toBeCloseTo(150 + 16, 5);
+
+        // 5. Non-finite values in history do not corrupt range calculation
+        (trend as any).history.get('tag-1').push({ timestamp: 4000, value: NaN });
+        (trend as any).history.get('tag-1').push({ timestamp: 5000, value: Infinity });
+        const safeRange = (trend as any).getAxisRange(axis, tags);
+        expect(Number.isFinite(safeRange.min)).toBe(true);
+        expect(Number.isFinite(safeRange.max)).toBe(true);
+
+        trend.destroy();
+    });
+
+    it('catches render errors inside requestAnimationFrame callback and keeps render loop alive', async () => {
+        const trend = new TrendChart(canvas, boolBand, timeAxis);
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        // Force doRender to throw on first call
+        let throwOnce = true;
+        vi.spyOn(trend as any, 'doRender').mockImplementation(() => {
+            if (throwOnce) {
+                throwOnce = false;
+                throw new Error('Simulated render explosion');
+            }
+        });
+
+        // Trigger render
+        (trend as any).render();
+
+        // Wait for rAF callback to execute
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        expect(consoleErrorSpy).toHaveBeenCalledWith(expect.any(Error));
+        // Verify renderPending is reset to false so subsequent renders can proceed
+        expect((trend as any).renderPending).toBe(false);
+
+        // Next render should succeed without throwing
+        expect(() => (trend as any).render()).not.toThrow();
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        consoleErrorSpy.mockRestore();
+        trend.destroy();
+    });
+
+    it('does not re-query GetHistoryRange after a fetch resolves for a range', async () => {
+        const getHistoryRangeMock = vi.fn().mockResolvedValue({
+            'tag-1': [
+                { t: 900000, v: 10 },
+                { t: 950000, v: 20 },
+            ],
+        });
+        (window as any).go.backend.App.GetHistoryRange = getHistoryRangeMock;
+
+        const trend = new TrendChart(canvas, boolBand, timeAxis);
+        const tags = [
+            {
+                id: 'tag-1',
+                name: 'T1',
+                color: '#FF0000',
+                dataType: 'Real',
+                yAxis: 'Y-Axis 1',
+                enabled: true,
+            },
+        ];
+        trend.setTags(tags, [{ name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true }]);
+
+        // Add a live point at 1,000,000
+        trend.addDataPoint('tag-1', new Date(1000000).toISOString(), 50);
+
+        // View extends before earliest live point -> needs history
+        (trend as any).viewOffsetSeconds = -10;
+        (trend as any).doRender();
+
+        await vi.waitFor(() => {
+            expect(getHistoryRangeMock).toHaveBeenCalledTimes(1);
+        });
+
+        // Re-render the same view range
+        (trend as any).doRender();
+        await new Promise((resolve) => setTimeout(resolve, 60));
+
+        // GetHistoryRange must NOT be called again
+        expect(getHistoryRangeMock).toHaveBeenCalledTimes(1);
+
+        trend.destroy();
+    });
+
+    it('zooms to 86400s with bounded backend data without throwing or freezing', async () => {
+        const mockData: Record<string, Array<{ t: number; v: number }>> = {};
+        for (let i = 0; i < 12; i++) {
+            mockData[`tag-${i}`] = Array.from({ length: 1000 }, (_, idx) => ({
+                t: 1000000 + idx * 80000,
+                v: idx % 100,
+            }));
+        }
+        (window as any).go.backend.App.GetHistoryRange = vi.fn().mockResolvedValue(mockData);
+
+        const trend = new TrendChart(canvas, boolBand, timeAxis);
+        const tags = Array.from({ length: 12 }, (_, i) => ({
+            id: `tag-${i}`,
+            name: `Tag_${i}`,
+            color: '#38BDF8',
+            dataType: 'Real',
+            yAxis: 'Y-Axis 1',
+            enabled: true,
+        }));
+        trend.setTags(tags, [{ name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true }]);
+
+        expect(() => {
+            trend.setWindow(86400);
+        }).not.toThrow();
+
+        await vi.waitFor(() => {
+            expect((trend as any).fetchedHistory).not.toBeNull();
+        });
+
+        expect(() => (trend as any).doRender()).not.toThrow();
+        trend.setCursorsEnabled(true);
+        expect(() => trend.getMeasurements()).not.toThrow();
+
+        trend.destroy();
+    });
+
+    it('does not inflate the live history buffer with fetched data', async () => {
+        const trend = new TrendChart(canvas, boolBand, timeAxis);
+        const tags = [
+            {
+                id: 'tag-1',
+                name: 'T1',
+                color: '#FF0000',
+                dataType: 'Real',
+                yAxis: 'Y-Axis 1',
+                enabled: true,
+            },
+        ];
+        trend.setTags(tags, [{ name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true }]);
+
+        // Add 3 live points
+        trend.addDataPoint('tag-1', new Date(1000000).toISOString(), 10);
+        trend.addDataPoint('tag-1', new Date(1001000).toISOString(), 20);
+        trend.addDataPoint('tag-1', new Date(1002000).toISOString(), 30);
+
+        const liveBefore = (trend as any).history.get('tag-1');
+        expect(liveBefore.length).toBe(3);
+
+        // Mock 500 older historical points
+        const olderPoints = Array.from({ length: 500 }, (_, idx) => ({
+            t: 500000 + idx * 1000,
+            v: idx,
+        }));
+        (window as any).go.backend.App.GetHistoryRange = vi.fn().mockResolvedValue({
+            'tag-1': olderPoints,
+        });
+
+        // Trigger history fetch by panning back
+        (trend as any).viewOffsetSeconds = -100;
+        (trend as any).doRender();
+
+        await vi.waitFor(() => {
+            expect((trend as any).fetchedHistory).not.toBeNull();
+        });
+
+        // Live buffer must remain at exactly 3 points
+        const liveAfter = (trend as any).history.get('tag-1');
+        expect(liveAfter.length).toBe(3);
+        expect(liveAfter[0].timestamp).toBe(1000000);
+        expect(liveAfter[2].timestamp).toBe(1002000);
+
+        // Combined points via pointsForTag includes both: 500 fetched + 3 live = 503 points
+        const combined = trend.pointsForTag('tag-1');
+        expect(combined.length).toBe(503);
+
+        trend.destroy();
+    });
 });
 
 
