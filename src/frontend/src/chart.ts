@@ -483,12 +483,18 @@ export class TrendChart {
         this.axes = axes.map((axis) => ({ ...axis }));
         const newIds = this.tags.map((t) => t.id).sort().join(',');
         if (oldIds !== newIds) {
+            this.fetchGeneration++;
             this.fetchedHistory = null;
             this.lastRequestedRange = null;
+            this.scheduledFetchRange = null;
+            if (this.fetchTimer !== null && typeof window !== 'undefined') {
+                window.clearTimeout(this.fetchTimer);
+                this.fetchTimer = null;
+            }
         }
-        const ids = new Set(this.tags.map((tag) => tag.id));
+        const allIds = new Set(tags.map((tag) => tag.id));
         for (const id of this.history.keys())
-            if (!ids.has(id)) this.history.delete(id);
+            if (!allIds.has(id)) this.history.delete(id);
         this.render();
     }
 
@@ -554,12 +560,28 @@ export class TrendChart {
 
     private fetchHistoryPending = false;
     private fetchTimer: number | null = null;
+    private scheduledFetchRange: { start: number; end: number } | null = null;
+    private fetchGeneration = 0;
 
-    private scheduleHistoryFetch(startMs: number, endMs: number) {
+    private scheduleHistoryFetch(
+        startMs: number,
+        endMs: number,
+        neededEndMs: number = endMs,
+    ) {
         const api = backend();
         if (!api?.GetHistoryRange) return;
 
         if (this.fetchHistoryPending) return;
+
+        const effectiveStart = Math.max(0, startMs);
+        if (
+            this.fetchTimer !== null &&
+            this.scheduledFetchRange !== null &&
+            this.scheduledFetchRange.start <= effectiveStart &&
+            this.scheduledFetchRange.end >= neededEndMs
+        ) {
+            return;
+        }
 
         const span = Math.max(CHART_LIMITS.minFetchSpanMs, endMs - startMs);
         const pad = span * CHART_LIMITS.historyFetchPadRatio;
@@ -578,12 +600,19 @@ export class TrendChart {
             window.clearTimeout(this.fetchTimer);
         }
 
+        this.scheduledFetchRange = { start: queryStart, end: queryEnd };
+        const generation = this.fetchGeneration;
+
         this.fetchTimer = window.setTimeout(async () => {
             this.fetchTimer = null;
-            if (this.fetchHistoryPending) return;
+            this.scheduledFetchRange = null;
+            if (this.fetchHistoryPending || generation !== this.fetchGeneration) {
+                return;
+            }
             this.fetchHistoryPending = true;
             this.lastRequestedRange = { start: queryStart, end: queryEnd };
 
+            let retryRender = false;
             try {
                 const tagIds = this.tags.map((t) => t.id);
                 if (tagIds.length === 0) return;
@@ -601,6 +630,11 @@ export class TrendChart {
                         queryEnd,
                         maxPoints,
                     );
+
+                if (generation !== this.fetchGeneration) {
+                    retryRender = true;
+                    return;
+                }
 
                 const dataMap = new Map<string, Point[]>();
                 if (res) {
@@ -626,6 +660,9 @@ export class TrendChart {
                 /* ignore fetch error */
             } finally {
                 this.fetchHistoryPending = false;
+                if (retryRender && this.chart) {
+                    this.render();
+                }
             }
         }, CHART_LIMITS.historyFetchDebounceMs);
     }
@@ -763,8 +800,10 @@ export class TrendChart {
 
     public clear() {
         this.history.clear();
+        this.fetchGeneration++;
         this.fetchedHistory = null;
         this.lastRequestedRange = null;
+        this.scheduledFetchRange = null;
         this.axisRanges.clear();
         this.viewOffsetSeconds = 0;
         this.pausedAnchorTime = null;
@@ -780,6 +819,8 @@ export class TrendChart {
     }
 
     public destroy() {
+        this.fetchGeneration++;
+        this.scheduledFetchRange = null;
         if (this.fetchTimer !== null && typeof window !== 'undefined') {
             window.clearTimeout(this.fetchTimer);
             this.fetchTimer = null;
@@ -815,23 +856,26 @@ export class TrendChart {
         const end = anchor + this.viewOffsetSeconds * 1000;
         const start = end - this.timeWindowSeconds * 1000;
 
-        // If panning or zooming into history beyond in-memory buffer, fetch from backend
-        let earliestInMemory = Infinity;
+        // If panning or zooming into history beyond any tag's in-memory buffer, fetch from backend
+        const effectiveStart = Math.max(0, start);
+        let needsHistory = false;
+        let neededEnd = -Infinity;
         for (const tag of this.tags) {
             const pts = this.history.get(tag.id);
-            if (pts && pts.length > 0) {
-                earliestInMemory = Math.min(earliestInMemory, pts[0].timestamp);
+            const tagEarliest =
+                pts && pts.length > 0 ? pts[0].timestamp : Infinity;
+            if (effectiveStart < tagEarliest) {
+                needsHistory = true;
+                neededEnd = Math.max(neededEnd, Math.min(end, tagEarliest));
             }
         }
-        const needsHistory = this.viewOffsetSeconds < 0 || start < earliestInMemory;
         if (needsHistory) {
-            const neededEnd = Math.min(end, earliestInMemory);
             const isCovered =
                 this.fetchedHistory !== null &&
-                this.fetchedHistory.start <= start &&
+                this.fetchedHistory.start <= effectiveStart &&
                 this.fetchedHistory.end >= neededEnd;
             if (!isCovered) {
-                this.scheduleHistoryFetch(start, end);
+                this.scheduleHistoryFetch(start, end, neededEnd);
             }
         }
 

@@ -543,6 +543,284 @@ describe('TrendChart', () => {
 
         trend.destroy();
     });
+
+    it('preserves history when disabling an analog tag and restores its line on re-enable', () => {
+        const trend = new TrendChart(canvas, boolBand, timeAxis);
+        const tag1 = {
+            id: 'tag-1',
+            name: 'Analog_1',
+            color: '#FF0000',
+            dataType: 'Real',
+            yAxis: 'Y-Axis 1',
+            enabled: true,
+        };
+        const tag2 = {
+            id: 'tag-2',
+            name: 'Analog_2',
+            color: '#00FF00',
+            dataType: 'Real',
+            yAxis: 'Y-Axis 1',
+            enabled: true,
+        };
+        const axes = [
+            { name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true },
+        ];
+
+        trend.setTags([tag1, tag2], axes);
+        trend.addDataPoint('tag-1', new Date(1000000).toISOString(), 10);
+        trend.addDataPoint('tag-2', new Date(1000000).toISOString(), 20);
+        trend.addDataPoint('tag-1', new Date(1001000).toISOString(), 11);
+        trend.addDataPoint('tag-2', new Date(1001000).toISOString(), 21);
+        trend.addDataPoint('tag-1', new Date(1002000).toISOString(), 12);
+        trend.addDataPoint('tag-2', new Date(1002000).toISOString(), 22);
+
+        (trend as any).doRender();
+        expect((trend as any).chart.data.datasets.length).toBe(2);
+
+        // Disable tag-1; its line disappears, but its history is preserved
+        trend.setTags([{ ...tag1, enabled: false }, tag2], axes);
+        (trend as any).doRender();
+        expect((trend as any).chart.data.datasets.map((d: any) => d.label)).toEqual([
+            'Analog_2',
+        ]);
+        expect((trend as any).history.get('tag-1')?.length).toBe(3);
+
+        // New points arrive for tag-2 while tag-1 is disabled
+        trend.addDataPoint('tag-2', new Date(1003000).toISOString(), 23);
+        trend.addDataPoint('tag-2', new Date(1004000).toISOString(), 24);
+
+        // Re-enable tag-1 and plot a new point for it
+        trend.setTags([{ ...tag1, enabled: true }, tag2], axes);
+        trend.addDataPoint('tag-1', new Date(1005000).toISOString(), 15);
+        (trend as any).doRender();
+
+        const datasets = (trend as any).chart.data.datasets;
+        expect(datasets.map((d: any) => d.label)).toEqual(['Analog_1', 'Analog_2']);
+        expect(datasets[0].data).toEqual([
+            { x: 1000000, y: 10 },
+            { x: 1001000, y: 11 },
+            { x: 1002000, y: 12 },
+            { x: 1005000, y: 15 },
+        ]);
+
+        trend.destroy();
+    });
+
+    it('deletes history when a tag is removed from tags list', () => {
+        const trend = new TrendChart(canvas, boolBand, timeAxis);
+        const tag1 = {
+            id: 'tag-1',
+            name: 'Analog_1',
+            color: '#FF0000',
+            dataType: 'Real',
+            yAxis: 'Y-Axis 1',
+            enabled: true,
+        };
+        const tag2 = {
+            id: 'tag-2',
+            name: 'Analog_2',
+            color: '#00FF00',
+            dataType: 'Real',
+            yAxis: 'Y-Axis 1',
+            enabled: true,
+        };
+        const axes = [
+            { name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true },
+        ];
+
+        trend.setTags([tag1, tag2], axes);
+        trend.addDataPoint('tag-1', new Date(1000000).toISOString(), 10);
+        trend.addDataPoint('tag-2', new Date(1000000).toISOString(), 20);
+
+        // Removing tag-1 entirely (not just disabling) should prune its history
+        trend.setTags([tag2], axes);
+        expect((trend as any).history.has('tag-1')).toBe(false);
+        expect((trend as any).history.has('tag-2')).toBe(true);
+
+        trend.destroy();
+    });
+
+    it('fetches backend history for a newly enabled tag even when another enabled tag covers window start', async () => {
+        const getHistoryRangeMock = vi.fn().mockResolvedValue({
+            'tag-1': [
+                { t: 985000, v: 31 },
+                { t: 990000, v: 32 },
+            ],
+            'tag-2': [],
+        });
+        (window as any).go.backend.App.GetHistoryRange = getHistoryRangeMock;
+
+        const trend = new TrendChart(canvas, boolBand, timeAxis);
+        const tag1 = {
+            id: 'tag-1',
+            name: 'Analog_1',
+            color: '#FF0000',
+            dataType: 'Real',
+            yAxis: 'Y-Axis 1',
+            enabled: false,
+        };
+        const tag2 = {
+            id: 'tag-2',
+            name: 'Analog_2',
+            color: '#00FF00',
+            dataType: 'Real',
+            yAxis: 'Y-Axis 1',
+            enabled: true,
+        };
+        const axes = [
+            { name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true },
+        ];
+
+        trend.setTags([tag1, tag2], axes);
+        // tag-2 covers [940000..1010000], so its earliest point precedes window start (950000)
+        trend.addDataPoint('tag-2', new Date(940000).toISOString(), 5);
+        trend.addDataPoint('tag-2', new Date(1010000).toISOString(), 6);
+
+        // Enable tag-1 (no in-memory points yet) and stream one new live point
+        trend.setTags([{ ...tag1, enabled: true }, tag2], axes);
+        trend.addDataPoint('tag-1', new Date(1010500).toISOString(), 35);
+        (trend as any).doRender();
+
+        await vi.waitFor(() => {
+            expect(getHistoryRangeMock).toHaveBeenCalled();
+            expect((trend as any).fetchedHistory).not.toBeNull();
+        });
+
+        (trend as any).doRender();
+        const analog1Dataset = (trend as any).chart.data.datasets.find(
+            (d: any) => d.label === 'Analog_1',
+        );
+        expect(analog1Dataset.data).toEqual([
+            { x: 985000, y: 31 },
+            { x: 990000, y: 32 },
+            { x: 1010500, y: 35 },
+        ]);
+
+        trend.destroy();
+    });
+
+    it('does not starve a scheduled GetHistoryRange fetch during fast live updates', async () => {
+        vi.useFakeTimers();
+        try {
+            const getHistoryRangeMock = vi.fn().mockResolvedValue({
+                'tag-1': [{ t: 970000, v: 42 }],
+                'tag-2': [],
+            });
+            (window as any).go.backend.App.GetHistoryRange = getHistoryRangeMock;
+
+            const trend = new TrendChart(canvas, boolBand, timeAxis);
+            const tag1 = {
+                id: 'tag-1',
+                name: 'Analog_1',
+                color: '#FF0000',
+                dataType: 'Real',
+                yAxis: 'Y-Axis 1',
+                enabled: true,
+            };
+            const tag2 = {
+                id: 'tag-2',
+                name: 'Analog_2',
+                color: '#00FF00',
+                dataType: 'Real',
+                yAxis: 'Y-Axis 1',
+                enabled: true,
+            };
+            const axes = [
+                { name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true },
+            ];
+
+            trend.setTags([tag1, tag2], axes);
+            trend.addDataPoint('tag-2', new Date(900000).toISOString(), 1);
+            trend.addDataPoint('tag-2', new Date(1000000).toISOString(), 2);
+
+            (trend as any).doRender();
+            expect(getHistoryRangeMock).not.toHaveBeenCalled();
+
+            // Simulate fast live updates every 20ms (< 40ms debounce)
+            await vi.advanceTimersByTimeAsync(20);
+            trend.addDataPoint('tag-2', new Date(1000020).toISOString(), 3);
+            (trend as any).doRender();
+
+            await vi.advanceTimersByTimeAsync(25);
+            expect(getHistoryRangeMock).toHaveBeenCalledTimes(1);
+
+            trend.destroy();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('ignores stale in-flight GetHistoryRange response after enabled tags change and refetches', async () => {
+        vi.useFakeTimers();
+        try {
+            let resolveFirst!: (val: Record<string, Array<{ t: number; v: number }>>) => void;
+            const firstPromise = new Promise<Record<string, Array<{ t: number; v: number }>>>(
+                (resolve) => {
+                    resolveFirst = resolve;
+                },
+            );
+
+            const getHistoryRangeMock = vi
+                .fn()
+                .mockReturnValueOnce(firstPromise)
+                .mockResolvedValueOnce({
+                    'tag-1': [{ t: 980000, v: 11 }],
+                    'tag-2': [{ t: 990000, v: 88 }],
+                });
+            (window as any).go.backend.App.GetHistoryRange = getHistoryRangeMock;
+
+            const trend = new TrendChart(canvas, boolBand, timeAxis);
+            const tag1 = {
+                id: 'tag-1',
+                name: 'Analog_1',
+                color: '#FF0000',
+                dataType: 'Real',
+                yAxis: 'Y-Axis 1',
+                enabled: true,
+            };
+            const tag2 = {
+                id: 'tag-2',
+                name: 'Analog_2',
+                color: '#00FF00',
+                dataType: 'Real',
+                yAxis: 'Y-Axis 1',
+                enabled: false,
+            };
+            const axes = [
+                { name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true },
+            ];
+
+            trend.setTags([tag1, tag2], axes);
+            trend.addDataPoint('tag-1', new Date(1000000).toISOString(), 10);
+            (trend as any).doRender();
+
+            // Advance past debounce to start first in-flight fetch (for tag-1 only)
+            await vi.advanceTimersByTimeAsync(50);
+            expect(getHistoryRangeMock).toHaveBeenCalledTimes(1);
+            expect(getHistoryRangeMock.mock.calls[0][0]).toEqual(['tag-1']);
+
+            // While first request is still in-flight, enable tag-2
+            trend.setTags([tag1, { ...tag2, enabled: true }], axes);
+
+            // Resolve stale first response; must be ignored and trigger fresh fetch
+            resolveFirst({ 'tag-1': [{ t: 980000, v: 11 }] });
+            await Promise.resolve();
+            await Promise.resolve();
+
+            // Advance rAF + debounce for the retry fetch
+            await vi.advanceTimersByTimeAsync(100);
+
+            expect(getHistoryRangeMock).toHaveBeenCalledTimes(2);
+            expect(getHistoryRangeMock.mock.calls[1][0]).toEqual(['tag-1', 'tag-2']);
+            expect((trend as any).fetchedHistory?.data.get('tag-2')).toEqual([
+                { timestamp: 990000, value: 88 },
+            ]);
+
+            trend.destroy();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });
 
 

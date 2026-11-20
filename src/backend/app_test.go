@@ -142,6 +142,18 @@ func TestApp_HistoryMethods(t *testing.T) {
 	}
 }
 
+func TestApp_GetHistoryRangeFlushesPendingSamples(t *testing.T) {
+	app := NewAppWithHistoryPath(filepath.Join(t.TempDir(), "history.db"))
+	defer app.Shutdown(context.Background())
+
+	app.RecordSample("tag-1", 1000, 42.5)
+
+	res := app.GetHistoryRange([]string{"tag-1"}, 0, 2000, 0)
+	if len(res["tag-1"]) != 1 || res["tag-1"][0].Timestamp != 1000 || res["tag-1"][0].Value != 42.5 {
+		t.Fatalf("expected GetHistoryRange to flush and return pending sample immediately, got %+v", res["tag-1"])
+	}
+}
+
 func TestGetDefaultSettingsDir(t *testing.T) {
 	dir := getDefaultSettingsDir()
 	if dir == "" {

@@ -383,6 +383,7 @@ func (a *App) GetHistoryRange(tagIds []string, startMs, endMs int64, maxPoints i
 		}
 		return result
 	}
+	a.Flush()
 	result, _ := a.history.GetRange(tagIds, startMs, endMs, maxPoints)
 	return result
 }
