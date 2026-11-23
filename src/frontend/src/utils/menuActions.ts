@@ -1,4 +1,5 @@
 import { state, backend, resetStats } from '../store';
+import type { AppSettings } from '../types';
 import { saveSettingsAndRestart } from './sampling';
 
 export type TranslateFn = (key: string, args?: any[]) => string;
@@ -15,29 +16,36 @@ export interface ChartClearable {
     clear(): void;
 }
 
+/**
+ * Apply loaded settings object to reactive application state and reset tag stats.
+ */
+export function applyLoadedSettings(loaded: AppSettings): void {
+    resetStats();
+    if (loaded.pollIntervalMs) {
+        state.settings.pollIntervalMs = loaded.pollIntervalMs;
+    }
+    if (loaded.timeWindowSeconds) {
+        state.settings.timeWindowSeconds = loaded.timeWindowSeconds;
+    }
+    if (loaded.interpolation) {
+        state.settings.interpolation = loaded.interpolation;
+    }
+    if (loaded.plcLinks?.length) {
+        state.settings.plcLinks = loaded.plcLinks;
+    }
+    state.settings.tags = loaded.tags ?? [];
+    if (loaded.yAxes?.length) {
+        state.settings.yAxes = loaded.yAxes;
+    }
+}
+
 export async function menuLoadSettings(t: TranslateFn): Promise<void> {
     try {
         const loaded = await backend()?.LoadSettingsFile(
             t('menu.load_settings'),
         );
         if (loaded) {
-            resetStats();
-            if (loaded.pollIntervalMs) {
-                state.settings.pollIntervalMs = loaded.pollIntervalMs;
-            }
-            if (loaded.timeWindowSeconds) {
-                state.settings.timeWindowSeconds = loaded.timeWindowSeconds;
-            }
-            if (loaded.interpolation) {
-                state.settings.interpolation = loaded.interpolation;
-            }
-            if (loaded.plcLinks?.length) {
-                state.settings.plcLinks = loaded.plcLinks;
-            }
-            state.settings.tags = loaded.tags ?? [];
-            if (loaded.yAxes?.length) {
-                state.settings.yAxes = loaded.yAxes;
-            }
+            applyLoadedSettings(loaded);
             await saveSettingsAndRestart();
             state.statusMessage = t('status.loaded_settings');
         }

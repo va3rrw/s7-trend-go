@@ -19,7 +19,7 @@ import {
     drawBooleanBand,
     drawTimeAxis,
 } from './canvasHelpers';
-import { backend } from './store';
+import { backend, type MaybeCancellablePromise } from './store';
 
 export interface ChartTag {
     id: string;
@@ -491,6 +491,7 @@ export class TrendChart {
                 window.clearTimeout(this.fetchTimer);
                 this.fetchTimer = null;
             }
+            this.cancelActiveHistoryRequest();
         }
         const allIds = new Set(tags.map((tag) => tag.id));
         for (const id of this.history.keys())
@@ -561,7 +562,28 @@ export class TrendChart {
     private fetchHistoryPending = false;
     private fetchTimer: number | null = null;
     private scheduledFetchRange: { start: number; end: number } | null = null;
+    private activeFetchRange: { start: number; end: number } | null = null;
+    private activeHistoryRequest: MaybeCancellablePromise<
+        Record<string, Array<{ t: number; v: number }>>
+    > | null = null;
     private fetchGeneration = 0;
+
+    private cancelActiveHistoryRequest(resetLastRequested: boolean = false) {
+        const req = this.activeHistoryRequest;
+        this.activeHistoryRequest = null;
+        this.activeFetchRange = null;
+        this.fetchHistoryPending = false;
+        if (resetLastRequested) {
+            this.lastRequestedRange = null;
+        }
+        if (req && typeof req.cancel === 'function') {
+            try {
+                void req.cancel('superseded');
+            } catch {
+                /* ignore cancel error */
+            }
+        }
+    }
 
     private scheduleHistoryFetch(
         startMs: number,
@@ -571,9 +593,15 @@ export class TrendChart {
         const api = backend();
         if (!api?.GetHistoryRange) return;
 
-        if (this.fetchHistoryPending) return;
-
         const effectiveStart = Math.max(0, startMs);
+        if (
+            this.activeFetchRange !== null &&
+            this.activeFetchRange.start <= effectiveStart &&
+            this.activeFetchRange.end >= neededEndMs
+        ) {
+            return;
+        }
+
         if (
             this.fetchTimer !== null &&
             this.scheduledFetchRange !== null &&
@@ -598,6 +626,12 @@ export class TrendChart {
 
         if (this.fetchTimer !== null) {
             window.clearTimeout(this.fetchTimer);
+            this.fetchTimer = null;
+        }
+
+        if (this.activeHistoryRequest !== null || this.fetchHistoryPending) {
+            this.fetchGeneration++;
+            this.cancelActiveHistoryRequest(true);
         }
 
         this.scheduledFetchRange = { start: queryStart, end: queryEnd };
@@ -609,27 +643,30 @@ export class TrendChart {
             if (this.fetchHistoryPending || generation !== this.fetchGeneration) {
                 return;
             }
+            const tagIds = this.tags.map((t) => t.id);
+            if (tagIds.length === 0) return;
+
+            const plotWidthPx =
+                this.chart?.chartArea?.width ||
+                this.canvas?.clientWidth ||
+                800;
+            const maxPoints = Math.max(500, Math.round(plotWidthPx * 2));
+
             this.fetchHistoryPending = true;
+            this.activeFetchRange = { start: queryStart, end: queryEnd };
             this.lastRequestedRange = { start: queryStart, end: queryEnd };
+
+            const request = api.GetHistoryRange(
+                tagIds,
+                queryStart,
+                queryEnd,
+                maxPoints,
+            );
+            this.activeHistoryRequest = request;
 
             let retryRender = false;
             try {
-                const tagIds = this.tags.map((t) => t.id);
-                if (tagIds.length === 0) return;
-
-                const plotWidthPx =
-                    this.chart?.chartArea?.width ||
-                    this.canvas?.clientWidth ||
-                    800;
-                const maxPoints = Math.max(500, Math.round(plotWidthPx * 2));
-
-                const res: Record<string, Array<{ t: number; v: number }>> =
-                    await api.GetHistoryRange(
-                        tagIds,
-                        queryStart,
-                        queryEnd,
-                        maxPoints,
-                    );
+                const res = await request;
 
                 if (generation !== this.fetchGeneration) {
                     retryRender = true;
@@ -657,9 +694,13 @@ export class TrendChart {
                 };
                 this.render();
             } catch {
-                /* ignore fetch error */
+                /* ignore fetch/cancel error */
             } finally {
-                this.fetchHistoryPending = false;
+                if (this.activeHistoryRequest === request) {
+                    this.activeHistoryRequest = null;
+                    this.activeFetchRange = null;
+                    this.fetchHistoryPending = false;
+                }
                 if (retryRender && this.chart) {
                     this.render();
                 }
@@ -813,6 +854,7 @@ export class TrendChart {
             window.clearTimeout(this.fetchTimer);
             this.fetchTimer = null;
         }
+        this.cancelActiveHistoryRequest(true);
         backend()?.ClearHistory?.();
         this.render();
         this.emitMeasurementUpdate();
@@ -825,6 +867,7 @@ export class TrendChart {
             window.clearTimeout(this.fetchTimer);
             this.fetchTimer = null;
         }
+        this.cancelActiveHistoryRequest(true);
         this.resizeObserver?.disconnect();
         this.resizeObserver = null;
         if (typeof window !== 'undefined') {

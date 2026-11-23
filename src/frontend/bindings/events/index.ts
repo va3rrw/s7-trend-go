@@ -14,12 +14,17 @@ import "../github.com/wailsapp/wails/v3/internal/eventcreate.js";
 export const AppRequestExit = "app:request-exit";
 
 /**
- * Name of the custom event "poll_timing".
+ * Name of the custom event "app:sampling-state".
  */
-export const PollTiming = "poll_timing";
+export const AppSamplingState = "app:sampling-state";
 
 /**
- * Name of the custom event "poll_update".
+ * Name of the custom event "settings:load-error".
  */
-export const PollUpdate = "poll_update";
+export const SettingsLoadError = "settings:load-error";
+
+/**
+ * Name of the custom event "settings:loaded".
+ */
+export const SettingsLoaded = "settings:loaded";
 

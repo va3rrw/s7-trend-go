@@ -53,7 +53,9 @@ export function Flush(): $CancellablePromise<void> {
 }
 
 /**
- * GetHistoryRange returns sample points for requested tagIds within [startMs, endMs]
+ * GetHistoryRange returns sample points for requested tagIds within [startMs, endMs].
+ * Wails v3 binds the context parameter to the frontend CancellablePromise so
+ * panning, zooming, or clear operations cancel superseded queries cleanly.
  */
 export function GetHistoryRange(tagIds: string[] | null, startMs: number, endMs: number, maxPoints: number): $CancellablePromise<{ [_ in string]?: $models.SamplePoint[] | null } | null> {
     return $Call.ByID(1635721451, tagIds, startMs, endMs, maxPoints);
@@ -96,6 +98,13 @@ export function GetVersion(): $CancellablePromise<string> {
  */
 export function HasSettingsChanged(): $CancellablePromise<boolean> {
     return $Call.ByID(3422252181);
+}
+
+/**
+ * IsPolling reports whether PLC polling is currently active.
+ */
+export function IsPolling(): $CancellablePromise<boolean> {
+    return $Call.ByID(1405823913);
 }
 
 export function LoadSettingsFile(title: string): $CancellablePromise<$models.AppSettings | null> {

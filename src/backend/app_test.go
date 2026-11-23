@@ -1,41 +1,97 @@
 package backend
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
+type trayStatusUpdate struct {
+	isSampling    bool
+	connectedPlcs int
+	totalPlcs     int
+}
+
+type toastNotification struct {
+	title string
+	body  string
+}
+
 type mockDesktopHost struct {
-	emittedEvents []string
-	quitCalled    bool
-	showCalled    bool
-	hideCalled    bool
-	bounds        struct {
+	mu              sync.Mutex
+	emittedEvents   []string
+	emittedPayloads []any
+	trayUpdates     []trayStatusUpdate
+	notifications   []toastNotification
+	quitCalled      bool
+	showCalled      bool
+	hideCalled      bool
+	bounds          struct {
 		w, h, x, y int
 		ok         bool
 	}
 }
 
-func (m *mockDesktopHost) EmitEvent(name string, _ ...any) {
+func (m *mockDesktopHost) EmitEvent(name string, data ...any) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.emittedEvents = append(m.emittedEvents, name)
+	if len(data) > 0 {
+		m.emittedPayloads = append(m.emittedPayloads, data[0])
+	} else {
+		m.emittedPayloads = append(m.emittedPayloads, nil)
+	}
 }
-func (m *mockDesktopHost) Quit()       { m.quitCalled = true }
-func (m *mockDesktopHost) ShowWindow() { m.showCalled = true }
-func (m *mockDesktopHost) HideWindow() { m.hideCalled = true }
+func (m *mockDesktopHost) Quit() {
+	m.mu.Lock()
+	m.quitCalled = true
+	m.mu.Unlock()
+}
+func (m *mockDesktopHost) ShowWindow() {
+	m.mu.Lock()
+	m.showCalled = true
+	m.mu.Unlock()
+}
+func (m *mockDesktopHost) HideWindow() {
+	m.mu.Lock()
+	m.hideCalled = true
+	m.mu.Unlock()
+}
 func (m *mockDesktopHost) GetWindowBounds() (int, int, int, int, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.bounds.w, m.bounds.h, m.bounds.x, m.bounds.y, m.bounds.ok
 }
-func (m *mockDesktopHost) SetWindowBounds(int, int, int, int, bool)            {}
+func (m *mockDesktopHost) SetWindowBounds(int, int, int, int, bool) {}
 func (m *mockDesktopHost) OpenFileDialog(string, string, string, string) (string, error) {
 	return "", nil
 }
 func (m *mockDesktopHost) SaveFileDialog(string, string, string, string, string) (string, error) {
 	return "", nil
+}
+func (m *mockDesktopHost) UpdateTrayStatus(isSampling bool, connectedPlcs, totalPlcs int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.trayUpdates = append(m.trayUpdates, trayStatusUpdate{
+		isSampling:    isSampling,
+		connectedPlcs: connectedPlcs,
+		totalPlcs:     totalPlcs,
+	})
+}
+func (m *mockDesktopHost) Notify(title, body string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.notifications = append(m.notifications, toastNotification{
+		title: title,
+		body:  body,
+	})
 }
 
 func TestNewApp(t *testing.T) {
@@ -155,7 +211,10 @@ func TestApp_HistoryMethods(t *testing.T) {
 	app.Flush()
 
 	// Query range [1500, 2500]
-	res := app.GetHistoryRange([]string{"tag-1", "tag-2", "tag-3"}, 1500, 2500, 0)
+	res, err := app.GetHistoryRange(context.Background(), []string{"tag-1", "tag-2", "tag-3"}, 1500, 2500, 0)
+	if err != nil {
+		t.Fatalf("unexpected GetHistoryRange error: %v", err)
+	}
 	if len(res["tag-1"]) != 1 || res["tag-1"][0].Timestamp != 2000 {
 		t.Errorf("expected tag-1 to have 1 point at 2000, got %+v", res["tag-1"])
 	}
@@ -168,7 +227,10 @@ func TestApp_HistoryMethods(t *testing.T) {
 
 	// Clear history
 	app.ClearHistory()
-	resAfter := app.GetHistoryRange([]string{"tag-1"}, 0, 5000, 0)
+	resAfter, err := app.GetHistoryRange(context.Background(), []string{"tag-1"}, 0, 5000, 0)
+	if err != nil {
+		t.Fatalf("unexpected GetHistoryRange error after ClearHistory: %v", err)
+	}
 	if len(resAfter["tag-1"]) != 0 {
 		t.Errorf("expected tag-1 to have 0 points after ClearHistory, got %+v", resAfter["tag-1"])
 	}
@@ -180,9 +242,27 @@ func TestApp_GetHistoryRangeFlushesPendingSamples(t *testing.T) {
 
 	app.RecordSample("tag-1", 1000, 42.5)
 
-	res := app.GetHistoryRange([]string{"tag-1"}, 0, 2000, 0)
+	res, err := app.GetHistoryRange(context.Background(), []string{"tag-1"}, 0, 2000, 0)
+	if err != nil {
+		t.Fatalf("unexpected GetHistoryRange error: %v", err)
+	}
 	if len(res["tag-1"]) != 1 || res["tag-1"][0].Timestamp != 1000 || res["tag-1"][0].Value != 42.5 {
 		t.Fatalf("expected GetHistoryRange to flush and return pending sample immediately, got %+v", res["tag-1"])
+	}
+}
+
+func TestApp_GetHistoryRangeCancelledContext(t *testing.T) {
+	app := NewAppWithHistoryPath(filepath.Join(t.TempDir(), "history.db"))
+	defer func() { _ = app.ServiceShutdown() }()
+
+	app.RecordSample("tag-1", 1000, 42.5)
+	app.Flush()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if _, err := app.GetHistoryRange(ctx, []string{"tag-1"}, 0, 2000, 0); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled for cancelled GetHistoryRange call, got %v", err)
 	}
 }
 
@@ -352,5 +432,114 @@ func TestApp_RecordSample_Concurrent(t *testing.T) {
 
 	for i := 0; i < 9; i++ {
 		<-done
+	}
+}
+
+func TestApp_ToggleSamplingFromTrayAndTrayStatus(t *testing.T) {
+	app := NewAppWithHistoryPath(filepath.Join(t.TempDir(), "history.db"))
+	defer func() { _ = app.ServiceShutdown() }()
+
+	host := &mockDesktopHost{}
+	AttachHost(app, host)
+
+	host.mu.Lock()
+	if len(host.trayUpdates) == 0 || host.trayUpdates[0].isSampling {
+		host.mu.Unlock()
+		t.Fatalf("expected AttachHost to initialize idle tray status, got %+v", host.trayUpdates)
+	}
+	host.mu.Unlock()
+
+	ToggleSamplingFromTray(app)
+	if !app.IsPolling() {
+		t.Fatal("expected IsPolling to be true after first tray toggle")
+	}
+
+	ToggleSamplingFromTray(app)
+	if app.IsPolling() {
+		t.Fatal("expected IsPolling to be false after second tray toggle")
+	}
+
+	host.mu.Lock()
+	defer host.mu.Unlock()
+	if len(host.emittedEvents) < 2 || host.emittedEvents[0] != "app:sampling-state" || host.emittedEvents[1] != "app:sampling-state" {
+		t.Fatalf("expected two app:sampling-state events, got %v", host.emittedEvents)
+	}
+	firstPayload, ok1 := host.emittedPayloads[0].(SamplingStateEvent)
+	secondPayload, ok2 := host.emittedPayloads[1].(SamplingStateEvent)
+	if !ok1 || !firstPayload.IsSampling || !ok2 || secondPayload.IsSampling {
+		t.Fatalf("unexpected app:sampling-state payloads: %+v", host.emittedPayloads)
+	}
+	if len(host.trayUpdates) < 3 {
+		t.Fatalf("expected tray status updates across Attach/Start/Stop, got %+v", host.trayUpdates)
+	}
+	last := host.trayUpdates[len(host.trayUpdates)-1]
+	if last.isSampling {
+		t.Errorf("expected final tray update to be idle, got %+v", last)
+	}
+}
+
+func TestApp_LoadSettingsFromPathAndFindArg(t *testing.T) {
+	app := NewAppWithHistoryPath(filepath.Join(t.TempDir(), "history.db"))
+	defer func() { _ = app.ServiceShutdown() }()
+
+	host := &mockDesktopHost{}
+	AttachHost(app, host)
+
+	tmpDir := t.TempDir()
+	validPath := filepath.Join(tmpDir, "dropped.json")
+	custom := CreateDefaultSettings()
+	custom.PollIntervalMs = 250
+	custom.TimeWindowSeconds = 120
+	custom.Interpolation = InterpolationStep
+	raw, err := json.MarshalIndent(custom, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal custom settings: %v", err)
+	}
+	if err := os.WriteFile(validPath, raw, 0644); err != nil {
+		t.Fatalf("write valid settings: %v", err)
+	}
+
+	// Verify FindSettingsJSONArg resolves relative path against workingDir and skips flags/dirs/non-json
+	if got := FindSettingsJSONArg([]string{"--flag", "notes.txt", tmpDir, "dropped.json"}, tmpDir); got != validPath {
+		t.Fatalf("expected FindSettingsJSONArg to return %s, got %s", validPath, got)
+	}
+
+	// Start polling so we also verify LoadSettingsFromPath restarts active polling
+	app.StartPolling(CreateDefaultSettings())
+	if err := LoadSettingsFromPath(app, validPath); err != nil {
+		t.Fatalf("LoadSettingsFromPath valid failed: %v", err)
+	}
+	if !app.IsPolling() {
+		t.Error("expected polling to remain active after LoadSettingsFromPath")
+	}
+	app.StopPolling()
+
+	got := app.GetSettings()
+	if got.PollIntervalMs != 250 || got.TimeWindowSeconds != 120 || got.Interpolation != InterpolationStep {
+		t.Errorf("unexpected loaded settings: %+v", got)
+	}
+	if app.HasSettingsChanged() {
+		t.Error("expected HasSettingsChanged == false immediately after LoadSettingsFromPath")
+	}
+
+	// Non-object JSON should fail and emit settings:load-error
+	invalidPath := filepath.Join(tmpDir, "array.json")
+	if err := os.WriteFile(invalidPath, []byte(`[1, 2, 3]`), 0644); err != nil {
+		t.Fatalf("write invalid json: %v", err)
+	}
+	if err := LoadSettingsFromPath(app, invalidPath); err == nil {
+		t.Fatal("expected error loading non-object JSON")
+	}
+
+	host.mu.Lock()
+	defer host.mu.Unlock()
+	if len(host.emittedEvents) < 2 {
+		t.Fatalf("expected settings:loaded and settings:load-error events, got %v", host.emittedEvents)
+	}
+	if host.emittedEvents[len(host.emittedEvents)-2] != "settings:loaded" {
+		t.Errorf("expected settings:loaded event, got %v", host.emittedEvents)
+	}
+	if host.emittedEvents[len(host.emittedEvents)-1] != "settings:load-error" {
+		t.Errorf("expected settings:load-error event, got %v", host.emittedEvents)
 	}
 }

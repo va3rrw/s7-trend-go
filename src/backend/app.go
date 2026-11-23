@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -56,6 +57,10 @@ type App struct {
 
 	trayMu      sync.Mutex
 	trayEnabled bool
+
+	telemetryMu   sync.RWMutex
+	telemetrySubs map[uint64]chan TelemetryFrame
+	telemetrySeq  uint64
 }
 
 func NewApp() *App {
@@ -78,6 +83,7 @@ func newApp(historyPath string) *App {
 		lastSampleAt:   make(map[string]int64),
 		lastBoolValue:  make(map[string]float64),
 		treePanelWidth: defaultTreePanelWidth,
+		telemetrySubs:  make(map[uint64]chan TelemetryFrame),
 	}
 	app.savedSettingsJSON = app.serializeSettingsLocked()
 	app.loadAppState()
@@ -124,10 +130,56 @@ func (a *App) QuitApp() {
 	}
 }
 
-// ServiceShutdown cleans up polling loops, PLC connections, and SQLite history on Wails shutdown.
+// IsPolling reports whether PLC polling is currently active.
+func (a *App) IsPolling() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.isPolling
+}
+
+// refreshTrayStatus pushes current polling state and connected PLC counts to the attached host.
+func (a *App) refreshTrayStatus() {
+	a.mu.RLock()
+	host := a.host
+	if host == nil {
+		a.mu.RUnlock()
+		return
+	}
+	isPolling := a.isPolling
+	activeLinks := make(map[string]struct{})
+	for _, tag := range a.settings.Tags {
+		if tag.Enabled && tag.PlcLink != "" {
+			activeLinks[tag.PlcLink] = struct{}{}
+		}
+	}
+	if len(activeLinks) == 0 {
+		for _, link := range a.settings.PlcLinks {
+			if link.Name != "" {
+				activeLinks[link.Name] = struct{}{}
+			}
+		}
+	}
+	connectedPlcs := 0
+	for linkName := range activeLinks {
+		if conn, ok := a.plcs[linkName]; ok && conn != nil {
+			conn.mu.Lock()
+			if conn.IsConnected {
+				connectedPlcs++
+			}
+			conn.mu.Unlock()
+		}
+	}
+	totalPlcs := len(activeLinks)
+	a.mu.RUnlock()
+
+	host.UpdateTrayStatus(isPolling, connectedPlcs, totalPlcs)
+}
+
+// ServiceShutdown cleans up polling loops, PLC connections, stream subscribers, and SQLite history on Wails shutdown.
 func (a *App) ServiceShutdown() error {
 	a.StopPolling()
 	a.DisconnectAll()
+	a.closeAllTelemetrySubscribers()
 	if a.history != nil {
 		_ = a.history.Close()
 	}
@@ -157,6 +209,7 @@ func (a *App) SaveSettings(s AppSettings) {
 				_ = a.Disconnect(old.Name)
 			}
 		}
+		a.refreshTrayStatus()
 		return
 	}
 	a.mu.Unlock()
@@ -189,13 +242,12 @@ func (a *App) TestConnection(link PlcLinkSettings) error {
 // Connect to a specific S7 PLC
 func (a *App) Connect(linkName string, ip string, rack int, slot int) error {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	if conn, exists := a.plcs[linkName]; exists {
 		conn.mu.Lock()
 		connected := conn.IsConnected
 		conn.mu.Unlock()
 		if connected {
+			a.mu.Unlock()
 			return nil
 		}
 	}
@@ -205,6 +257,7 @@ func (a *App) Connect(linkName string, ip string, rack int, slot int) error {
 	handler.IdleTimeout = 2 * time.Second
 
 	if err := handler.Connect(); err != nil {
+		a.mu.Unlock()
 		return fmt.Errorf("failed to connect to %s (%s): %w", linkName, ip, err)
 	}
 
@@ -214,35 +267,39 @@ func (a *App) Connect(linkName string, ip string, rack int, slot int) error {
 		Handler:     handler,
 		IsConnected: true,
 	}
+	a.mu.Unlock()
+	a.refreshTrayStatus()
 	return nil
 }
 
 // Disconnect from a PLC link
 func (a *App) Disconnect(linkName string) error {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	conn, exists := a.plcs[linkName]
 	if !exists {
+		a.mu.Unlock()
 		return nil
 	}
 
 	conn.mu.Lock()
 	if !conn.IsConnected {
 		conn.mu.Unlock()
+		a.mu.Unlock()
 		return nil
 	}
 	err := conn.Handler.Close()
 	conn.IsConnected = false
 	conn.mu.Unlock()
 	delete(a.plcs, linkName)
+	a.mu.Unlock()
+
+	a.refreshTrayStatus()
 	return err
 }
 
 func (a *App) DisconnectAll() {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
+	hadConnections := len(a.plcs) > 0
 	for _, conn := range a.plcs {
 		conn.mu.Lock()
 		if conn.IsConnected {
@@ -252,6 +309,11 @@ func (a *App) DisconnectAll() {
 		conn.mu.Unlock()
 	}
 	a.plcs = make(map[string]*PlcConnection)
+	a.mu.Unlock()
+
+	if hadConnections {
+		a.refreshTrayStatus()
+	}
 }
 
 func (a *App) CheckStatus(linkName string) bool {
@@ -303,18 +365,27 @@ func (a *App) RecordSample(tagId string, timestampMs int64, value float64) {
 	})
 }
 
-// GetHistoryRange returns sample points for requested tagIds within [startMs, endMs]
-func (a *App) GetHistoryRange(tagIds []string, startMs, endMs int64, maxPoints int) map[string][]SamplePoint {
+// GetHistoryRange returns sample points for requested tagIds within [startMs, endMs].
+// Wails v3 binds the context parameter to the frontend CancellablePromise so
+// panning, zooming, or clear operations cancel superseded queries cleanly.
+func (a *App) GetHistoryRange(ctx context.Context, tagIds []string, startMs, endMs int64, maxPoints int) (map[string][]SamplePoint, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if a.history == nil {
 		result := make(map[string][]SamplePoint, len(tagIds))
 		for _, tagId := range tagIds {
 			result[tagId] = []SamplePoint{}
 		}
-		return result
+		return result, nil
 	}
-	a.Flush()
-	result, _ := a.history.GetRange(tagIds, startMs, endMs, maxPoints)
-	return result
+	if err := a.history.FlushContext(ctx); err != nil {
+		return nil, err
+	}
+	return a.history.GetRangeContext(ctx, tagIds, startMs, endMs, maxPoints)
 }
 
 // ClearHistory clears all recorded samples from the local history database.

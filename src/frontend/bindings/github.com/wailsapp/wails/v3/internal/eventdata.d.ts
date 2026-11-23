@@ -13,8 +13,9 @@ declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
             "app:request-exit": void;
-            "poll_timing": backend$0.PollTiming;
-            "poll_update": backend$0.PollUpdate;
+            "app:sampling-state": backend$0.SamplingStateEvent;
+            "settings:load-error": string;
+            "settings:loaded": backend$0.AppSettings;
         }
     }
 }

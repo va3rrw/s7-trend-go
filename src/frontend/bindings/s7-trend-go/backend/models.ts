@@ -33,28 +33,18 @@ export interface PlcLinkSettings {
 }
 
 /**
- * PollTiming reports the measured wall-clock period between poll cycles for a PLC link.
- */
-export interface PollTiming {
-    "plcLink": string;
-    "actualIntervalMs": number;
-}
-
-export interface PollUpdate {
-    "tagId": uuid$0.UUID;
-    "timestamp": string;
-    "value": string;
-    "numericValue": number | null;
-    "quality": string;
-    "error": string;
-}
-
-/**
  * SamplePoint is the compact timestamp/value shape returned to the chart.
  */
 export interface SamplePoint {
     "t": number;
     "v": number;
+}
+
+/**
+ * SamplingStateEvent synchronizes tray-initiated Start/Stop sampling with the frontend.
+ */
+export interface SamplingStateEvent {
+    "isSampling": boolean;
 }
 
 export enum TagDataType {

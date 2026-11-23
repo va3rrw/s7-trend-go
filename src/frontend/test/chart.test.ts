@@ -822,6 +822,97 @@ describe('TrendChart', () => {
             vi.useRealTimers();
         }
     });
+
+    it('cancels superseded in-flight cancellable GetHistoryRange requests on pan, setTags, clear, and destroy', async () => {
+        vi.useFakeTimers();
+        try {
+            const makeCancellable = () => {
+                let resolve!: (val: Record<string, Array<{ t: number; v: number }>>) => void;
+                let reject!: (err: any) => void;
+                const cancel = vi.fn(() => {
+                    reject(new Error('CancelError'));
+                });
+                const promise: any = new Promise((res, rej) => {
+                    resolve = res;
+                    reject = rej;
+                });
+                promise.cancel = cancel;
+                return { promise, resolve, cancel };
+            };
+
+            const req1 = makeCancellable();
+            const req2 = makeCancellable();
+            const req3 = makeCancellable();
+            const req4 = makeCancellable();
+
+            const getHistoryRangeMock = vi
+                .fn()
+                .mockReturnValueOnce(req1.promise)
+                .mockReturnValueOnce(req2.promise)
+                .mockReturnValueOnce(req3.promise)
+                .mockReturnValueOnce(req4.promise);
+            backend()!.GetHistoryRange = getHistoryRangeMock;
+
+            const trend = new TrendChart(canvas, boolBand, timeAxis);
+            const tag1 = {
+                id: 'tag-1',
+                name: 'Analog_1',
+                color: '#FF0000',
+                dataType: 'Real',
+                yAxis: 'Y-Axis 1',
+                enabled: true,
+            };
+            const tag2 = {
+                id: 'tag-2',
+                name: 'Analog_2',
+                color: '#00FF00',
+                dataType: 'Real',
+                yAxis: 'Y-Axis 1',
+                enabled: false,
+            };
+            const axes = [
+                { name: 'Y-Axis 1', minimum: 0, maximum: 100, autoScale: true },
+            ];
+
+            trend.setTags([tag1, tag2], axes);
+            trend.addDataPoint('tag-1', new Date(1000000).toISOString(), 10);
+            (trend as any).viewOffsetSeconds = -50;
+            (trend as any).doRender();
+
+            await vi.advanceTimersByTimeAsync(50);
+            expect(getHistoryRangeMock).toHaveBeenCalledTimes(1);
+
+            // 1. Pan further back while req1 is still pending -> cancels req1 and starts req2
+            (trend as any).viewOffsetSeconds = -250;
+            (trend as any).doRender();
+            expect(req1.cancel).toHaveBeenCalledWith('superseded');
+
+            await vi.advanceTimersByTimeAsync(50);
+            expect(getHistoryRangeMock).toHaveBeenCalledTimes(2);
+
+            // 2. Enable tag-2 while req2 is in flight -> cancels req2 and starts req3
+            trend.setTags([tag1, { ...tag2, enabled: true }], axes);
+            expect(req2.cancel).toHaveBeenCalledWith('superseded');
+
+            await vi.advanceTimersByTimeAsync(100);
+            expect(getHistoryRangeMock).toHaveBeenCalledTimes(3);
+
+            // 3. Clear while req3 is in flight -> cancels req3
+            trend.clear();
+            expect(req3.cancel).toHaveBeenCalledWith('superseded');
+
+            // 4. Trigger req4 then destroy while in flight -> cancels req4
+            (trend as any).viewOffsetSeconds = -100;
+            (trend as any).doRender();
+            await vi.advanceTimersByTimeAsync(50);
+            expect(getHistoryRangeMock).toHaveBeenCalledTimes(4);
+
+            trend.destroy();
+            expect(req4.cancel).toHaveBeenCalledWith('superseded');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });
 
 

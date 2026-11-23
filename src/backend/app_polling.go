@@ -10,6 +10,12 @@ import (
 	"github.com/robinson/gos7"
 )
 
+const (
+	plcLinkStateUnknown = iota
+	plcLinkStateConnected
+	plcLinkStateDisconnected
+)
+
 // StartPolling starts polling loop according to current AppSettings
 func (a *App) StartPolling(settings AppSettings) {
 	a.StopPolling()
@@ -31,6 +37,7 @@ func (a *App) StartPolling(settings AppSettings) {
 			_ = a.Disconnect(old.Name)
 		}
 	}
+	a.refreshTrayStatus()
 
 	interval := settings.PollIntervalMs
 	if interval < 10 {
@@ -66,14 +73,18 @@ func (a *App) StartPolling(settings AppSettings) {
 			if link == nil {
 				ticker := time.NewTicker(time.Duration(interval) * time.Millisecond)
 				defer ticker.Stop()
+				errMsg := fmt.Sprintf("PLC link '%s' not configured", lName)
 				for {
 					select {
 					case <-pollCtx.Done():
 						return
 					case <-ticker.C:
+						nowStr := time.Now().Format(time.RFC3339Nano)
+						updates := make([]PollUpdate, 0, len(linkTags))
 						for _, ch := range linkTags {
-							a.emitPollUpdate(ch.Id, "", nil, "Bad", fmt.Sprintf("PLC link '%s' not configured", lName))
+							updates = append(updates, newPollUpdate(ch.Id, nowStr, "", nil, "Bad", errMsg))
 						}
+						a.publishTelemetry(TelemetryFrame{Updates: updates})
 					}
 				}
 			}
@@ -113,6 +124,11 @@ func (a *App) StartPolling(settings AppSettings) {
 				pollTicker := time.NewTicker(time.Duration(interval) * time.Millisecond)
 				defer pollTicker.Stop()
 
+				linkState := plcLinkStateUnknown
+				if a.CheckStatus(lName) {
+					linkState = plcLinkStateConnected
+				}
+
 				var (
 					backoff        = 1 * time.Second
 					maxBackoff     = 30 * time.Second
@@ -145,6 +161,10 @@ func (a *App) StartPolling(settings AppSettings) {
 								if backoff > maxBackoff {
 									backoff = maxBackoff
 								}
+								if pollCtx.Err() == nil {
+									a.notifyPlcStateTransition(lName, link.IpAddress, linkState, plcLinkStateDisconnected, err)
+									linkState = plcLinkStateDisconnected
+								}
 								select {
 								case <-pollCtx.Done():
 									return
@@ -157,6 +177,10 @@ func (a *App) StartPolling(settings AppSettings) {
 							backoff = 1 * time.Second
 							nextRetryTime = time.Time{}
 							lastConnectErr = nil
+							if pollCtx.Err() == nil && linkState != plcLinkStateConnected {
+								a.notifyPlcStateTransition(lName, link.IpAddress, linkState, plcLinkStateConnected, nil)
+								linkState = plcLinkStateConnected
+							}
 						}
 
 						a.mu.RLock()
@@ -225,6 +249,10 @@ func (a *App) StartPolling(settings AppSettings) {
 
 						if err != nil {
 							a.invalidateConnection(lName, conn)
+							if pollCtx.Err() == nil {
+								a.notifyPlcStateTransition(lName, link.IpAddress, linkState, plcLinkStateDisconnected, err)
+								linkState = plcLinkStateDisconnected
+							}
 							lastConnectErr = err
 							nextRetryTime = time.Now().Add(backoff)
 							backoff *= 2
@@ -240,6 +268,10 @@ func (a *App) StartPolling(settings AppSettings) {
 							backoff = 1 * time.Second
 							nextRetryTime = time.Time{}
 							lastConnectErr = nil
+							if pollCtx.Err() == nil && linkState != plcLinkStateConnected {
+								a.notifyPlcStateTransition(lName, link.IpAddress, linkState, plcLinkStateConnected, nil)
+								linkState = plcLinkStateConnected
+							}
 
 							fullItems := make([]gos7.S7DataItem, len(pTags))
 							for idx, pt := range pTags {
@@ -261,7 +293,7 @@ func (a *App) StartPolling(settings AppSettings) {
 				}
 			}()
 
-			// Goroutine 2: The Consumer & Wails Emitter (Throttles updates for Wails IPC bridge if necessary)
+			// Goroutine 2: The Consumer & Stream Publisher (Throttles and batches updates over Wails stream)
 			defer linkWg.Wait()
 			uiInterval := time.Duration(interval) * time.Millisecond
 			if uiInterval < 33*time.Millisecond {
@@ -287,19 +319,27 @@ func (a *App) StartPolling(settings AppSettings) {
 
 				case <-ticker.C:
 					if latestErr != nil {
+						nowStr := time.Now().Format(time.RFC3339Nano)
+						errStr := latestErr.Error()
+						updates := make([]PollUpdate, 0, len(pTags))
 						for _, pt := range pTags {
-							a.emitPollUpdate(pt.Tag.Id, "", nil, "Bad", latestErr.Error())
+							updates = append(updates, newPollUpdate(pt.Tag.Id, nowStr, "", nil, "Bad", errStr))
 						}
+						a.publishTelemetry(TelemetryFrame{Updates: updates})
 						latestErr = nil
 					} else if latestData != nil {
+						now := time.Now()
+						nowMs := now.UnixMilli()
+						nowStr := now.Format(time.RFC3339Nano)
+						updates := make([]PollUpdate, 0, len(pTags))
 						for i, pt := range pTags {
 							if pt.Err != nil {
-								a.emitPollUpdate(pt.Tag.Id, "", nil, "Bad", pt.Err.Error())
+								updates = append(updates, newPollUpdate(pt.Tag.Id, nowStr, "", nil, "Bad", pt.Err.Error()))
 								continue
 							}
 							item := latestData[i]
 							if item.Error != "" {
-								a.emitPollUpdate(pt.Tag.Id, "", nil, "Bad", item.Error)
+								updates = append(updates, newPollUpdate(pt.Tag.Id, nowStr, "", nil, "Bad", item.Error))
 							} else {
 								var valStr string
 								var numVal *float64
@@ -311,11 +351,12 @@ func (a *App) StartPolling(settings AppSettings) {
 									valStr, numVal = DecodeS7Value(item.Data, pt.Tag.DataType, pt.Spec.BitNumber)
 								}
 								if numVal != nil {
-									a.RecordSample(pt.Tag.Id.String(), time.Now().UnixMilli(), *numVal)
+									a.RecordSample(pt.Tag.Id.String(), nowMs, *numVal)
 								}
-								a.emitPollUpdate(pt.Tag.Id, valStr, numVal, "Good", "")
+								updates = append(updates, newPollUpdate(pt.Tag.Id, nowStr, valStr, numVal, "Good", ""))
 							}
 						}
+						a.publishTelemetry(TelemetryFrame{Updates: updates})
 						latestData = nil
 					}
 				}
@@ -329,28 +370,47 @@ func (a *App) StartPolling(settings AppSettings) {
 	}()
 }
 
-func (a *App) emitPollUpdate(tagId uuid.UUID, valStr string, numVal *float64, quality string, errStr string) {
-	update := PollUpdate{
-		Timestamp:    time.Now().Format(time.RFC3339Nano),
+func newPollUpdate(tagId uuid.UUID, timestamp, valStr string, numVal *float64, quality, errStr string) PollUpdate {
+	return PollUpdate{
+		TagId:        tagId,
+		Timestamp:    timestamp,
 		Value:        valStr,
 		NumericValue: numVal,
 		Quality:      quality,
 		Error:        errStr,
 	}
+}
 
-	update.TagId = tagId
-
-	if host := a.getHost(); host != nil {
-		host.EmitEvent("poll_update", update)
-	}
+func (a *App) emitPollUpdate(tagId uuid.UUID, valStr string, numVal *float64, quality string, errStr string) {
+	update := newPollUpdate(tagId, time.Now().Format(time.RFC3339Nano), valStr, numVal, quality, errStr)
+	a.publishTelemetry(TelemetryFrame{Updates: []PollUpdate{update}})
 }
 
 func (a *App) emitPollTiming(plcLink string, actualIntervalMs int) {
-	if host := a.getHost(); host != nil {
-		host.EmitEvent("poll_timing", PollTiming{
+	a.publishTelemetry(TelemetryFrame{
+		Timings: []PollTiming{{
 			PlcLink:          plcLink,
 			ActualIntervalMs: actualIntervalMs,
-		})
+		}},
+	})
+}
+
+func (a *App) notifyPlcStateTransition(linkName, ip string, prevState, nextState int, err error) {
+	if prevState == nextState {
+		return
+	}
+	host := a.getHost()
+	if host == nil {
+		return
+	}
+
+	switch {
+	case prevState == plcLinkStateUnknown && nextState == plcLinkStateDisconnected:
+		host.Notify("PLC Connection Failed", fmt.Sprintf("%s (%s): %v", linkName, ip, err))
+	case prevState == plcLinkStateConnected && nextState == plcLinkStateDisconnected:
+		host.Notify("PLC Disconnected", fmt.Sprintf("%s (%s): %v", linkName, ip, err))
+	case prevState == plcLinkStateDisconnected && nextState == plcLinkStateConnected:
+		host.Notify("PLC Reconnected", fmt.Sprintf("%s (%s) connection restored", linkName, ip))
 	}
 }
 
@@ -362,6 +422,7 @@ func (a *App) StopPolling() {
 	a.pollDone = nil
 	a.isPolling = false
 	a.mu.Unlock()
+	a.refreshTrayStatus()
 	if cancel != nil {
 		cancel()
 	}
@@ -375,9 +436,9 @@ func (a *App) StopPolling() {
 
 func (a *App) invalidateConnection(linkName string, conn *PlcConnection) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	current, ok := a.plcs[linkName]
 	if !ok || current != conn {
+		a.mu.Unlock()
 		return
 	}
 	conn.mu.Lock()
@@ -387,4 +448,7 @@ func (a *App) invalidateConnection(linkName string, conn *PlcConnection) {
 	}
 	conn.mu.Unlock()
 	delete(a.plcs, linkName)
+	a.mu.Unlock()
+
+	a.refreshTrayStatus()
 }

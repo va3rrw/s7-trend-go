@@ -11,6 +11,8 @@ type DesktopHost interface {
 	SetWindowBounds(width, height, x, y int, setPos bool)
 	OpenFileDialog(title, defaultDir, filterName, filterPattern string) (string, error)
 	SaveFileDialog(title, defaultDir, defaultFilename, filterName, filterPattern string) (string, error)
+	UpdateTrayStatus(isSampling bool, connectedPlcs, totalPlcs int)
+	Notify(title, body string)
 }
 
 // AttachHost connects a DesktopHost implementation to app.
@@ -18,6 +20,7 @@ func AttachHost(a *App, host DesktopHost) {
 	a.mu.Lock()
 	a.host = host
 	a.mu.Unlock()
+	a.refreshTrayStatus()
 }
 
 // SetTrayEnabled configures whether closing the window hides to tray instead of exiting.
@@ -93,4 +96,53 @@ func RequestExitFromTray(a *App) {
 		return
 	}
 	a.QuitApp()
+}
+
+// ToggleSamplingFromTray toggles live PLC polling from the native system tray
+// menu and notifies the frontend so reactive controls stay synchronized.
+func ToggleSamplingFromTray(a *App) {
+	var nextSampling bool
+	if a.IsPolling() {
+		a.StopPolling()
+		nextSampling = false
+	} else {
+		a.StartPolling(a.GetSettings())
+		nextSampling = true
+	}
+
+	if host := a.getHost(); host != nil {
+		host.EmitEvent("app:sampling-state", SamplingStateEvent{IsSampling: nextSampling})
+	}
+}
+
+// LoadSettingsFromPath loads settings from a filesystem path (such as a
+// dropped .json file or second-instance CLI argument), restarts active polling
+// if needed, and notifies the frontend.
+func LoadSettingsFromPath(a *App, filePath string) error {
+	settings, err := a.loadSettingsFromFilePath(filePath)
+	host := a.getHost()
+	if err != nil {
+		if host != nil {
+			host.EmitEvent("settings:load-error", err.Error())
+		}
+		return err
+	}
+
+	if a.IsPolling() {
+		a.StartPolling(*settings)
+	} else {
+		a.refreshTrayStatus()
+	}
+
+	if host != nil {
+		host.EmitEvent("settings:loaded", *settings)
+	}
+	return nil
+}
+
+// NotifySettingsLoadError emits a settings load error message to the frontend.
+func NotifySettingsLoadError(a *App, message string) {
+	if host := a.getHost(); host != nil {
+		host.EmitEvent("settings:load-error", message)
+	}
 }

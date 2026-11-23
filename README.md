@@ -12,13 +12,14 @@ Based on a very old but useful tool **S7 Trend Values**.
 
 - **Multi-PLC Communication**: Connect to multiple S7 PLCs simultaneously with configurable IP address, Rack, and Slot settings.
 - **S7 Tag Support**: Read DB, Memory (M), Inputs (I), and Outputs (Q) memory areas supporting `Bool`, `Byte`, `Word`, `Int`, `DWord`, `DInt`, `Real`, `LReal`, and `String` data types.
-- **High-Performance Real-Time Charting**: High-frequency polling (10ms to 60,000ms) with customizable time windows (30s to 3,600s).
+- **High-Performance Real-Time Charting**: High-frequency polling (10ms to 60,000ms) with customizable time windows (30s to 86,400s), delivering batched tag and timing frames over a Wails v3 `JSONStream` without main-thread event bridge overhead.
 - **Multi-Axis Y Scaling**: Configure independent Y-axes with automatic scaling or explicit minimum and maximum range bounds.
 - **Sample Interpolation**: Choose between `Line` and `Step` interpolation modes for trend visualization.
-- **Import & Export**: Save and reload PLC configurations, tag lists, Y-axes setups, and exported sample records.
-- **Persistent Trend History**: Store timestamped samples in a local SQLite database with indexed range queries.
+- **Import, Drag-and-Drop & Export**: Save and reload PLC configurations (including dragging `.json` settings files onto the window or passing a `.json` file path via launch arguments), tag lists, Y-axes setups, and exported CSV sample records.
+- **Cancellable Trend History**: Store timestamped samples in a local SQLite database with indexed range queries backed by Go `context.Context` + Wails v3 `CancellablePromise` so rapid pan/zoom cancels superseded queries automatically.
 - **Per-Tag Storage Cadence**: Numeric tags can use a slower storage interval; Bool tags store only their initial state and changes.
-- **System Tray Operation**: Closing the window hides the app to the Windows system tray via Wails v3 native `SystemTray`; restore and exit actions are available from the tray icon.
+- **Single Instance & Dynamic System Tray**: Ensures a single desktop instance (restoring/focusing the existing window and loading any `.json` CLI arg on relaunch). Closing the window hides to the Windows system tray via Wails v3 native `SystemTray` with **Restore**, live **Start/Stop Sampling** toggle, **Exit**, and a live PLC connection status tooltip.
+- **Native Windows Toast Alerts**: Sends Windows Toast notifications on PLC connection loss and recovery transitions via Wails v3 `notifications`, focusing the main window when clicked.
 - **Localization**: Built-in support for English (`en`) and Simplified Chinese (`zh`).
 
 ## Architecture & Tech Stack
@@ -37,7 +38,7 @@ Each tag has a **Storage interval (ms)** setting. `0` follows the global PLC pol
 
 ## System Tray
 
-The standalone application starts with a native Wails v3 system tray icon using the same source artwork as the application icon. Closing the main window hides it while PLC polling and history storage continue in the background. Left-clicking or double-clicking the tray icon, or choosing **Restore**, shows the window again. Choosing **Exit** uses the app's themed exit confirmation when settings are dirty, then performs a full application shutdown.
+The standalone application starts with a native Wails v3 system tray icon using the same source artwork as the application icon. Closing the main window hides it while PLC polling and history storage continue in the background. Left-clicking or double-clicking the tray icon, launching a second instance, clicking a Windows Toast notification, or choosing **Restore** shows the window again. You can also toggle **Start Sampling** / **Stop Sampling** directly from the tray menu, inspect live connection counts in the tray tooltip, or choose **Exit** (using the app's themed exit confirmation when settings are dirty).
 
 ## Prerequisites
 
@@ -76,15 +77,17 @@ s7-trend-go/
 ├── build.sh                  # Build script for Windows executable
 ├── dist/                     # Destination folder for compiled binaries
 ├── src/
-│   ├── main.go               # Wails v3 entry point, window & tray setup
+│   ├── main.go               # Wails v3 entry point, stream, single-instance & tray setup
 │   ├── host.go               # Wails v3 DesktopHost adapter
+│   ├── notifications_service.go # Resilient Windows Toast notification wrapper
 │   ├── Taskfile.yml          # Wails v3 root build tasks
 │   ├── build/                # Wails v3 build config, platform tasks & Windows metadata
 │   ├── backend/              # Go backend packages
-│   │   ├── app.go            # App lifecycle and binding methods
-│   │   ├── host.go           # DesktopHost interface & close/tray coordination
-│   │   ├── app_polling.go    # S7 PLC polling and worker routines
-│   │   ├── app_files.go      # Config import/export and file handlers
+│   │   ├── app.go            # App lifecycle, tray status & cancellable RPC methods
+│   │   ├── host.go           # DesktopHost interface & close/tray/file coordination
+│   │   ├── telemetry.go      # Non-blocking TelemetryFrame pub/sub hub for streams
+│   │   ├── app_polling.go    # S7 PLC polling, stream batching & alert transitions
+│   │   ├── app_files.go      # Config import/export, drop/arg loading & CSV export
 │   │   ├── codec.go          # S7 byte encoding/decoding logic
 │   │   └── models.go         # Data structures and settings schemas
 │   └── frontend/             # Vue 3 frontend project

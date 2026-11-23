@@ -96,6 +96,11 @@ select:focus {
   height: 100%;
 }
 
+#app.file-drop-target-active {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+
 /* Menubar */
 .menubar {
   display: flex;

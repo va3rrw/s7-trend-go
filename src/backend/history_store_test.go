@@ -1,6 +1,8 @@
 package backend
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,7 +26,11 @@ func TestHistoryStoreCreatesAndReopensFile(t *testing.T) {
 
 	reopened := NewAppWithHistoryPath(dbPath)
 	defer func() { _ = reopened.ServiceShutdown() }()
-	points := reopened.GetHistoryRange([]string{"tag-1"}, 0, 2000, 0)["tag-1"]
+	res, err := reopened.GetHistoryRange(context.Background(), []string{"tag-1"}, 0, 2000, 0)
+	if err != nil {
+		t.Fatalf("unexpected GetHistoryRange error: %v", err)
+	}
+	points := res["tag-1"]
 	if len(points) != 1 || points[0].Timestamp != 1000 || points[0].Value != 12.5 {
 		t.Fatalf("expected persisted point, got %+v", points)
 	}
@@ -57,7 +63,10 @@ func TestAppSamplingIntervalAndBooleanChanges(t *testing.T) {
 	app.RecordSample(boolID.String(), 1300, 1)
 	app.Flush()
 
-	points := app.GetHistoryRange([]string{numericID.String(), boolID.String()}, 0, 2000, 0)
+	points, err := app.GetHistoryRange(context.Background(), []string{numericID.String(), boolID.String()}, 0, 2000, 0)
+	if err != nil {
+		t.Fatalf("unexpected GetHistoryRange error: %v", err)
+	}
 	if got := points[numericID.String()]; len(got) != 2 || got[1].Value != 3 {
 		t.Errorf("expected two numeric points at the configured interval, got %+v", got)
 	}
@@ -399,5 +408,38 @@ VALUES (?, ?, ?, ?, ?, ?, ?)
 		if len(pts) > 2000 {
 			t.Errorf("tag %s returned %d points, exceeding maxPoints=2000", tid, len(pts))
 		}
+	}
+}
+
+func TestHistoryStoreGetRangeContextCancelled(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "history_cancel.db")
+	store, err := OpenHistoryStore(dbPath)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer store.Close()
+
+	for i := int64(0); i < 200; i++ {
+		if err := store.Insert(storedSample{
+			TagID:     "cancel-tag",
+			Timestamp: i * 60000,
+			Value:     float64(i),
+		}); err != nil {
+			t.Fatalf("insert: %v", err)
+		}
+	}
+	store.Flush()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// Raw path cancelled
+	if _, err := store.GetRangeContext(ctx, []string{"cancel-tag"}, 0, 1000, 0); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled on raw query, got %v", err)
+	}
+
+	// Rollup path cancelled (span = 2 hours, maxPoints = 200 -> 60s tier)
+	if _, err := store.GetRangeContext(ctx, []string{"cancel-tag"}, 0, 7200000, 200); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled on rollup query, got %v", err)
 	}
 }

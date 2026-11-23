@@ -1,8 +1,19 @@
 import { reactive } from 'vue';
-import { Application, Events, Window } from '@wailsio/runtime';
+import { Application, Events, JSONStream, Window } from '@wailsio/runtime';
 import * as AppBinding from '../bindings/s7-trend-go/backend/app';
 import type { AppSettings, TagSettings } from './types';
 import { defaultSettings } from './types';
+
+export type MaybeCancellablePromise<T> = Promise<T> & {
+    cancel?: (cause?: any) => void | PromiseLike<void>;
+};
+
+export interface TelemetryStream {
+    onmessage: ((ev: { data: any }) => void) | null;
+    onerror?: ((ev: any) => void) | null;
+    onclose?: ((ev: any) => void) | null;
+    close(): void;
+}
 
 /** Reactive application state shared across all components */
 export const state = reactive({
@@ -47,7 +58,7 @@ export interface BackendApi {
         startMs: number,
         endMs: number,
         maxPoints: number,
-    ): Promise<Record<string, Array<{ t: number; v: number }>>>;
+    ): MaybeCancellablePromise<Record<string, Array<{ t: number; v: number }>>>;
     GetLastSettingsPath(): Promise<string>;
     GetSettings(): Promise<AppSettings>;
     GetTreePanelWidth?(): Promise<number>;
@@ -82,6 +93,7 @@ export interface WailsRuntimeApi {
     EventsOff(eventName: string, ...additionalEventNames: string[]): void;
     EventsOnce(eventName: string, callback: (...data: any) => void): void;
     EventsEmit(eventName: string, ...optionalData: any): void;
+    OpenJSONStream?(name: string): TelemetryStream;
     WindowSetTitle(title: string): void;
     Quit(): void;
 }
@@ -105,15 +117,18 @@ const wailsBackend: BackendApi = {
     Disconnect: (plcLinkName) => AppBinding.Disconnect(plcLinkName),
     DisconnectAll: () => AppBinding.DisconnectAll(),
     ExportCSV: (title) => AppBinding.ExportCSV(title),
-    async GetHistoryRange(tagIds, startMs, endMs, maxPoints) {
-        const result = await AppBinding.GetHistoryRange(tagIds, startMs, endMs, maxPoints);
-        const normalized: Record<string, Array<{ t: number; v: number }>> = {};
-        if (result) {
-            for (const [key, points] of Object.entries(result)) {
-                normalized[key] = points ?? [];
-            }
-        }
-        return normalized;
+    GetHistoryRange(tagIds, startMs, endMs, maxPoints) {
+        return AppBinding.GetHistoryRange(tagIds, startMs, endMs, maxPoints).then(
+            (result) => {
+                const normalized: Record<string, Array<{ t: number; v: number }>> = {};
+                if (result) {
+                    for (const [key, points] of Object.entries(result)) {
+                        normalized[key] = points ?? [];
+                    }
+                }
+                return normalized;
+            },
+        );
     },
     GetLastSettingsPath: () => AppBinding.GetLastSettingsPath(),
     async GetSettings() {
@@ -163,6 +178,7 @@ const wailsV3Runtime: WailsRuntimeApi = {
             void Events.Emit(eventName, optionalData);
         }
     },
+    OpenJSONStream: (name) => JSONStream(name) as unknown as TelemetryStream,
     WindowSetTitle: (title) => {
         void Window.SetTitle(title);
     },

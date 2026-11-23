@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -278,18 +279,46 @@ func (s *HistoryStore) Insert(sample storedSample) error {
 
 // Flush blocks until all queued samples in the writer channel are written to the database.
 func (s *HistoryStore) Flush() {
+	_ = s.FlushContext(context.Background())
+}
+
+// FlushContext blocks until queued samples are written or ctx is cancelled.
+func (s *HistoryStore) FlushContext(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if s == nil || s.flushChan == nil {
-		return
+		return nil
 	}
 	resp := make(chan struct{})
 	select {
 	case s.flushChan <- resp:
-		<-resp
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-s.doneChan:
+		return nil
+	}
+	select {
+	case <-resp:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.doneChan:
+		return nil
 	}
 }
 
 func (s *HistoryStore) GetRange(tagIDs []string, startMs, endMs int64, maxPoints int) (map[string][]SamplePoint, error) {
+	return s.GetRangeContext(context.Background(), tagIDs, startMs, endMs, maxPoints)
+}
+
+func (s *HistoryStore) GetRangeContext(ctx context.Context, tagIDs []string, startMs, endMs int64, maxPoints int) (map[string][]SamplePoint, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	result := make(map[string][]SamplePoint, len(tagIDs))
 	if s == nil || s.readDB == nil {
 		for _, tagID := range tagIDs {
@@ -300,13 +329,16 @@ func (s *HistoryStore) GetRange(tagIDs []string, startMs, endMs int64, maxPoints
 	for _, tagID := range tagIDs {
 		result[tagID] = []SamplePoint{}
 	}
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
 	if len(tagIDs) == 0 || startMs > endMs {
 		return result, nil
 	}
 
 	// If maxPoints <= 0, return all raw points without downsampling
 	if maxPoints <= 0 {
-		return s.getRawRange(tagIDs, startMs, endMs, 0)
+		return s.getRawRangeContext(ctx, tagIDs, startMs, endMs, 0)
 	}
 
 	// Clamp maxPoints to [100, 20000]
@@ -322,7 +354,7 @@ func (s *HistoryStore) GetRange(tagIDs []string, startMs, endMs int64, maxPoints
 
 	// If bucket size b < 1000, query raw samples and downsample in Go if count > maxPoints
 	if b < 1000 {
-		return s.getRawRange(tagIDs, startMs, endMs, maxPoints)
+		return s.getRawRangeContext(ctx, tagIDs, startMs, endMs, maxPoints)
 	}
 
 	// Pick coarsest rollup tier with res_ms <= b
@@ -347,38 +379,59 @@ func (s *HistoryStore) GetRange(tagIDs []string, startMs, endMs int64, maxPoints
 	endBucket := (endMs / resMs) * resMs
 	args = append(args, resMs, startBucket, endBucket)
 
-	rows, err := s.readDB.Query(
+	rows, err := s.readDB.QueryContext(
+		ctx,
 		"SELECT tag_id, bucket_ms, min_t, min_v, max_t, max_v FROM samples_rollup "+
 			"WHERE tag_id IN ("+placeholders+") AND res_ms = ? AND bucket_ms >= ? AND bucket_ms <= ? "+
 			"ORDER BY tag_id, bucket_ms",
 		args...,
 	)
 	if err != nil {
-		return s.getRawRange(tagIDs, startMs, endMs, maxPoints)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return result, ctxErr
+		}
+		return s.getRawRangeContext(ctx, tagIDs, startMs, endMs, maxPoints)
 	}
 	defer rows.Close()
 
 	tagRollups := make(map[string][]rollupRow, len(tagIDs))
 	totalRows := 0
 	for rows.Next() {
+		if totalRows&63 == 0 {
+			if err := ctx.Err(); err != nil {
+				return result, err
+			}
+		}
 		var tid string
 		var r rollupRow
 		if err := rows.Scan(&tid, &r.bucketMs, &r.minT, &r.minV, &r.maxT, &r.maxV); err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return result, ctxErr
+			}
 			return result, err
 		}
 		tagRollups[tid] = append(tagRollups[tid], r)
 		totalRows++
 	}
 	if err := rows.Err(); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return result, ctxErr
+		}
+		return result, err
+	}
+	if err := ctx.Err(); err != nil {
 		return result, err
 	}
 
 	// Fallback to raw query if rollup has no data
 	if totalRows == 0 {
-		return s.getRawRange(tagIDs, startMs, endMs, maxPoints)
+		return s.getRawRangeContext(ctx, tagIDs, startMs, endMs, maxPoints)
 	}
 
 	for _, tid := range tagIDs {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
 		rollup := tagRollups[tid]
 		if len(rollup) == 0 {
 			result[tid] = []SamplePoint{}
@@ -390,10 +443,13 @@ func (s *HistoryStore) GetRange(tagIDs []string, startMs, endMs int64, maxPoints
 	return result, nil
 }
 
-func (s *HistoryStore) getRawRange(tagIDs []string, startMs, endMs int64, maxPoints int) (map[string][]SamplePoint, error) {
+func (s *HistoryStore) getRawRangeContext(ctx context.Context, tagIDs []string, startMs, endMs int64, maxPoints int) (map[string][]SamplePoint, error) {
 	result := make(map[string][]SamplePoint, len(tagIDs))
 	for _, tid := range tagIDs {
 		result[tid] = []SamplePoint{}
+	}
+	if err := ctx.Err(); err != nil {
+		return result, err
 	}
 
 	placeholders := strings.TrimRight(strings.Repeat("?,", len(tagIDs)), ",")
@@ -403,26 +459,46 @@ func (s *HistoryStore) getRawRange(tagIDs []string, startMs, endMs int64, maxPoi
 	}
 	args = append(args, startMs, endMs)
 
-	rows, err := s.readDB.Query(
+	rows, err := s.readDB.QueryContext(
+		ctx,
 		"SELECT tag_id, timestamp_ms, value FROM samples "+
 			"WHERE tag_id IN ("+placeholders+") AND timestamp_ms >= ? AND timestamp_ms <= ? "+
 			"ORDER BY tag_id, timestamp_ms",
 		args...,
 	)
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return result, ctxErr
+		}
 		return result, err
 	}
 	defer rows.Close()
 
+	rowCount := 0
 	for rows.Next() {
+		if rowCount&63 == 0 {
+			if err := ctx.Err(); err != nil {
+				return result, err
+			}
+		}
 		var tagID string
 		var point SamplePoint
 		if err := rows.Scan(&tagID, &point.Timestamp, &point.Value); err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return result, ctxErr
+			}
 			return result, err
 		}
 		result[tagID] = append(result[tagID], point)
+		rowCount++
 	}
 	if err := rows.Err(); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return result, ctxErr
+		}
+		return result, err
+	}
+	if err := ctx.Err(); err != nil {
 		return result, err
 	}
 
@@ -438,6 +514,9 @@ func (s *HistoryStore) getRawRange(tagIDs []string, startMs, endMs int64, maxPoi
 	}
 
 	for _, tid := range tagIDs {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
 		pts := result[tid]
 		if len(pts) > maxPoints {
 			result[tid] = downsamplePoints(pts, startMs, targetBucketSize, numBuckets)

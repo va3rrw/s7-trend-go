@@ -14,9 +14,8 @@ export {
 export type {
     AppSettings,
     PlcLinkSettings,
-    PollTiming,
-    PollUpdate,
     SamplePoint,
+    SamplingStateEvent,
     TagSettings,
     YAxisSettings
 } from "./models.js";

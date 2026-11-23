@@ -1,15 +1,24 @@
 package main
 
 import (
+	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"s7-trend-go/backend"
 )
 
 type wailsHost struct {
-	app    *application.App
-	window *application.WebviewWindow
+	app                *application.App
+	window             *application.WebviewWindow
+	tray               *application.SystemTray
+	trayMenu           *application.Menu
+	toggleSamplingItem *application.MenuItem
+	notifier           *safeNotificationService
+	trayMu             sync.Mutex
+	lastTooltip        string
+	lastToggleLabel    string
 }
 
 var _ backend.DesktopHost = (*wailsHost)(nil)
@@ -18,6 +27,50 @@ func newWailsHost(app *application.App, window *application.WebviewWindow) *wail
 	return &wailsHost{
 		app:    app,
 		window: window,
+	}
+}
+
+func (h *wailsHost) attachTray(tray *application.SystemTray, menu *application.Menu, toggleItem *application.MenuItem) {
+	h.trayMu.Lock()
+	h.tray = tray
+	h.trayMenu = menu
+	h.toggleSamplingItem = toggleItem
+	h.trayMu.Unlock()
+}
+
+func (h *wailsHost) attachNotifier(notifier *safeNotificationService) {
+	h.notifier = notifier
+}
+
+func (h *wailsHost) UpdateTrayStatus(isSampling bool, connectedPlcs, totalPlcs int) {
+	tooltip := "S7 Trend Go — Idle"
+	label := "Start Sampling"
+	if isSampling {
+		label = "Stop Sampling"
+		if totalPlcs > 0 {
+			tooltip = fmt.Sprintf("S7 Trend Go — Sampling (%d/%d PLCs)", connectedPlcs, totalPlcs)
+		} else {
+			tooltip = "S7 Trend Go — Sampling"
+		}
+	}
+
+	h.trayMu.Lock()
+	defer h.trayMu.Unlock()
+
+	if h.tray != nil && tooltip != h.lastTooltip {
+		h.tray.SetTooltip(tooltip)
+		h.lastTooltip = tooltip
+	}
+	if h.toggleSamplingItem != nil && h.trayMenu != nil && label != h.lastToggleLabel {
+		h.toggleSamplingItem.SetLabel(label)
+		h.trayMenu.Update()
+		h.lastToggleLabel = label
+	}
+}
+
+func (h *wailsHost) Notify(title, body string) {
+	if h.notifier != nil {
+		h.notifier.send(title, body)
 	}
 }
 

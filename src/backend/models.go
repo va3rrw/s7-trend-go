@@ -146,6 +146,17 @@ type PollTiming struct {
 	ActualIntervalMs int    `json:"actualIntervalMs"`
 }
 
+// TelemetryFrame batches poll updates and timing updates sent over the Wails v3 polling stream.
+type TelemetryFrame struct {
+	Updates []PollUpdate `json:"updates,omitempty"`
+	Timings []PollTiming `json:"timings,omitempty"`
+}
+
+// SamplingStateEvent synchronizes tray-initiated Start/Stop sampling with the frontend.
+type SamplingStateEvent struct {
+	IsSampling bool `json:"isSampling"`
+}
+
 type SampleRecord struct {
 	Timestamp string  `json:"timestamp"`
 	TagName   string  `json:"tagName"`

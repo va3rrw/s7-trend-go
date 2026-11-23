@@ -1,5 +1,5 @@
 <template>
-    <div id="app">
+    <div id="app" data-file-drop-target>
         <!-- Menu Bar -->
         <AppMenuBar
             :cursors-enabled="cursorsEnabled"
@@ -160,7 +160,7 @@
 import { ref, reactive, shallowRef, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ChartTag, ChartAxis, CursorMeasurement } from './chart';
-import type { PlcLinkSettings, TagSettings } from './types';
+import type { AppSettings, PlcLinkSettings, TagSettings } from './types';
 import {
     state,
     backend,
@@ -170,6 +170,7 @@ import {
     getTag,
     uiState,
     showMessage,
+    type TelemetryStream,
 } from './store';
 
 // Subcomponents
@@ -197,6 +198,7 @@ import {
     onSettingsChanged,
 } from './utils/sampling';
 import {
+    applyLoadedSettings,
     menuLoadSettings,
     menuSaveSettings,
     menuTimer,
@@ -602,11 +604,52 @@ function onKeydown(e: KeyboardEvent) {
     });
 }
 
+function handlePollUpdate(update: any) {
+    if (!state.isSampling || !update) return;
+    const valStr = update.value || '-';
+    const hasNumeric =
+        update.numericValue !== null && update.numericValue !== undefined;
+    const numVal = hasNumeric ? Number(update.numericValue) : undefined;
+
+    setLiveValue(update.tagId, valStr);
+    updateTagValue(update.tagId, valStr, numVal);
+    markPlcForTag(update.tagId, update.quality);
+
+    if (hasNumeric && numVal !== undefined && Number.isFinite(numVal)) {
+        chartRef.value?.addDataPoint(
+            update.tagId,
+            update.timestamp,
+            numVal,
+        );
+    }
+}
+
+function handlePollTimings(timings: any[]) {
+    if (!state.isSampling || !Array.isArray(timings) || timings.length === 0) {
+        return;
+    }
+    let next: Map<string, number> | null = null;
+    for (const timing of timings) {
+        const ms = Number(timing?.actualIntervalMs);
+        const link = String(timing?.plcLink || '');
+        if (!link || !Number.isFinite(ms) || ms <= 0) continue;
+        if (!next) next = new Map(actualByPlc.value);
+        next.set(link, Math.round(ms));
+    }
+    if (next) {
+        actualByPlc.value = next;
+    }
+}
+
 // ── Lifecycle ──────────────────────────────────────────────────────
 let fallbackTimer: number | null = null;
+let pollingStream: TelemetryStream | null = null;
 let unlistenPollUpdate: (() => void) | null = null;
 let unlistenPollTiming: (() => void) | null = null;
 let unlistenRequestExit: (() => void) | null = null;
+let unlistenSamplingState: (() => void) | null = null;
+let unlistenSettingsLoaded: (() => void) | null = null;
+let unlistenSettingsLoadError: (() => void) | null = null;
 
 onMounted(async () => {
     try {
@@ -634,42 +677,61 @@ onMounted(async () => {
         console.error('Error fetching initial settings', e);
     }
 
-    // Wails event listeners
+    // Wails stream & event listeners
     const rt = wailsRuntime();
+    if (rt?.OpenJSONStream) {
+        pollingStream = rt.OpenJSONStream('polling');
+        pollingStream.onmessage = (ev) => {
+            const frame = ev?.data;
+            if (!frame || !state.isSampling) return;
+            if (Array.isArray(frame.updates)) {
+                for (const update of frame.updates) {
+                    handlePollUpdate(update);
+                }
+            }
+            if (Array.isArray(frame.timings)) {
+                handlePollTimings(frame.timings);
+            }
+        };
+    } else if (rt?.EventsOn) {
+        unlistenPollUpdate = rt.EventsOn('poll_update', (update: any) => {
+            handlePollUpdate(update);
+        });
+
+        unlistenPollTiming = rt.EventsOn('poll_timing', (timing: any) => {
+            handlePollTimings([timing]);
+        });
+    }
+
     if (rt?.EventsOn) {
         unlistenRequestExit = rt.EventsOn('app:request-exit', () => {
             exitConfirmOpen.value = true;
         });
 
-        unlistenPollUpdate = rt.EventsOn('poll_update', (update: any) => {
-            if (!state.isSampling) return;
-            const valStr = update.value || '-';
-            const numVal = Number(update.numericValue);
-
-            setLiveValue(update.tagId, valStr);
-            updateTagValue(update.tagId, valStr, numVal);
-            markPlcForTag(update.tagId, update.quality);
-
-            if (
-                update.numericValue !== null &&
-                update.numericValue !== undefined
-            ) {
-                chartRef.value?.addDataPoint(
-                    update.tagId,
-                    update.timestamp,
-                    numVal,
-                );
-            }
+        unlistenSamplingState = rt.EventsOn('app:sampling-state', (evData: any) => {
+            const nextSampling = Boolean(evData?.isSampling);
+            cursorsEnabled.value = false;
+            state.isSampling = nextSampling;
+            state.isPaused = false;
+            chartRef.value?.setPaused(false);
+            resetActualSampling();
+            state.statusMessage = nextSampling
+                ? t('status.polling_started')
+                : t('status.polling_stopped');
         });
 
-        unlistenPollTiming = rt.EventsOn('poll_timing', (timing: any) => {
-            if (!state.isSampling) return;
-            const ms = Number(timing?.actualIntervalMs);
-            const link = String(timing?.plcLink || '');
-            if (!link || !Number.isFinite(ms) || ms <= 0) return;
-            const next = new Map(actualByPlc.value);
-            next.set(link, Math.round(ms));
-            actualByPlc.value = next;
+        unlistenSettingsLoaded = rt.EventsOn('settings:loaded', (loaded: any) => {
+            if (!loaded) return;
+            applyLoadedSettings(loaded as AppSettings);
+            liveValues.value = {};
+            resetActualSampling();
+            state.statusMessage = t('status.loaded_settings');
+        });
+
+        unlistenSettingsLoadError = rt.EventsOn('settings:load-error', (errMsg: any) => {
+            state.statusMessage = t('status.error_loading_settings', [
+                String(errMsg ?? ''),
+            ]);
         });
     }
 
@@ -714,26 +776,30 @@ onBeforeUnmount(() => {
         clearInterval(fallbackTimer);
         fallbackTimer = null;
     }
-    if (typeof unlistenRequestExit === 'function') {
-        unlistenRequestExit();
-        unlistenRequestExit = null;
-    } else {
-        const rt = wailsRuntime();
-        rt?.EventsOff?.('app:request-exit');
+    if (pollingStream) {
+        pollingStream.close();
+        pollingStream = null;
     }
-    if (typeof unlistenPollUpdate === 'function') {
-        unlistenPollUpdate();
-        unlistenPollUpdate = null;
-    } else {
-        const rt = wailsRuntime();
-        rt?.EventsOff?.('poll_update');
+    const rt = wailsRuntime();
+    for (const [unlisten, eventName] of [
+        [unlistenRequestExit, 'app:request-exit'],
+        [unlistenSamplingState, 'app:sampling-state'],
+        [unlistenSettingsLoaded, 'settings:loaded'],
+        [unlistenSettingsLoadError, 'settings:load-error'],
+        [unlistenPollUpdate, 'poll_update'],
+        [unlistenPollTiming, 'poll_timing'],
+    ] as const) {
+        if (typeof unlisten === 'function') {
+            unlisten();
+        } else {
+            rt?.EventsOff?.(eventName);
+        }
     }
-    if (typeof unlistenPollTiming === 'function') {
-        unlistenPollTiming();
-        unlistenPollTiming = null;
-    } else {
-        const rt = wailsRuntime();
-        rt?.EventsOff?.('poll_timing');
-    }
+    unlistenRequestExit = null;
+    unlistenSamplingState = null;
+    unlistenSettingsLoaded = null;
+    unlistenSettingsLoadError = null;
+    unlistenPollUpdate = null;
+    unlistenPollTiming = null;
 });
 </script>

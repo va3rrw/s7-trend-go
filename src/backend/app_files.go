@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	goruntime "runtime"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -255,12 +257,20 @@ func (a *App) LoadSettingsFile(title string) (*AppSettings, error) {
 	if filePath == "" {
 		return nil, fmt.Errorf("cancelled")
 	}
+	return a.loadSettingsFromFilePath(filePath)
+}
+
+func (a *App) loadSettingsFromFilePath(filePath string) (*AppSettings, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
+	trimmed := bytes.TrimSpace(data)
+	if !bytes.HasPrefix(trimmed, []byte("{")) {
+		return nil, fmt.Errorf("settings file must contain a JSON object")
+	}
 	var settings AppSettings
-	if err := json.Unmarshal(data, &settings); err != nil {
+	if err := json.Unmarshal(trimmed, &settings); err != nil {
 		return nil, err
 	}
 	settings = normalizeSettings(settings)
@@ -273,6 +283,32 @@ func (a *App) LoadSettingsFile(title string) (*AppSettings, error) {
 
 	a.saveAppState(filePath)
 	return &settings, nil
+}
+
+// FindSettingsJSONArg inspects CLI arguments for an existing .json settings
+// file path, resolving relative paths against workingDir when provided.
+func FindSettingsJSONArg(args []string, workingDir string) string {
+	for _, arg := range args {
+		trimmed := strings.TrimSpace(arg)
+		if trimmed == "" || strings.HasPrefix(trimmed, "-") {
+			continue
+		}
+		if !strings.EqualFold(filepath.Ext(trimmed), ".json") {
+			continue
+		}
+		candidate := trimmed
+		if !filepath.IsAbs(candidate) && workingDir != "" {
+			candidate = filepath.Join(workingDir, candidate)
+		}
+		if abs, err := filepath.Abs(candidate); err == nil {
+			candidate = abs
+		}
+		info, err := os.Stat(candidate)
+		if err == nil && !info.IsDir() {
+			return candidate
+		}
+	}
+	return ""
 }
 
 // ExportCSV streams all recorded sample history from SQLite directly to disk.
