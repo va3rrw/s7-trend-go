@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/robinson/gos7"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // StartPolling starts polling loop according to current AppSettings
@@ -19,11 +18,7 @@ func (a *App) StartPolling(settings AppSettings) {
 	a.mu.Lock()
 	oldLinks := append([]PlcLinkSettings(nil), a.settings.PlcLinks...)
 	a.settings = settings
-	baseCtx := a.ctx
-	if baseCtx == nil {
-		baseCtx = context.Background()
-	}
-	pollCtx, cancel := context.WithCancel(baseCtx)
+	pollCtx, cancel := context.WithCancel(context.Background())
 	a.cancelPoll = cancel
 	a.isPolling = true
 	done := make(chan struct{})
@@ -345,19 +340,18 @@ func (a *App) emitPollUpdate(tagId uuid.UUID, valStr string, numVal *float64, qu
 
 	update.TagId = tagId
 
-	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "poll_update", update)
+	if host := a.getHost(); host != nil {
+		host.EmitEvent("poll_update", update)
 	}
 }
 
 func (a *App) emitPollTiming(plcLink string, actualIntervalMs int) {
-	if a.ctx == nil {
-		return
+	if host := a.getHost(); host != nil {
+		host.EmitEvent("poll_timing", PollTiming{
+			PlcLink:          plcLink,
+			ActualIntervalMs: actualIntervalMs,
+		})
 	}
-	runtime.EventsEmit(a.ctx, "poll_timing", PollTiming{
-		PlcLink:          plcLink,
-		ActualIntervalMs: actualIntervalMs,
-	})
 }
 
 func (a *App) StopPolling() {

@@ -1,0 +1,96 @@
+package backend
+
+// DesktopHost abstracts desktop runtime capabilities needed by App so package
+// backend stays free of GUI framework dependencies and can be tested directly.
+type DesktopHost interface {
+	EmitEvent(name string, data ...any)
+	Quit()
+	ShowWindow()
+	HideWindow()
+	GetWindowBounds() (width, height, x, y int, ok bool)
+	SetWindowBounds(width, height, x, y int, setPos bool)
+	OpenFileDialog(title, defaultDir, filterName, filterPattern string) (string, error)
+	SaveFileDialog(title, defaultDir, defaultFilename, filterName, filterPattern string) (string, error)
+}
+
+// AttachHost connects a DesktopHost implementation to app.
+func AttachHost(a *App, host DesktopHost) {
+	a.mu.Lock()
+	a.host = host
+	a.mu.Unlock()
+}
+
+// SetTrayEnabled configures whether closing the window hides to tray instead of exiting.
+func SetTrayEnabled(a *App, enabled bool) {
+	a.trayMu.Lock()
+	a.trayEnabled = enabled
+	a.trayMu.Unlock()
+}
+
+// InitialWindowState returns the persisted window geometry loaded at startup.
+func InitialWindowState(a *App) (width, height, x, y int, posSet bool) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.windowWidth, a.windowHeight, a.windowX, a.windowY, a.windowPosSet
+}
+
+// RestoreWindow asks the attached desktop host to show and focus the main window.
+func RestoreWindow(a *App) {
+	if host := a.getHost(); host != nil {
+		host.ShowWindow()
+	}
+}
+
+// SaveWindowState persists current window geometry and last-used settings state.
+func SaveWindowState(a *App) {
+	a.saveWindowState()
+}
+
+// HandleWindowClosing handles a window close request and returns true if closing
+// should be cancelled (hidden to tray or awaiting exit confirmation).
+func HandleWindowClosing(a *App) (prevent bool) {
+	a.mu.RLock()
+	force := a.forceExit
+	host := a.host
+	a.mu.RUnlock()
+
+	if force {
+		a.saveWindowState()
+		return false
+	}
+
+	a.trayMu.Lock()
+	trayEnabled := a.trayEnabled
+	a.trayMu.Unlock()
+	if trayEnabled && host != nil {
+		// Save bounds before hiding so hidden/invisible windows do not clobber geometry.
+		a.saveWindowState()
+		host.HideWindow()
+		return true
+	}
+
+	if !a.HasSettingsChanged() {
+		a.saveWindowState()
+		return false
+	}
+
+	if host != nil {
+		host.EmitEvent("app:request-exit")
+	}
+	return true
+}
+
+// RequestExitFromTray handles an Exit command invoked from the system tray menu.
+func RequestExitFromTray(a *App) {
+	host := a.getHost()
+	if host == nil {
+		return
+	}
+
+	if a.HasSettingsChanged() {
+		host.ShowWindow()
+		host.EmitEvent("app:request-exit")
+		return
+	}
+	a.QuitApp()
+}

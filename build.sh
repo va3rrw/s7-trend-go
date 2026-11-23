@@ -17,7 +17,7 @@ if [[ ! "$VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 echo "Version: v$VER (from VERSION)"
 
-# ── Sync version into Go / Wails / frontend ─────────────────────────
+# ── Sync version into Go / Wails v3 / frontend / Windows resources ──
 cat > "$ROOT/src/backend/version.go" <<EOF
 package backend
 
@@ -33,24 +33,74 @@ EOF
 EXE_BASENAME="s7-trend-go-v${VER}"
 EXE_NAME="${EXE_BASENAME}.exe"
 
-# wails.json productVersion + versioned output filename
+# Sync version into build/config.yml, build/windows/info.json, build/windows/wails.exe.manifest
 if command -v python3 >/dev/null 2>&1; then
-  python3 - "$ROOT/src/wails.json" "$VER" "$EXE_BASENAME" <<'PY'
-import json, sys
-path, ver, outname = sys.argv[1], sys.argv[2], sys.argv[3]
-with open(path, encoding="utf-8") as f:
-    data = json.load(f)
-data["outputfilename"] = outname
-data.setdefault("info", {})["productVersion"] = ver
-data["info"]["productName"] = "S7 Trend Go"
-with open(path, "w", encoding="utf-8") as f:
-    json.dump(data, f, indent=2)
+  python3 - "$ROOT/src/build/config.yml" "$ROOT/src/build/windows/info.json" "$ROOT/src/build/windows/wails.exe.manifest" "$VER" <<'PY'
+import json, re, sys
+
+config_path, info_path, manifest_path, ver = sys.argv[1:5]
+
+with open(config_path, encoding="utf-8") as f:
+    cfg = f.read()
+cfg = re.sub(r'(?m)^(\s*version:\s*)"[^"]*"', rf'\1"{ver}"', cfg, count=1)
+with open(config_path, "w", encoding="utf-8", newline="\n") as f:
+    f.write(cfg)
+
+with open(info_path, encoding="utf-8") as f:
+    info = json.load(f)
+info.setdefault("fixed", {})["file_version"] = ver
+info["fixed"]["product_version"] = ver
+loc = info.setdefault("info", {}).setdefault("0409", {})
+loc["FileVersion"] = ver
+loc["ProductVersion"] = ver
+with open(info_path, "w", encoding="utf-8", newline="\n") as f:
+    json.dump(info, f, indent="\t")
     f.write("\n")
+
+with open(manifest_path, encoding="utf-8") as f:
+    manifest = f.read()
+manifest = re.sub(
+    r'(<assemblyIdentity\b[^>]*\bversion=")[^"]*(")',
+    rf'\g<1>{ver}.0\2',
+    manifest,
+    count=1,
+)
+with open(manifest_path, "w", encoding="utf-8", newline="\n") as f:
+    f.write(manifest)
 PY
 else
-  sed -i "s/\"productVersion\": \"[^\"]*\"/\"productVersion\": \"$VER\"/" "$ROOT/src/wails.json"
-  sed -i "s/\"outputfilename\": \"[^\"]*\"/\"outputfilename\": \"$EXE_BASENAME\"/" "$ROOT/src/wails.json"
+  sed -i -E "s/^([[:space:]]*version:[[:space:]]*)\"[^\"]*\"/\\1\"$VER\"/" "$ROOT/src/build/config.yml"
+  sed -i -E "s/\"file_version\": \"[^\"]*\"/\"file_version\": \"$VER\"/" "$ROOT/src/build/windows/info.json"
+  sed -i -E "s/\"product_version\": \"[^\"]*\"/\"product_version\": \"$VER\"/" "$ROOT/src/build/windows/info.json"
+  sed -i -E "s/\"FileVersion\": \"[^\"]*\"/\"FileVersion\": \"$VER\"/" "$ROOT/src/build/windows/info.json"
+  sed -i -E "s/\"ProductVersion\": \"[^\"]*\"/\"ProductVersion\": \"$VER\"/" "$ROOT/src/build/windows/info.json"
+  sed -i -E "s/(<assemblyIdentity[^>]*version=\")[^\"]*(\")/\\1${VER}.0\\2/" "$ROOT/src/build/windows/wails.exe.manifest"
 fi
+
+# ── Locate wails3 binary ────────────────────────────────────────────
+if [[ -n "${WAILS3_BIN:-}" && -x "$WAILS3_BIN" ]]; then
+  : # Using user-provided WAILS3_BIN
+elif [[ -n "${WAILS_BIN:-}" && -x "$WAILS_BIN" ]]; then
+  WAILS3_BIN="$WAILS_BIN"
+elif command -v wails3 >/dev/null 2>&1; then
+  WAILS3_BIN="$(command -v wails3)"
+elif [[ -x "$(go env GOPATH 2>/dev/null)/bin/wails3" ]]; then
+  WAILS3_BIN="$(go env GOPATH)/bin/wails3"
+elif [[ -x "$HOME/go/bin/wails3" ]]; then
+  WAILS3_BIN="$HOME/go/bin/wails3"
+elif [[ -x "/usr/local/bin/wails3" ]]; then
+  WAILS3_BIN="/usr/local/bin/wails3"
+elif [[ -x "/tmp/go-bin/wails3" ]]; then
+  WAILS3_BIN="/tmp/go-bin/wails3"
+else
+  echo "wails3 not found (set WAILS3_BIN or install with 'go install github.com/wailsapp/wails/v3/cmd/wails3@latest')" >&2
+  exit 1
+fi
+echo "Using Wails v3 binary: $WAILS3_BIN"
+
+# ── Generate Wails v3 bindings before frontend tests & build ────────
+echo "Generating Wails v3 TypeScript bindings..."
+(cd "$ROOT/src" && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 "$WAILS3_BIN" generate bindings -clean=true -ts -i)
 
 # ── Run test suites & build frontend assets ────────────────────────
 echo "Running frontend tests..."
@@ -81,30 +131,21 @@ echo "Running Go tests..."
 # ── Build Windows executable ────────────────────────────────────────
 echo "Building Windows executable ($EXE_NAME)..."
 cd "$ROOT/src"
-# Locate wails binary
-if [[ -n "${WAILS_BIN:-}" && -x "$WAILS_BIN" ]]; then
-  : # Using user-provided WAILS_BIN
-elif command -v wails >/dev/null 2>&1; then
-  WAILS_BIN="$(command -v wails)"
-elif [[ -x "$(go env GOPATH 2>/dev/null)/bin/wails" ]]; then
-  WAILS_BIN="$(go env GOPATH)/bin/wails"
-elif [[ -x "$HOME/go/bin/wails" ]]; then
-  WAILS_BIN="$HOME/go/bin/wails"
-elif [[ -x "/tmp/go-bin/wails" ]]; then
-  WAILS_BIN="/tmp/go-bin/wails"
-else
-  echo "wails not found (set WAILS_BIN or install with 'go install github.com/wailsapp/wails/v2/cmd/wails@latest')" >&2
-  exit 1
+PKG_MGR="npm"
+if command -v pnpm >/dev/null 2>&1; then
+  PKG_MGR="pnpm"
 fi
-echo "Using Wails binary: $WAILS_BIN"
-
-"$WAILS_BIN" build -platform windows/amd64
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 "$WAILS3_BIN" build APP_NAME="$EXE_BASENAME" PACKAGE_MANAGER="$PKG_MGR"
 
 echo "Moving executable to dist/ folder..."
 mkdir -p "$ROOT/dist"
-BUILT="$(ls -1 build/bin/*.exe 2>/dev/null | head -1 || true)"
+if [[ -f "bin/$EXE_NAME" ]]; then
+  BUILT="bin/$EXE_NAME"
+else
+  BUILT="$(ls -1 bin/*.exe 2>/dev/null | head -1 || true)"
+fi
 if [[ -z "$BUILT" ]]; then
-  echo "No .exe found in build/bin/" >&2
+  echo "No .exe found in bin/" >&2
   exit 1
 fi
 mv -f "$BUILT" "$ROOT/dist/$EXE_NAME"

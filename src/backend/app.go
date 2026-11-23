@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -9,7 +8,6 @@ import (
 
 	"github.com/jeandeaual/go-locale"
 	"github.com/robinson/gos7"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 func (a *App) GetSystemLanguage() string {
@@ -33,14 +31,14 @@ type PlcConnection struct {
 }
 
 type App struct {
-	ctx               context.Context
+	host              DesktopHost
 	plcs              map[string]*PlcConnection
 	settings          AppSettings
 	savedSettingsJSON string
 	lastSettingsPath  string
 	forceExit         bool
 	mu                sync.RWMutex
-	cancelPoll        context.CancelFunc
+	cancelPoll        func()
 	isPolling         bool
 	pollDone          chan struct{}
 
@@ -58,8 +56,6 @@ type App struct {
 
 	trayMu      sync.Mutex
 	trayEnabled bool
-	trayIcon    []byte
-	tray        *trayController
 }
 
 func NewApp() *App {
@@ -110,99 +106,32 @@ func (a *App) GetLastSettingsPath() string {
 	return a.lastSettingsPath
 }
 
+func (a *App) getHost() DesktopHost {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.host
+}
+
 // QuitApp forces application exit without prompting
 func (a *App) QuitApp() {
 	a.mu.Lock()
 	a.forceExit = true
-	ctx := a.ctx
+	host := a.host
 	a.mu.Unlock()
-	if ctx != nil {
-		runtime.Quit(ctx)
+	a.saveWindowState()
+	if host != nil {
+		host.Quit()
 	}
 }
 
-func (a *App) requestExitFromTray() {
-	a.mu.RLock()
-	ctx := a.ctx
-	a.mu.RUnlock()
-	if ctx == nil {
-		return
-	}
-
-	if a.HasSettingsChanged() {
-		runtime.WindowShow(ctx)
-		runtime.WindowUnminimise(ctx)
-		runtime.EventsEmit(ctx, "app:request-exit")
-		return
-	}
-	a.QuitApp()
-}
-
-// EnableTray enables close-to-tray behavior and uses iconBytes for the tray
-// icon. It is called by main before Wails starts.
-func (a *App) EnableTray(iconBytes []byte) {
-	a.trayMu.Lock()
-	a.trayEnabled = true
-	a.trayIcon = append([]byte(nil), iconBytes...)
-	ctx := a.ctx
-	a.trayMu.Unlock()
-	if ctx != nil {
-		a.startTray(ctx)
-	}
-}
-
-// BeforeClose is called by Wails before the application window closes
-func (a *App) BeforeClose(ctx context.Context) (prevent bool) {
-	a.mu.RLock()
-	force := a.forceExit
-	appCtx := a.ctx
-	a.mu.RUnlock()
-	if force {
-		a.saveWindowState(ctx)
-		return false
-	}
-
-	a.trayMu.Lock()
-	trayEnabled := a.trayEnabled
-	a.trayMu.Unlock()
-	if trayEnabled && appCtx != nil {
-		runtime.WindowHide(appCtx)
-		return true
-	}
-
-	if !a.HasSettingsChanged() {
-		a.saveWindowState(ctx)
-		return false
-	}
-
-	// Notify frontend to display the custom in-app exit confirmation dialog
-	if ctx != nil && a.ctx != nil {
-		runtime.EventsEmit(ctx, "app:request-exit")
-	}
-	return true
-}
-
-func (a *App) Startup(ctx context.Context) {
-	a.mu.Lock()
-	a.ctx = ctx
-	a.mu.Unlock()
-	a.restoreWindowState(ctx)
-
-	a.trayMu.Lock()
-	trayEnabled := a.trayEnabled
-	a.trayMu.Unlock()
-	if trayEnabled {
-		a.startTray(ctx)
-	}
-}
-
-func (a *App) Shutdown(ctx context.Context) {
-	a.stopTray()
+// ServiceShutdown cleans up polling loops, PLC connections, and SQLite history on Wails shutdown.
+func (a *App) ServiceShutdown() error {
 	a.StopPolling()
 	a.DisconnectAll()
 	if a.history != nil {
 		_ = a.history.Close()
 	}
+	return nil
 }
 
 // GetSettings returns current application settings

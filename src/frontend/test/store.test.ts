@@ -1,10 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
     state,
     uiState,
     showMessage,
     backend,
     wailsRuntime,
+    setBackendOverride,
+    setRuntimeOverride,
     formatNumber,
     updateTagValue,
     resetStats,
@@ -121,5 +123,37 @@ describe('store.ts', () => {
     it('provides backend and wailsRuntime accessors', () => {
         expect(backend()).toBeDefined();
         expect(wailsRuntime()).toBeDefined();
+    });
+
+    it('returns undefined outside Wails webview when overrides are cleared', () => {
+        setBackendOverride(null);
+        setRuntimeOverride(null);
+        expect(backend()).toBeUndefined();
+        expect(wailsRuntime()).toBeUndefined();
+    });
+
+    it('uses Wails v3 adapters and unwraps event payloads when WebView2 bridge is present', () => {
+        const win = window as any;
+        const originalChrome = win.chrome;
+        setBackendOverride(null);
+        setRuntimeOverride(null);
+        win.chrome = { webview: { postMessage: vi.fn() } };
+
+        try {
+            expect(backend()).toBeDefined();
+            const rt = wailsRuntime();
+            expect(rt).toBeDefined();
+
+            const received: any[] = [];
+            const unlisten = rt!.EventsOn('poll_update', (payload) => {
+                received.push(payload);
+            });
+            const samplePayload = { tagId: 'tag-1', value: '42', quality: 'Good' };
+            win._wails.dispatchWailsEvent({ name: 'poll_update', data: samplePayload });
+            expect(received).toEqual([samplePayload]);
+            unlisten();
+        } finally {
+            win.chrome = originalChrome;
+        }
     });
 });

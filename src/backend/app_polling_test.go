@@ -79,10 +79,10 @@ func TestApp_StartPolling_UnconfiguredLink(t *testing.T) {
 	app.StopPolling()
 }
 
-func TestApp_EmitMethods_NilContext(t *testing.T) {
+func TestApp_EmitMethods_NilHost(t *testing.T) {
 	app := NewApp()
 	val := 12.34
-	// Neither of these should panic when app.ctx is nil
+	// Neither of these should panic when app.host is nil
 	app.emitPollUpdate(uuid.New(), "12.34", &val, "Good", "")
 	app.emitPollTiming("PLC1", 50)
 }

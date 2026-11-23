@@ -119,7 +119,7 @@ describe('PlcTagsDialog.vue', () => {
 
     it('tests connection for active PLC', async () => {
         const testConnSpy = vi.fn().mockResolvedValue(undefined);
-        backend().TestConnection = testConnSpy;
+        backend()!.TestConnection = testConnSpy;
 
         const wrapper = await mountOpenPlcTagsDialog();
         const testBtn = wrapper.findAll('.plc-panel .panel-footer button')[2];

@@ -11,6 +11,9 @@ importers:
       '@vitejs/plugin-vue':
         specifier: ^6.0.8
         version: 6.0.8(vite@8.1.5(jiti@2.7.0))(vue@3.5.40(typescript@5.9.3))
+      '@wailsio/runtime':
+        specifier: 3.1.0
+        version: 3.1.0
       chart.js:
         specifier: ^4.5.1
         version: 4.5.1
@@ -598,6 +601,9 @@ packages:
     peerDependenciesMeta:
       '@vue/server-renderer':
         optional: true
+
+  '@wailsio/runtime@3.1.0':
+    resolution: {integrity: sha512-noEAedvRyO8TLCrqhGwzrp+mbMxAIDa2rYmdJQOzvJV9MxgaZeXAJGNBiMiKMTSSy4ESOtQi4VH/5heSzi6ZmA==}
 
   abbrev@2.0.0:
     resolution: {integrity: sha512-6/mh1E2u2YgEsCHdY0Yx5oW+61gZU+1vXaoiHHrpKeuRNNgFvS+/jrwHiQhB5apAf5oB7UB7E19ol2R2LKH8hQ==}
@@ -1895,6 +1901,8 @@ snapshots:
       vue-component-type-helpers: 3.3.10
     optionalDependencies:
       '@vue/server-renderer': 3.5.40
+
+  '@wailsio/runtime@3.1.0': {}
 
   abbrev@2.0.0: {}
 

@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,10 +20,10 @@ func TestHistoryStoreCreatesAndReopensFile(t *testing.T) {
 		t.Fatalf("expected history database to be created automatically: %v", err)
 	}
 	app.RecordSample("tag-1", 1000, 12.5)
-	app.Shutdown(context.Background())
+	_ = app.ServiceShutdown()
 
 	reopened := NewAppWithHistoryPath(dbPath)
-	defer reopened.Shutdown(context.Background())
+	defer func() { _ = reopened.ServiceShutdown() }()
 	points := reopened.GetHistoryRange([]string{"tag-1"}, 0, 2000, 0)["tag-1"]
 	if len(points) != 1 || points[0].Timestamp != 1000 || points[0].Value != 12.5 {
 		t.Fatalf("expected persisted point, got %+v", points)
@@ -34,7 +33,7 @@ func TestHistoryStoreCreatesAndReopensFile(t *testing.T) {
 func TestAppSamplingIntervalAndBooleanChanges(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "history.db")
 	app := NewAppWithHistoryPath(dbPath)
-	defer app.Shutdown(context.Background())
+	defer func() { _ = app.ServiceShutdown() }()
 
 	numericID := uuid.New()
 	boolID := uuid.New()

@@ -1,4 +1,11 @@
 import { beforeEach, vi } from 'vitest';
+import {
+    setBackendOverride,
+    setRuntimeOverride,
+    type BackendApi,
+    type WailsRuntimeApi,
+} from '../src/store';
+import { defaultSettings } from '../src/types';
 
 // Mock ResizeObserver for Chart.js
 if (typeof globalThis.ResizeObserver === 'undefined') {
@@ -53,35 +60,51 @@ if (typeof HTMLCanvasElement !== 'undefined') {
     } as any;
 }
 
-// Mock Wails runtime & backend on window
-(globalThis as any).window = globalThis.window || {};
-(window as any).runtime = {
-    EventsOn: vi.fn(),
-    EventsOff: vi.fn(),
-    EventsEmit: vi.fn(),
-};
+export function createMockRuntime(): WailsRuntimeApi {
+    return {
+        EventsOn: vi.fn(() => vi.fn()),
+        EventsOff: vi.fn(),
+        EventsOnce: vi.fn(),
+        EventsEmit: vi.fn(),
+        WindowSetTitle: vi.fn(),
+        Quit: vi.fn(),
+    };
+}
 
-(window as any).go = {
-    backend: {
-        App: {
-            GetSettings: vi.fn().mockResolvedValue({}),
-            SaveSettings: vi.fn().mockResolvedValue(undefined),
-            StartPolling: vi.fn().mockResolvedValue(undefined),
-            StopPolling: vi.fn().mockResolvedValue(undefined),
-            TestConnection: vi.fn().mockResolvedValue(undefined),
-            SavePlcLinks: vi.fn().mockResolvedValue(undefined),
-            LoadPlcLinks: vi.fn().mockResolvedValue([]),
-            SaveTags: vi.fn().mockResolvedValue(undefined),
-            LoadTags: vi.fn().mockResolvedValue([]),
-            ExportCSV: vi.fn().mockResolvedValue(undefined),
-            GetHistoryRange: vi.fn().mockResolvedValue({}),
-            ClearHistory: vi.fn().mockResolvedValue(undefined),
-            GetVersion: vi.fn().mockResolvedValue('1.0.0'),
-            GetSystemLanguage: vi.fn().mockResolvedValue('en'),
-        },
-    },
-};
+export function createMockBackend(): BackendApi {
+    return {
+        CheckStatus: vi.fn().mockResolvedValue(false),
+        ClearHistory: vi.fn().mockResolvedValue(undefined),
+        Connect: vi.fn().mockResolvedValue(undefined),
+        Disconnect: vi.fn().mockResolvedValue(undefined),
+        DisconnectAll: vi.fn().mockResolvedValue(undefined),
+        ExportCSV: vi.fn().mockResolvedValue(undefined),
+        GetHistoryRange: vi.fn().mockResolvedValue({}),
+        GetLastSettingsPath: vi.fn().mockResolvedValue(''),
+        GetSettings: vi.fn().mockResolvedValue(defaultSettings()),
+        GetTreePanelWidth: vi.fn().mockResolvedValue(250),
+        GetSystemLanguage: vi.fn().mockResolvedValue('en'),
+        GetVersion: vi.fn().mockResolvedValue('1.0.0'),
+        HasSettingsChanged: vi.fn().mockResolvedValue(false),
+        LoadSettingsFile: vi.fn().mockResolvedValue(defaultSettings()),
+        OpenStorageFolder: vi.fn().mockResolvedValue(undefined),
+        QuitApp: vi.fn().mockResolvedValue(undefined),
+        RecordSample: vi.fn().mockResolvedValue(undefined),
+        SaveCurrentSettings: vi.fn().mockResolvedValue(undefined),
+        SaveSettings: vi.fn().mockResolvedValue(undefined),
+        SaveSettingsFile: vi.fn().mockResolvedValue(undefined),
+        SetTreePanelWidth: vi.fn().mockResolvedValue(undefined),
+        StartPolling: vi.fn().mockResolvedValue(undefined),
+        StopPolling: vi.fn().mockResolvedValue(undefined),
+        TestConnection: vi.fn().mockResolvedValue(undefined),
+    };
+}
+
+setRuntimeOverride(createMockRuntime());
+setBackendOverride(createMockBackend());
 
 beforeEach(() => {
+    setRuntimeOverride(createMockRuntime());
+    setBackendOverride(createMockBackend());
     vi.clearAllMocks();
 });

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import App from '../src/App.vue';
 import { i18n } from '../src/i18n';
-import { state } from '../src/store';
+import { state, backend } from '../src/store';
 
 describe('Keyboard Shortcuts in App.vue', () => {
     let wrapper: any;
@@ -74,8 +74,8 @@ describe('Keyboard Shortcuts in App.vue', () => {
             yAxes: [],
         });
 
-        (window as any).go.backend.App.SaveSettingsFile = saveSettingsFileMock;
-        (window as any).go.backend.App.LoadSettingsFile = loadSettingsFileMock;
+        backend()!.SaveSettingsFile = saveSettingsFileMock;
+        backend()!.LoadSettingsFile = loadSettingsFileMock;
 
         wrapper = mount(App, {
             global: {
@@ -164,7 +164,7 @@ describe('Keyboard Shortcuts in App.vue', () => {
 
     it('handles Ctrl+E to export CSV', async () => {
         const exportCSVMock = vi.fn().mockResolvedValue('export.csv');
-        (window as any).go.backend.App.ExportCSV = exportCSVMock;
+        backend()!.ExportCSV = exportCSVMock;
 
         wrapper = mount(App, {
             global: {

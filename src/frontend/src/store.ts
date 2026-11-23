@@ -1,4 +1,6 @@
 import { reactive } from 'vue';
+import { Application, Events, Window } from '@wailsio/runtime';
+import * as AppBinding from '../bindings/s7-trend-go/backend/app';
 import type { AppSettings, TagSettings } from './types';
 import { defaultSettings } from './types';
 
@@ -84,16 +86,128 @@ export interface WailsRuntimeApi {
     Quit(): void;
 }
 
-/** Backend API accessor – returns typed Wails Go bindings or undefined in browser preview / tests */
+type BindingAppSettings = Parameters<typeof AppBinding.SaveSettings>[0];
+
+function toAppSettings(raw: BindingAppSettings): AppSettings {
+    return {
+        ...raw,
+        plcLinks: raw.plcLinks ?? [],
+        tags: raw.tags ?? [],
+        yAxes: raw.yAxes ?? [],
+    } as unknown as AppSettings;
+}
+
+const wailsBackend: BackendApi = {
+    CheckStatus: (plcLinkName) => AppBinding.CheckStatus(plcLinkName),
+    ClearHistory: () => AppBinding.ClearHistory(),
+    Connect: (plcLinkName, ipAddress, rack, slot) =>
+        AppBinding.Connect(plcLinkName, ipAddress, rack, slot),
+    Disconnect: (plcLinkName) => AppBinding.Disconnect(plcLinkName),
+    DisconnectAll: () => AppBinding.DisconnectAll(),
+    ExportCSV: (title) => AppBinding.ExportCSV(title),
+    async GetHistoryRange(tagIds, startMs, endMs, maxPoints) {
+        const result = await AppBinding.GetHistoryRange(tagIds, startMs, endMs, maxPoints);
+        const normalized: Record<string, Array<{ t: number; v: number }>> = {};
+        if (result) {
+            for (const [key, points] of Object.entries(result)) {
+                normalized[key] = points ?? [];
+            }
+        }
+        return normalized;
+    },
+    GetLastSettingsPath: () => AppBinding.GetLastSettingsPath(),
+    async GetSettings() {
+        return toAppSettings(await AppBinding.GetSettings());
+    },
+    GetTreePanelWidth: () => AppBinding.GetTreePanelWidth(),
+    GetSystemLanguage: () => AppBinding.GetSystemLanguage(),
+    GetVersion: () => AppBinding.GetVersion(),
+    HasSettingsChanged: () => AppBinding.HasSettingsChanged(),
+    async LoadSettingsFile(title) {
+        const loaded = await AppBinding.LoadSettingsFile(title);
+        if (!loaded) {
+            return loaded as unknown as AppSettings;
+        }
+        return toAppSettings(loaded);
+    },
+    OpenStorageFolder: () => AppBinding.OpenStorageFolder(),
+    QuitApp: () => AppBinding.QuitApp(),
+    RecordSample: (tagId, timestamp, value) =>
+        AppBinding.RecordSample(tagId, timestamp, value),
+    SaveCurrentSettings: () => AppBinding.SaveCurrentSettings(),
+    SaveSettings: (settings) =>
+        AppBinding.SaveSettings(settings as unknown as BindingAppSettings),
+    SaveSettingsFile: (settings, title) =>
+        AppBinding.SaveSettingsFile(settings as unknown as BindingAppSettings, title),
+    SetTreePanelWidth: (width) => AppBinding.SetTreePanelWidth(width),
+    StartPolling: (settings) =>
+        AppBinding.StartPolling(settings as unknown as BindingAppSettings),
+    StopPolling: () => AppBinding.StopPolling(),
+    TestConnection: (link) => AppBinding.TestConnection(link),
+};
+
+const wailsV3Runtime: WailsRuntimeApi = {
+    EventsOn: (eventName, callback) =>
+        Events.On(eventName, (ev: any) => callback(ev?.data)),
+    EventsOff: (eventName, ...additionalEventNames) =>
+        Events.Off(eventName, ...additionalEventNames),
+    EventsOnce: (eventName, callback) => {
+        void Events.Once(eventName, (ev: any) => callback(ev?.data));
+    },
+    EventsEmit: (eventName, ...optionalData) => {
+        if (optionalData.length === 0) {
+            void Events.Emit(eventName);
+        } else if (optionalData.length === 1) {
+            void Events.Emit(eventName, optionalData[0]);
+        } else {
+            void Events.Emit(eventName, optionalData);
+        }
+    },
+    WindowSetTitle: (title) => {
+        void Window.SetTitle(title);
+    },
+    Quit: () => {
+        void Application.Quit();
+    },
+};
+
+let backendOverride: BackendApi | null = null;
+let runtimeOverride: WailsRuntimeApi | null = null;
+
+/** Test hook for injecting a mock BackendApi */
+export function setBackendOverride(api: BackendApi | null): void {
+    backendOverride = api;
+}
+
+/** Test hook for injecting a mock WailsRuntimeApi */
+export function setRuntimeOverride(rt: WailsRuntimeApi | null): void {
+    runtimeOverride = rt;
+}
+
+/** Detects whether the frontend is hosted inside a Wails v3 native webview */
+export function isWailsRuntime(): boolean {
+    if (typeof window === 'undefined') return false;
+    const win = window as any;
+    return Boolean(
+        win.chrome?.webview?.postMessage ||
+            win.webkit?.messageHandlers?.external?.postMessage ||
+            win.wails?.invoke ||
+            win._wails?.flags,
+    );
+}
+
+/** Backend API accessor – returns typed Wails v3 Go bindings or undefined in browser preview */
 export function backend(): BackendApi | undefined {
-    if (typeof window === 'undefined') return undefined;
-    return (window as any).go?.backend?.App;
+    if (backendOverride) return backendOverride;
+    if (!isWailsRuntime()) return undefined;
+    return wailsBackend;
 }
 
 /** Wails runtime accessor */
 export function wailsRuntime(): WailsRuntimeApi | undefined {
-    if (typeof window === 'undefined') return undefined;
-    return (window as any).runtime;
+    if (runtimeOverride) return runtimeOverride;
+    if (!isWailsRuntime()) return undefined;
+    return wailsV3Runtime;
 }
 
 export function formatNumber(value: number): string {

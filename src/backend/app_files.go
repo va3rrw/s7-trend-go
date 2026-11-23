@@ -2,7 +2,6 @@ package backend
 
 import (
 	"bufio"
-	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -12,8 +11,6 @@ import (
 	goruntime "runtime"
 	"strconv"
 	"time"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // File Operations
@@ -119,30 +116,9 @@ func (a *App) SetTreePanelWidth(width int) {
 	a.mu.Unlock()
 }
 
-func (a *App) restoreWindowState(ctx context.Context) {
-	if !hasWailsFrontend(ctx) {
-		return
-	}
-
-	a.mu.RLock()
-	width := a.windowWidth
-	height := a.windowHeight
-	x := a.windowX
-	y := a.windowY
-	positionSet := a.windowPosSet
-	a.mu.RUnlock()
-
-	if width <= 0 || height <= 0 {
-		return
-	}
-	runtime.WindowSetSize(ctx, width, height)
-	if positionSet {
-		runtime.WindowSetPosition(ctx, x, y)
-	}
-}
-
-func (a *App) saveWindowState(ctx context.Context) {
-	if !hasWailsFrontend(ctx) {
+func (a *App) saveWindowState() {
+	host := a.getHost()
+	if host == nil {
 		return
 	}
 
@@ -150,24 +126,16 @@ func (a *App) saveWindowState(ctx context.Context) {
 	lastFile := a.lastSettingsPath
 	a.mu.RUnlock()
 
-	width, height := runtime.WindowGetSize(ctx)
-	x, y := runtime.WindowGetPosition(ctx)
-	if width <= 0 || height <= 0 {
-		return
+	if width, height, x, y, ok := host.GetWindowBounds(); ok && width > 0 && height > 0 {
+		a.mu.Lock()
+		a.windowWidth = width
+		a.windowHeight = height
+		a.windowX = x
+		a.windowY = y
+		a.windowPosSet = true
+		a.mu.Unlock()
 	}
-
-	a.mu.Lock()
-	a.windowWidth = width
-	a.windowHeight = height
-	a.windowX = x
-	a.windowY = y
-	a.windowPosSet = true
-	a.mu.Unlock()
 	a.saveAppState(lastFile)
-}
-
-func hasWailsFrontend(ctx context.Context) bool {
-	return ctx != nil && ctx.Value("frontend") != nil
 }
 
 func getDefaultSettingsDir() string {
@@ -234,17 +202,17 @@ func (a *App) SaveSettingsFile(settings AppSettings, title string) error {
 		defaultDir = filepath.Dir(lastPath)
 	}
 
-	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		DefaultDirectory: defaultDir,
-		Title:            title,
-		DefaultFilename:  defaultFilename,
-		Filters:          []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
-	})
-	if err != nil || filePath == "" {
-		if filePath == "" {
-			return fmt.Errorf("cancelled")
-		}
+	host := a.getHost()
+	if host == nil {
+		return fmt.Errorf("desktop runtime unavailable")
+	}
+
+	filePath, err := host.SaveFileDialog(title, defaultDir, defaultFilename, "JSON Files (*.json)", "*.json")
+	if err != nil {
 		return err
+	}
+	if filePath == "" {
+		return fmt.Errorf("cancelled")
 	}
 	data, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
@@ -275,16 +243,17 @@ func (a *App) LoadSettingsFile(title string) (*AppSettings, error) {
 		defaultDir = filepath.Dir(lastPath)
 	}
 
-	filePath, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
-		DefaultDirectory: defaultDir,
-		Title:            title,
-		Filters:          []runtime.FileFilter{{DisplayName: "JSON Files (*.json)", Pattern: "*.json"}},
-	})
-	if err != nil || filePath == "" {
-		if filePath == "" {
-			return nil, fmt.Errorf("cancelled")
-		}
+	host := a.getHost()
+	if host == nil {
+		return nil, fmt.Errorf("desktop runtime unavailable")
+	}
+
+	filePath, err := host.OpenFileDialog(title, defaultDir, "JSON Files (*.json)", "*.json")
+	if err != nil {
 		return nil, err
+	}
+	if filePath == "" {
+		return nil, fmt.Errorf("cancelled")
 	}
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -308,11 +277,12 @@ func (a *App) LoadSettingsFile(title string) (*AppSettings, error) {
 
 // ExportCSV streams all recorded sample history from SQLite directly to disk.
 func (a *App) ExportCSV(title string) error {
-	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		Title:           title,
-		DefaultFilename: "trend.csv",
-		Filters:         []runtime.FileFilter{{DisplayName: "CSV Files (*.csv)", Pattern: "*.csv"}},
-	})
+	host := a.getHost()
+	if host == nil {
+		return fmt.Errorf("desktop runtime unavailable")
+	}
+
+	filePath, err := host.SaveFileDialog(title, "", "trend.csv", "CSV Files (*.csv)", "*.csv")
 	if err != nil || filePath == "" {
 		return err
 	}

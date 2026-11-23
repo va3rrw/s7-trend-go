@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import App from '../src/App.vue';
 import { i18n } from '../src/i18n';
-import { state } from '../src/store';
+import { state, backend } from '../src/store';
 
 describe('Sampling Settings Sync in App.vue', () => {
     let wrapper: any;
@@ -26,8 +26,8 @@ describe('Sampling Settings Sync in App.vue', () => {
         const startPollingMock = vi.fn().mockResolvedValue(undefined);
         const saveSettingsMock = vi.fn().mockResolvedValue(undefined);
 
-        (window as any).go.backend.App.StartPolling = startPollingMock;
-        (window as any).go.backend.App.SaveSettings = saveSettingsMock;
+        backend()!.StartPolling = startPollingMock;
+        backend()!.SaveSettings = saveSettingsMock;
 
         wrapper = mount(App, {
             global: {
@@ -51,8 +51,8 @@ describe('Sampling Settings Sync in App.vue', () => {
         const startPollingMock = vi.fn().mockResolvedValue(undefined);
         const saveSettingsMock = vi.fn().mockResolvedValue(undefined);
 
-        (window as any).go.backend.App.StartPolling = startPollingMock;
-        (window as any).go.backend.App.SaveSettings = saveSettingsMock;
+        backend()!.StartPolling = startPollingMock;
+        backend()!.SaveSettings = saveSettingsMock;
 
         wrapper = mount(App, {
             global: {

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TrendChart } from '../src/chart';
+import { backend } from '../src/store';
 
 describe('TrendChart', () => {
     let canvas: HTMLCanvasElement;
@@ -420,7 +421,7 @@ describe('TrendChart', () => {
                 { t: 950000, v: 20 },
             ],
         });
-        (window as any).go.backend.App.GetHistoryRange = getHistoryRangeMock;
+        backend()!.GetHistoryRange = getHistoryRangeMock;
 
         const trend = new TrendChart(canvas, boolBand, timeAxis);
         const tags = [
@@ -464,7 +465,7 @@ describe('TrendChart', () => {
                 v: idx % 100,
             }));
         }
-        (window as any).go.backend.App.GetHistoryRange = vi.fn().mockResolvedValue(mockData);
+        backend()!.GetHistoryRange = vi.fn().mockResolvedValue(mockData);
 
         const trend = new TrendChart(canvas, boolBand, timeAxis);
         const tags = Array.from({ length: 12 }, (_, i) => ({
@@ -519,7 +520,7 @@ describe('TrendChart', () => {
             t: 500000 + idx * 1000,
             v: idx,
         }));
-        (window as any).go.backend.App.GetHistoryRange = vi.fn().mockResolvedValue({
+        backend()!.GetHistoryRange = vi.fn().mockResolvedValue({
             'tag-1': olderPoints,
         });
 
@@ -648,7 +649,7 @@ describe('TrendChart', () => {
             ],
             'tag-2': [],
         });
-        (window as any).go.backend.App.GetHistoryRange = getHistoryRangeMock;
+        backend()!.GetHistoryRange = getHistoryRangeMock;
 
         const trend = new TrendChart(canvas, boolBand, timeAxis);
         const tag1 = {
@@ -706,7 +707,7 @@ describe('TrendChart', () => {
                 'tag-1': [{ t: 970000, v: 42 }],
                 'tag-2': [],
             });
-            (window as any).go.backend.App.GetHistoryRange = getHistoryRangeMock;
+            backend()!.GetHistoryRange = getHistoryRangeMock;
 
             const trend = new TrendChart(canvas, boolBand, timeAxis);
             const tag1 = {
@@ -767,7 +768,7 @@ describe('TrendChart', () => {
                     'tag-1': [{ t: 980000, v: 11 }],
                     'tag-2': [{ t: 990000, v: 88 }],
                 });
-            (window as any).go.backend.App.GetHistoryRange = getHistoryRangeMock;
+            backend()!.GetHistoryRange = getHistoryRangeMock;
 
             const trend = new TrendChart(canvas, boolBand, timeAxis);
             const tag1 = {

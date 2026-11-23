@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,6 +9,34 @@ import (
 	"testing"
 	"time"
 )
+
+type mockDesktopHost struct {
+	emittedEvents []string
+	quitCalled    bool
+	showCalled    bool
+	hideCalled    bool
+	bounds        struct {
+		w, h, x, y int
+		ok         bool
+	}
+}
+
+func (m *mockDesktopHost) EmitEvent(name string, _ ...any) {
+	m.emittedEvents = append(m.emittedEvents, name)
+}
+func (m *mockDesktopHost) Quit()       { m.quitCalled = true }
+func (m *mockDesktopHost) ShowWindow() { m.showCalled = true }
+func (m *mockDesktopHost) HideWindow() { m.hideCalled = true }
+func (m *mockDesktopHost) GetWindowBounds() (int, int, int, int, bool) {
+	return m.bounds.w, m.bounds.h, m.bounds.x, m.bounds.y, m.bounds.ok
+}
+func (m *mockDesktopHost) SetWindowBounds(int, int, int, int, bool)            {}
+func (m *mockDesktopHost) OpenFileDialog(string, string, string, string) (string, error) {
+	return "", nil
+}
+func (m *mockDesktopHost) SaveFileDialog(string, string, string, string, string) (string, error) {
+	return "", nil
+}
 
 func TestNewApp(t *testing.T) {
 	app := NewApp()
@@ -93,14 +120,19 @@ func TestApp_CheckStatus_NonExistent(t *testing.T) {
 
 func TestApp_StartupShutdown(t *testing.T) {
 	app := NewApp()
-	ctx := context.Background()
-	app.Startup(ctx)
-	if app.ctx != ctx {
-		t.Errorf("app.ctx not set properly on Startup")
+	host := &mockDesktopHost{}
+	AttachHost(app, host)
+	if app.getHost() != host {
+		t.Errorf("app.host not set properly on AttachHost")
 	}
 
-	// Should not panic on shutdown
-	app.Shutdown(ctx)
+	// Should not panic on ServiceShutdown (and remain idempotent)
+	if err := app.ServiceShutdown(); err != nil {
+		t.Errorf("unexpected ServiceShutdown error: %v", err)
+	}
+	if err := app.ServiceShutdown(); err != nil {
+		t.Errorf("unexpected second ServiceShutdown error: %v", err)
+	}
 }
 
 func TestApp_Disconnect_NonExistent(t *testing.T) {
@@ -113,7 +145,7 @@ func TestApp_Disconnect_NonExistent(t *testing.T) {
 
 func TestApp_HistoryMethods(t *testing.T) {
 	app := NewAppWithHistoryPath(filepath.Join(t.TempDir(), "history.db"))
-	defer app.Shutdown(context.Background())
+	defer func() { _ = app.ServiceShutdown() }()
 
 	// Record samples for tag-1 and tag-2
 	app.RecordSample("tag-1", 1000, 10.5)
@@ -144,7 +176,7 @@ func TestApp_HistoryMethods(t *testing.T) {
 
 func TestApp_GetHistoryRangeFlushesPendingSamples(t *testing.T) {
 	app := NewAppWithHistoryPath(filepath.Join(t.TempDir(), "history.db"))
-	defer app.Shutdown(context.Background())
+	defer func() { _ = app.ServiceShutdown() }()
 
 	app.RecordSample("tag-1", 1000, 42.5)
 
@@ -236,25 +268,61 @@ func TestApp_SettingsChangedAndState(t *testing.T) {
 
 func TestApp_BeforeClose(t *testing.T) {
 	app := NewApp()
+	host := &mockDesktopHost{}
+	AttachHost(app, host)
 
-	// Settings not changed -> BeforeClose returns false (allow exit)
-	if app.BeforeClose(context.Background()) {
-		t.Error("expected BeforeClose to return false when settings have not changed")
+	// Settings not changed, tray disabled -> HandleWindowClosing returns false (allow exit)
+	if HandleWindowClosing(app) {
+		t.Error("expected HandleWindowClosing to return false when settings have not changed")
 	}
 
-	// Modify settings -> BeforeClose returns true (prevent close to show frontend dialog)
+	// Modify settings, tray disabled -> HandleWindowClosing returns true and emits app:request-exit
 	s := app.GetSettings()
 	s.PollIntervalMs = 999
 	app.SaveSettings(s)
 
-	if !app.BeforeClose(context.Background()) {
-		t.Error("expected BeforeClose to return true when settings changed")
+	if !HandleWindowClosing(app) {
+		t.Error("expected HandleWindowClosing to return true when settings changed")
+	}
+	if len(host.emittedEvents) == 0 || host.emittedEvents[len(host.emittedEvents)-1] != "app:request-exit" {
+		t.Errorf("expected app:request-exit event, got %v", host.emittedEvents)
 	}
 
-	// Force exit -> BeforeClose returns false (allow exit)
+	// Tray enabled -> HandleWindowClosing hides window and prevents close
+	SetTrayEnabled(app, true)
+	if !HandleWindowClosing(app) {
+		t.Error("expected HandleWindowClosing to return true when tray is enabled")
+	}
+	if !host.hideCalled {
+		t.Error("expected HideWindow to be called when tray is enabled")
+	}
+
+	// Tray exit while dirty -> shows window and emits app:request-exit
+	host.emittedEvents = nil
+	RequestExitFromTray(app)
+	if !host.showCalled {
+		t.Error("expected ShowWindow to be called on RequestExitFromTray when dirty")
+	}
+	if len(host.emittedEvents) != 1 || host.emittedEvents[0] != "app:request-exit" {
+		t.Errorf("expected app:request-exit on RequestExitFromTray, got %v", host.emittedEvents)
+	}
+
+	// Force exit -> QuitApp sets forceExit and calls host.Quit(); HandleWindowClosing allows exit
 	app.QuitApp()
-	if app.BeforeClose(context.Background()) {
-		t.Error("expected BeforeClose to return false when forceExit is true")
+	if !host.quitCalled {
+		t.Error("expected host.Quit to be called by QuitApp")
+	}
+	if HandleWindowClosing(app) {
+		t.Error("expected HandleWindowClosing to return false when forceExit is true")
+	}
+
+	// Tray exit when clean -> calls host.Quit() directly
+	cleanApp := NewApp()
+	cleanHost := &mockDesktopHost{}
+	AttachHost(cleanApp, cleanHost)
+	RequestExitFromTray(cleanApp)
+	if !cleanHost.quitCalled {
+		t.Error("expected host.Quit to be called when RequestExitFromTray runs with clean settings")
 	}
 }
 

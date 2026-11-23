@@ -1,6 +1,6 @@
 # S7 Trend Go
 
-Siemens S7 PLC data acquisition and trend visualization desktop application built with Go, Wails v2, and Vue 3.
+Siemens S7 PLC data acquisition and trend visualization desktop application built with Go, Wails v3, and Vue 3.
 
 ## Overview
 
@@ -18,32 +18,32 @@ Based on a very old but useful tool **S7 Trend Values**.
 - **Import & Export**: Save and reload PLC configurations, tag lists, Y-axes setups, and exported sample records.
 - **Persistent Trend History**: Store timestamped samples in a local SQLite database with indexed range queries.
 - **Per-Tag Storage Cadence**: Numeric tags can use a slower storage interval; Bool tags store only their initial state and changes.
-- **System Tray Operation**: Closing the window hides the app to the Windows system tray; restore and exit actions are available from the tray icon.
+- **System Tray Operation**: Closing the window hides the app to the Windows system tray via Wails v3 native `SystemTray`; restore and exit actions are available from the tray icon.
 - **Localization**: Built-in support for English (`en`) and Simplified Chinese (`zh`).
 
 ## Architecture & Tech Stack
 
-- **Backend**: Go 1.25, [Wails v2](https://wails.io/), [gos7](https://github.com/robinson/gos7) S7 protocol library.
-- **Frontend**: Vue 3 (TypeScript), Vite, UnoCSS, HTML5 Canvas / ECharts trend rendering, Vue I18n.
+- **Backend**: Go 1.25+, [Wails v3](https://v3.wails.io/), [gos7](https://github.com/robinson/gos7) S7 protocol library.
+- **Frontend**: Vue 3 (TypeScript), Vite, UnoCSS, HTML5 Canvas trend rendering, Vue I18n, `@wailsio/runtime`.
 - **Target OS**: Windows (`windows/amd64`).
 
 ## Trend Data Storage
 
 Trend history is stored in `history.db` under the same default application configuration directory used by `app_state.json`. The directory and database schema are created automatically on first launch, so the standalone executable does not need an installer or a separate database service.
 
-SQLite was selected for this desktop workload because it is embedded, file-based, transactional, and supports indexed time-range queries without requiring a server. Samples use Unix millisecond timestamps and are indexed by tag and timestamp. The frontend requests history through the existing Wails history API, which now reads from SQLite rather than an in-memory ring buffer.
+SQLite was selected for this desktop workload because it is embedded, file-based, transactional, and supports indexed time-range queries without requiring a server. Samples use Unix millisecond timestamps and are indexed by tag and timestamp. The frontend requests history through the Wails history API, which reads from SQLite rather than an in-memory ring buffer.
 
 Each tag has a **Storage interval (ms)** setting. `0` follows the global PLC poll interval. A numeric tag interval cannot be lower than the global poll interval. Bool tags ignore repeated values and persist only the first observed state and subsequent transitions.
 
 ## System Tray
 
-The standalone application starts with a system tray icon using the same source artwork as the application icon. Closing the main window hides it while PLC polling and history storage continue in the background. Left-clicking or double-clicking the tray icon, or choosing **Restore**, shows the window again. Choosing **Exit** uses the app's themed exit confirmation when settings are dirty, then performs a full application shutdown.
+The standalone application starts with a native Wails v3 system tray icon using the same source artwork as the application icon. Closing the main window hides it while PLC polling and history storage continue in the background. Left-clicking or double-clicking the tray icon, or choosing **Restore**, shows the window again. Choosing **Exit** uses the app's themed exit confirmation when settings are dirty, then performs a full application shutdown.
 
 ## Prerequisites
 
 - **Go**: 1.25 or later
 - **Node.js**: 22+ and **pnpm** package manager
-- **Wails CLI**: `v2.13.0` or later (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`)
+- **Wails v3 CLI**: `v3.1.0` or later (`go install github.com/wailsapp/wails/v3/cmd/wails3@latest`)
 
 ## Getting Started
 
@@ -53,10 +53,10 @@ Run the application in live-reload development mode:
 
 ```bash
 cd src
-wails dev
+wails3 dev
 ```
 
-This starts the Go backend and Vite development server, launching the application window with instant hot-reloading.
+This starts the Go backend and Vite development server, launching the application window with live reloading and automatic TypeScript bindings regeneration.
 
 ### Building for Production
 
@@ -66,7 +66,7 @@ Use the included build script to compile the versioned standalone Windows execut
 ./build.sh
 ```
 
-The script syncs the version string from the `VERSION` file into `src/version.go`, updates `wails.json`, compiles the binary, and outputs the final `.exe` into the `dist/` directory (for example, `dist/s7-trend-go-v1.1.0.exe`).
+The script syncs the version string from the `VERSION` file into `src/backend/version.go`, `src/frontend/src/version.ts`, `src/build/config.yml`, `src/build/windows/info.json`, and `src/build/windows/wails.exe.manifest`, generates Wails v3 TypeScript bindings, runs frontend & Go tests, compiles the binary via `wails3 build`, and outputs the final `.exe` into the `dist/` directory (for example, `dist/s7-trend-go-v1.3.4.exe`).
 
 ## Project Layout
 
@@ -76,15 +76,19 @@ s7-trend-go/
 ├── build.sh                  # Build script for Windows executable
 ├── dist/                     # Destination folder for compiled binaries
 ├── src/
-│   ├── main.go               # Entry point and Wails runtime setup
-│   ├── wails.json            # Wails app configuration
+│   ├── main.go               # Wails v3 entry point, window & tray setup
+│   ├── host.go               # Wails v3 DesktopHost adapter
+│   ├── Taskfile.yml          # Wails v3 root build tasks
+│   ├── build/                # Wails v3 build config, platform tasks & Windows metadata
 │   ├── backend/              # Go backend packages
 │   │   ├── app.go            # App lifecycle and binding methods
+│   │   ├── host.go           # DesktopHost interface & close/tray coordination
 │   │   ├── app_polling.go    # S7 PLC polling and worker routines
 │   │   ├── app_files.go      # Config import/export and file handlers
 │   │   ├── codec.go          # S7 byte encoding/decoding logic
 │   │   └── models.go         # Data structures and settings schemas
 │   └── frontend/             # Vue 3 frontend project
+│       ├── bindings/         # Generated Wails v3 TypeScript bindings
 │       ├── src/
 │       │   ├── App.vue       # Main UI component
 │       │   ├── chart.ts      # Trend charting & canvas rendering
