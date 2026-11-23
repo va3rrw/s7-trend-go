@@ -1,4 +1,5 @@
 package backend
 
-// AppVersion is synced from VERSION by build.sh (not auto-bumped).
-const AppVersion = "1.5.0"
+// AppVersion defaults to "dev" and is overridden at build time via
+// -ldflags "-X s7-trend-go/backend.AppVersion=<VERSION>".
+var AppVersion = "dev"

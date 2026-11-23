@@ -17,64 +17,26 @@ if [[ ! "$VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 echo "Version: v$VER (from VERSION)"
 
-# ── Sync version into Go / Wails v3 / frontend / Windows resources ──
-cat > "$ROOT/src/backend/version.go" <<EOF
-package backend
-
-// AppVersion is synced from VERSION by build.sh (not auto-bumped).
-const AppVersion = "$VER"
-EOF
-
-cat > "$ROOT/src/frontend/src/version.ts" <<EOF
-/** Synced from VERSION by build.sh — set version in the project VERSION file. */
-export const APP_VERSION = '$VER'
-EOF
-
 EXE_BASENAME="s7-trend-go-v${VER}"
 EXE_NAME="${EXE_BASENAME}.exe"
 
-# Sync version into build/config.yml, build/windows/info.json, build/windows/wails.exe.manifest
+# ── Render Wails v3 & Windows build metadata from tracked templates ─
 if command -v python3 >/dev/null 2>&1; then
-  python3 - "$ROOT/src/build/config.yml" "$ROOT/src/build/windows/info.json" "$ROOT/src/build/windows/wails.exe.manifest" "$VER" <<'PY'
-import json, re, sys
+  python3 - "$ROOT/src/build" "$VER" <<'PY'
+import pathlib, sys
 
-config_path, info_path, manifest_path, ver = sys.argv[1:5]
+build_dir = pathlib.Path(sys.argv[1])
+ver = sys.argv[2]
 
-with open(config_path, encoding="utf-8") as f:
-    cfg = f.read()
-cfg = re.sub(r'(?m)^(\s*version:\s*)"[^"]*"', rf'\1"{ver}"', cfg, count=1)
-with open(config_path, "w", encoding="utf-8", newline="\n") as f:
-    f.write(cfg)
-
-with open(info_path, encoding="utf-8") as f:
-    info = json.load(f)
-info.setdefault("fixed", {})["file_version"] = ver
-info["fixed"]["product_version"] = ver
-loc = info.setdefault("info", {}).setdefault("0409", {})
-loc["FileVersion"] = ver
-loc["ProductVersion"] = ver
-with open(info_path, "w", encoding="utf-8", newline="\n") as f:
-    json.dump(info, f, indent="\t")
-    f.write("\n")
-
-with open(manifest_path, encoding="utf-8") as f:
-    manifest = f.read()
-manifest = re.sub(
-    r'(<assemblyIdentity\b[^>]*\bversion=")[^"]*(")',
-    rf'\g<1>{ver}.0\2',
-    manifest,
-    count=1,
-)
-with open(manifest_path, "w", encoding="utf-8", newline="\n") as f:
-    f.write(manifest)
+for rel in ("config.yml", "windows/info.json", "windows/wails.exe.manifest"):
+    content = (build_dir / f"{rel}.tmpl").read_text(encoding="utf-8").replace("@VERSION@", ver)
+    with open(build_dir / rel, "w", encoding="utf-8", newline="\n") as f:
+        f.write(content)
 PY
 else
-  sed -i -E "s/^([[:space:]]*version:[[:space:]]*)\"[^\"]*\"/\\1\"$VER\"/" "$ROOT/src/build/config.yml"
-  sed -i -E "s/\"file_version\": \"[^\"]*\"/\"file_version\": \"$VER\"/" "$ROOT/src/build/windows/info.json"
-  sed -i -E "s/\"product_version\": \"[^\"]*\"/\"product_version\": \"$VER\"/" "$ROOT/src/build/windows/info.json"
-  sed -i -E "s/\"FileVersion\": \"[^\"]*\"/\"FileVersion\": \"$VER\"/" "$ROOT/src/build/windows/info.json"
-  sed -i -E "s/\"ProductVersion\": \"[^\"]*\"/\"ProductVersion\": \"$VER\"/" "$ROOT/src/build/windows/info.json"
-  sed -i -E "s/(<assemblyIdentity[^>]*version=\")[^\"]*(\")/\\1${VER}.0\\2/" "$ROOT/src/build/windows/wails.exe.manifest"
+  sed "s/@VERSION@/$VER/g" "$ROOT/src/build/config.yml.tmpl" > "$ROOT/src/build/config.yml"
+  sed "s/@VERSION@/$VER/g" "$ROOT/src/build/windows/info.json.tmpl" > "$ROOT/src/build/windows/info.json"
+  sed "s/@VERSION@/$VER/g" "$ROOT/src/build/windows/wails.exe.manifest.tmpl" > "$ROOT/src/build/windows/wails.exe.manifest"
 fi
 
 # ── Locate wails3 binary ────────────────────────────────────────────
@@ -135,7 +97,7 @@ PKG_MGR="npm"
 if command -v pnpm >/dev/null 2>&1; then
   PKG_MGR="pnpm"
 fi
-GOOS=windows GOARCH=amd64 CGO_ENABLED=0 "$WAILS3_BIN" build APP_NAME="$EXE_BASENAME" PACKAGE_MANAGER="$PKG_MGR"
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 "$WAILS3_BIN" build APP_NAME="$EXE_BASENAME" APP_VERSION="$VER" PACKAGE_MANAGER="$PKG_MGR"
 
 echo "Moving executable to dist/ folder..."
 mkdir -p "$ROOT/dist"

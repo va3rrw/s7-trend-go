@@ -11,6 +11,10 @@ build/obj/
 *.syso
 .task/
 frontend/dist/
+src/build/config.yml
+src/build/windows/icon.ico
+src/build/windows/info.json
+src/build/windows/wails.exe.manifest
 
 # Node & pnpm
 node_modules/

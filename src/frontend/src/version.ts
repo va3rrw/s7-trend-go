@@ -1,2 +1,5 @@
-/** Synced from VERSION by build.sh — set version in the project VERSION file. */
-export const APP_VERSION = '1.5.0'
+/** Injected from root VERSION at Vite build/test time via __APP_VERSION__. */
+declare const __APP_VERSION__: string | undefined
+
+export const APP_VERSION: string =
+    typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev'

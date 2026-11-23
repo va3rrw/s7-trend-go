@@ -144,6 +144,30 @@ tasks:
     cmds:
       - wails3 generate icons -input appicon.png -windowsfilename windows/icon.ico -macfilename=""
 
+  generate:build-meta:
+    summary: Renders Wails build config and Windows metadata from templates
+    internal: true
+    run: once
+    dir: build
+    sources:
+      - "../../VERSION"
+      - "config.yml.tmpl"
+      - "windows/info.json.tmpl"
+      - "windows/wails.exe.manifest.tmpl"
+    generates:
+      - "config.yml"
+      - "windows/info.json"
+      - "windows/wails.exe.manifest"
+    cmds:
+      - cmd: |
+          VER="$(tr -d '[:space:]' < ../../VERSION)"
+          sed "s/@VERSION@/$VER/g" config.yml.tmpl > config.yml
+          sed "s/@VERSION@/$VER/g" windows/info.json.tmpl > windows/info.json
+          sed "s/@VERSION@/$VER/g" windows/wails.exe.manifest.tmpl > windows/wails.exe.manifest
+        platforms: [linux, darwin]
+      - cmd: powershell -NoProfile -Command "$ver = (Get-Content -Raw '..\..\VERSION').Trim(); @{'config.yml.tmpl'='config.yml'; 'windows\info.json.tmpl'='windows\info.json'; 'windows\wails.exe.manifest.tmpl'='windows\wails.exe.manifest'}.GetEnumerator() | ForEach-Object { (Get-Content -Raw $_.Key).Replace('@VERSION@', $ver) | Set-Content -NoNewline $_.Value }"
+        platforms: [windows]
+
   dev:frontend:
     summary: Runs the frontend in development mode
     deps:
