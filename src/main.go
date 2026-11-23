@@ -23,6 +23,7 @@ var trayIcon []byte
 func init() {
 	application.RegisterEvent[application.Void]("app:request-exit")
 	application.RegisterEvent[backend.AppSettings]("settings:loaded")
+	application.RegisterEvent[backend.AppSettings]("settings:updated")
 	application.RegisterEvent[string]("settings:load-error")
 	application.RegisterEvent[backend.SamplingStateEvent]("app:sampling-state")
 	application.RegisterEvent[backend.WebServerStatus]("app:web-server-state")

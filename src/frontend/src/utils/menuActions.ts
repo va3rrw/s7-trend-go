@@ -39,6 +39,104 @@ export function applyLoadedSettings(loaded: AppSettings): void {
     }
 }
 
+function settingsEqual(a: AppSettings, b: AppSettings): boolean {
+    if (
+        a.pollIntervalMs !== b.pollIntervalMs ||
+        a.timeWindowSeconds !== b.timeWindowSeconds ||
+        a.interpolation !== b.interpolation ||
+        a.plcLinks.length !== b.plcLinks.length ||
+        a.tags.length !== b.tags.length ||
+        a.yAxes.length !== b.yAxes.length
+    ) {
+        return false;
+    }
+
+    for (let i = 0; i < a.plcLinks.length; i++) {
+        const pa = a.plcLinks[i];
+        const pb = b.plcLinks[i];
+        if (
+            pa.name !== pb.name ||
+            pa.ipAddress !== pb.ipAddress ||
+            pa.rack !== pb.rack ||
+            pa.slot !== pb.slot ||
+            Boolean(pa.isConnected) !== Boolean(pb.isConnected)
+        ) {
+            return false;
+        }
+    }
+
+    for (let i = 0; i < a.tags.length; i++) {
+        const ta = a.tags[i];
+        const tb = b.tags[i];
+        if (
+            ta.id !== tb.id ||
+            ta.name !== tb.name ||
+            ta.plcLink !== tb.plcLink ||
+            ta.address !== tb.address ||
+            ta.dataType !== tb.dataType ||
+            ta.yAxis !== tb.yAxis ||
+            ta.color !== tb.color ||
+            ta.enabled !== tb.enabled ||
+            (ta.samplingIntervalMs ?? 0) !== (tb.samplingIntervalMs ?? 0)
+        ) {
+            return false;
+        }
+    }
+
+    for (let i = 0; i < a.yAxes.length; i++) {
+        const ya = a.yAxes[i];
+        const yb = b.yAxes[i];
+        if (
+            ya.name !== yb.name ||
+            ya.minimum !== yb.minimum ||
+            ya.maximum !== yb.maximum ||
+            ya.autoScale !== yb.autoScale
+        ) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Apply live synced settings pushed from another client without clearing
+ * remaining tags' accumulated statistics. Returns true if state changed.
+ */
+export function applySyncedSettings(updated: AppSettings): boolean {
+    const next: AppSettings = {
+        pollIntervalMs:
+            updated.pollIntervalMs || state.settings.pollIntervalMs,
+        timeWindowSeconds:
+            updated.timeWindowSeconds || state.settings.timeWindowSeconds,
+        interpolation: updated.interpolation || state.settings.interpolation,
+        plcLinks: updated.plcLinks?.length
+            ? updated.plcLinks
+            : state.settings.plcLinks,
+        tags: updated.tags ?? [],
+        yAxes: updated.yAxes?.length ? updated.yAxes : state.settings.yAxes,
+    };
+
+    if (settingsEqual(state.settings, next)) {
+        return false;
+    }
+
+    const keepTagIds = new Set(next.tags.map((tag) => tag.id));
+    for (const tagId of Object.keys(state.sampledRange)) {
+        if (!keepTagIds.has(tagId)) {
+            delete state.sampledRange[tagId];
+        }
+    }
+
+    state.settings.pollIntervalMs = next.pollIntervalMs;
+    state.settings.timeWindowSeconds = next.timeWindowSeconds;
+    state.settings.interpolation = next.interpolation;
+    state.settings.plcLinks = next.plcLinks;
+    state.settings.tags = next.tags;
+    state.settings.yAxes = next.yAxes;
+    return true;
+}
+
 async function pickJsonFileText(): Promise<string | null> {
     return new Promise((resolve) => {
         const input = document.createElement('input');

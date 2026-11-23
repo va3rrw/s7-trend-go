@@ -632,3 +632,88 @@ func TestApp_ImportSettingsJSON_WriteCSV_StatusSnapshot_AndTransitions(t *testin
 		t.Fatalf("unexpected StatusSnapshot: %+v", snap)
 	}
 }
+
+func TestApp_SettingsUpdatedBroadcast(t *testing.T) {
+	isolateConfigDir(t)
+	app := NewAppWithHistoryPath(filepath.Join(t.TempDir(), "history.db"))
+	defer func() { _ = app.ServiceShutdown() }()
+
+	host := &mockDesktopHost{}
+	AttachHost(app, host)
+
+	evCh, unsub := app.subscribeEvents(16)
+	defer unsub()
+
+	readUpdatedEvents := func() []AppSettings {
+		var out []AppSettings
+		for {
+			select {
+			case ev := <-evCh:
+				if ev.Name == "settings:updated" {
+					if cfg, ok := ev.Data.(AppSettings); ok {
+						out = append(out, cfg)
+					}
+				}
+			default:
+				return out
+			}
+		}
+	}
+
+	// Unchanged settings must not emit settings:updated
+	app.SaveSettings(app.GetSettings())
+	if evs := readUpdatedEvents(); len(evs) != 0 {
+		t.Fatalf("expected 0 settings:updated events for identical settings, got %d", len(evs))
+	}
+
+	// Add PLC and tag while idle
+	tag1 := TagSettings{
+		Id:       uuid.New(),
+		Name:     "Pressure",
+		PlcLink:  "PLC2",
+		Address:  "DB1.DBD0",
+		DataType: DataTypeReal,
+		Enabled:  true,
+	}
+	s := app.GetSettings()
+	s.PlcLinks = append(s.PlcLinks, PlcLinkSettings{
+		Name:      "PLC2",
+		IpAddress: "192.168.0.2",
+		Rack:      0,
+		Slot:      1,
+	})
+	s.Tags = []TagSettings{tag1}
+	app.SaveSettings(s)
+
+	evs := readUpdatedEvents()
+	if len(evs) != 1 || len(evs[0].PlcLinks) != 2 || len(evs[0].Tags) != 1 || evs[0].Tags[0].Id != tag1.Id {
+		t.Fatalf("expected 1 settings:updated after idle add, got %+v", evs)
+	}
+
+	// StartPolling with unchanged settings must not emit settings:updated
+	app.StartPolling(s)
+	defer app.StopPolling()
+	if evs = readUpdatedEvents(); len(evs) != 0 {
+		t.Fatalf("expected 0 settings:updated when starting polling with identical settings, got %d", len(evs))
+	}
+
+	// Remove tag and PLC while actively polling via StartPolling
+	sReduced := CreateDefaultSettings()
+	app.StartPolling(sReduced)
+	evs = readUpdatedEvents()
+	if len(evs) != 1 || len(evs[0].PlcLinks) != 1 || len(evs[0].Tags) != 0 {
+		t.Fatalf("expected 1 settings:updated after active polling remove, got %+v", evs)
+	}
+
+	host.mu.Lock()
+	defer host.mu.Unlock()
+	updatedCount := 0
+	for _, ev := range host.emittedEvents {
+		if ev == "settings:updated" {
+			updatedCount++
+		}
+	}
+	if updatedCount != 2 {
+		t.Fatalf("expected 2 settings:updated events delivered to desktop host, got %d (%v)", updatedCount, host.emittedEvents)
+	}
+}

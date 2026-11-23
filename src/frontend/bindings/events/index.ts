@@ -33,3 +33,8 @@ export const SettingsLoadError = "settings:load-error";
  */
 export const SettingsLoaded = "settings:loaded";
 
+/**
+ * Name of the custom event "settings:updated".
+ */
+export const SettingsUpdated = "settings:updated";
+

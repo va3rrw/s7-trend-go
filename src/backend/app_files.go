@@ -278,7 +278,11 @@ func (a *App) LoadSettingsFile(title string) (*AppSettings, error) {
 	if filePath == "" {
 		return nil, fmt.Errorf("cancelled")
 	}
-	return a.loadSettingsFromFilePath(filePath)
+	settings, err := a.loadSettingsFromFilePath(filePath)
+	if err == nil && settings != nil {
+		a.emitAppEvent("settings:loaded", *settings)
+	}
+	return settings, err
 }
 
 func parseSettingsJSON(data []byte) (AppSettings, error) {

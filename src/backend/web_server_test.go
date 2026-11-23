@@ -476,3 +476,89 @@ func TestWebServer_PersistenceAndStartup(t *testing.T) {
 		t.Fatalf("expected StartWebServerIfEnabled to listen on port %d, got %+v", port, resumed)
 	}
 }
+
+func TestWebServer_SettingsSyncBidirectional(t *testing.T) {
+	isolateConfigDir(t)
+	app := NewAppWithHistoryPath(filepath.Join(t.TempDir(), "history.db"))
+	defer func() { _ = app.ServiceShutdown() }()
+
+	host := &mockDesktopHost{}
+	AttachHost(app, host)
+
+	st, err := app.startWebServer("127.0.0.1", 0, true)
+	if err != nil {
+		t.Fatalf("startWebServer failed: %v", err)
+	}
+	baseURL := fmt.Sprintf("http://127.0.0.1:%d", st.Port)
+	wsURL := fmt.Sprintf("ws://127.0.0.1:%d/api/ws/events", st.Port)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	eventConn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial /api/ws/events failed: %v", err)
+	}
+	defer eventConn.CloseNow()
+
+	readNextSettingsUpdated := func() AppSettings {
+		for {
+			var ev struct {
+				Name string          `json:"name"`
+				Data json.RawMessage `json:"data"`
+			}
+			if err := wsjson.Read(ctx, eventConn, &ev); err != nil {
+				t.Fatalf("read ws event failed: %v", err)
+			}
+			if ev.Name == "settings:updated" {
+				var cfg AppSettings
+				if err := json.Unmarshal(ev.Data, &cfg); err != nil {
+					t.Fatalf("unmarshal settings:updated payload failed: %v", err)
+				}
+				return cfg
+			}
+		}
+	}
+
+	// 1. Desktop adds PLC + Tag -> WebSocket client receives settings:updated
+	addedTag := TagSettings{
+		Id:       uuid.New(),
+		Name:     "DesktopAddedTag",
+		PlcLink:  "PLC2",
+		Address:  "DB1.DBD0",
+		DataType: DataTypeReal,
+		Enabled:  true,
+	}
+	desktopCfg := app.GetSettings()
+	desktopCfg.PlcLinks = append(desktopCfg.PlcLinks, PlcLinkSettings{
+		Name:      "PLC2",
+		IpAddress: "10.0.0.2",
+		Rack:      0,
+		Slot:      1,
+	})
+	desktopCfg.Tags = []TagSettings{addedTag}
+	app.SaveSettings(desktopCfg)
+
+	wsGotAdded := readNextSettingsUpdated()
+	if len(wsGotAdded.PlcLinks) != 2 || len(wsGotAdded.Tags) != 1 || wsGotAdded.Tags[0].Name != "DesktopAddedTag" {
+		t.Fatalf("unexpected WebSocket settings after desktop add: %+v", wsGotAdded)
+	}
+
+	// 2. Remote web client removes PLC + Tag via /api/rpc/SaveSettings -> both desktop host and WS receive update
+	remoteCfg := CreateDefaultSettings()
+	resp, body := doRPC(t, baseURL, "SaveSettings", remoteCfg, nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("RPC SaveSettings failed %d: %s", resp.StatusCode, string(body))
+	}
+
+	wsGotRemoved := readNextSettingsUpdated()
+	if len(wsGotRemoved.PlcLinks) != 1 || len(wsGotRemoved.Tags) != 0 {
+		t.Fatalf("unexpected WebSocket settings after remote remove: %+v", wsGotRemoved)
+	}
+
+	host.mu.Lock()
+	defer host.mu.Unlock()
+	if len(host.emittedEvents) < 2 || host.emittedEvents[len(host.emittedEvents)-1] != "settings:updated" {
+		t.Fatalf("expected desktop host to receive settings:updated from remote RPC, got %v", host.emittedEvents)
+	}
+}

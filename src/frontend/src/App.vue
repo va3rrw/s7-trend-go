@@ -206,6 +206,7 @@ import {
 } from './utils/sampling';
 import {
     applyLoadedSettings,
+    applySyncedSettings,
     menuLoadSettings,
     menuSaveSettings,
     menuTimer,
@@ -394,11 +395,18 @@ function clearTreeFocus() {
 }
 
 function onDblEditSave(updatedTag: TagSettings) {
+    let targetIndex = state.settings.tags.findIndex(
+        (tag) => tag.id === updatedTag.id,
+    );
     if (
+        targetIndex < 0 &&
         dblEditIndex.value >= 0 &&
         dblEditIndex.value < state.settings.tags.length
     ) {
-        state.settings.tags[dblEditIndex.value] = updatedTag;
+        targetIndex = dblEditIndex.value;
+    }
+    if (targetIndex >= 0) {
+        state.settings.tags[targetIndex] = updatedTag;
         onSettingsChanged();
     }
     pendingNewTagId.value = null;
@@ -658,6 +666,7 @@ let unlistenPollTiming: (() => void) | null = null;
 let unlistenRequestExit: (() => void) | null = null;
 let unlistenSamplingState: (() => void) | null = null;
 let unlistenSettingsLoaded: (() => void) | null = null;
+let unlistenSettingsUpdated: (() => void) | null = null;
 let unlistenSettingsLoadError: (() => void) | null = null;
 let unlistenWebServerState: (() => void) | null = null;
 
@@ -783,6 +792,29 @@ onMounted(async () => {
             state.statusMessage = t('status.loaded_settings');
         });
 
+        unlistenSettingsUpdated = rt.EventsOn('settings:updated', (updated: any) => {
+            if (!updated) return;
+            if (!applySyncedSettings(updated as AppSettings)) return;
+            const keepIds = new Set(state.settings.tags.map((tag) => tag.id));
+            for (const key of Object.keys(pendingLiveValues)) {
+                if (!keepIds.has(key)) {
+                    delete pendingLiveValues[key];
+                }
+            }
+            const nextLive: Record<string, string> = {};
+            let liveChanged = false;
+            for (const [key, val] of Object.entries(liveValues.value)) {
+                if (keepIds.has(key)) {
+                    nextLive[key] = val;
+                } else {
+                    liveChanged = true;
+                }
+            }
+            if (liveChanged) {
+                liveValues.value = nextLive;
+            }
+        });
+
         unlistenSettingsLoadError = rt.EventsOn('settings:load-error', (errMsg: any) => {
             state.statusMessage = t('status.error_loading_settings', [
                 String(errMsg ?? ''),
@@ -841,6 +873,7 @@ onBeforeUnmount(() => {
         [unlistenSamplingState, 'app:sampling-state'],
         [unlistenWebServerState, 'app:web-server-state'],
         [unlistenSettingsLoaded, 'settings:loaded'],
+        [unlistenSettingsUpdated, 'settings:updated'],
         [unlistenSettingsLoadError, 'settings:load-error'],
         [unlistenPollUpdate, 'poll_update'],
         [unlistenPollTiming, 'poll_timing'],
@@ -855,6 +888,7 @@ onBeforeUnmount(() => {
     unlistenSamplingState = null;
     unlistenWebServerState = null;
     unlistenSettingsLoaded = null;
+    unlistenSettingsUpdated = null;
     unlistenSettingsLoadError = null;
     unlistenPollUpdate = null;
     unlistenPollTiming = null;

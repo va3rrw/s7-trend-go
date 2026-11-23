@@ -232,7 +232,9 @@ func (a *App) SaveSettings(s AppSettings) {
 	wasPolling := a.isPolling
 	if !wasPolling {
 		oldLinks := append([]PlcLinkSettings(nil), a.settings.PlcLinks...)
+		oldSerialized := a.serializeSettingsLocked()
 		a.settings = s
+		changed := a.serializeSettingsLocked() != oldSerialized
 		a.mu.Unlock()
 
 		for _, old := range oldLinks {
@@ -242,6 +244,9 @@ func (a *App) SaveSettings(s AppSettings) {
 			}
 		}
 		a.refreshTrayStatus()
+		if changed {
+			a.emitAppEvent("settings:updated", s)
+		}
 		return
 	}
 	a.mu.Unlock()

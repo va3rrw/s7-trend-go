@@ -17,6 +17,7 @@ declare module "@wailsio/runtime" {
             "app:web-server-state": backend$0.WebServerStatus;
             "settings:load-error": string;
             "settings:loaded": backend$0.AppSettings;
+            "settings:updated": backend$0.AppSettings;
         }
     }
 }

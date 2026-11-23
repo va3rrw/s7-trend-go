@@ -38,7 +38,9 @@ func (a *App) StartPolling(settings AppSettings) {
 
 	a.mu.Lock()
 	oldLinks := append([]PlcLinkSettings(nil), a.settings.PlcLinks...)
+	oldSerialized := a.serializeSettingsLocked()
 	a.settings = settings
+	settingsChanged := a.serializeSettingsLocked() != oldSerialized
 	pollCtx, cancel := context.WithCancel(context.Background())
 	a.cancelPoll = cancel
 	a.isPolling = true
@@ -55,6 +57,9 @@ func (a *App) StartPolling(settings AppSettings) {
 	a.refreshTrayStatus()
 	if !wasPolling {
 		a.emitAppEvent("app:sampling-state", SamplingStateEvent{IsSampling: true})
+	}
+	if settingsChanged {
+		a.emitAppEvent("settings:updated", settings)
 	}
 
 	interval := settings.PollIntervalMs

@@ -14,6 +14,7 @@ import {
 } from '../src/store';
 import {
     applyLoadedSettings,
+    applySyncedSettings,
     menuLoadSettings,
     menuSaveSettings,
     menuExport,
@@ -484,5 +485,92 @@ describe('Wails v3 features (Streams, Tray sync, File drop settings)', () => {
             vi.useRealTimers();
             globalThis.WebSocket = originalWS;
         }
+    });
+
+    it('applySyncedSettings and App.vue sync PLC/tag additions and removals without resetting remaining stats', async () => {
+        state.sampledRange['keep-tag'] = { min: 1, max: 5 };
+        state.sampledRange['removed-tag'] = { min: 2, max: 9 };
+
+        const syncedAdded: AppSettings = {
+            ...defaultSettings(),
+            plcLinks: [
+                ...defaultSettings().plcLinks,
+                { name: 'PLC2', ipAddress: '192.168.0.2', rack: 0, slot: 1, isConnected: false },
+            ],
+            tags: [
+                {
+                    id: 'keep-tag',
+                    name: 'KeepTag',
+                    plcLink: 'PLC1',
+                    address: 'DB1.DBD0',
+                    dataType: 'Real',
+                    yAxis: 'Y-Axis 1',
+                    color: '#00ff00',
+                    enabled: true,
+                    samplingIntervalMs: 0,
+                },
+                {
+                    id: 'added-tag',
+                    name: 'AddedTag',
+                    plcLink: 'PLC2',
+                    address: 'DB1.DBD4',
+                    dataType: 'Real',
+                    yAxis: 'Y-Axis 1',
+                    color: '#0000ff',
+                    enabled: true,
+                },
+            ],
+        };
+
+        expect(applySyncedSettings(syncedAdded)).toBe(true);
+        expect(state.settings.plcLinks).toHaveLength(2);
+        expect(state.settings.tags.map((tag) => tag.id)).toEqual(['keep-tag', 'added-tag']);
+        expect(state.sampledRange['keep-tag']).toEqual({ min: 1, max: 5 });
+        expect(state.sampledRange['removed-tag']).toBeUndefined();
+
+        // Identical payload (even with undefined vs 0 samplingIntervalMs) is ignored as no-op
+        expect(
+            applySyncedSettings({
+                ...syncedAdded,
+                tags: syncedAdded.tags.map((tag) => ({
+                    ...tag,
+                    samplingIntervalMs: tag.samplingIntervalMs ?? 0,
+                })),
+            }),
+        ).toBe(false);
+
+        // App.vue handles settings:updated event for PLC/tag removal
+        const listeners = new Map<string, (...data: any[]) => void>();
+        const mockRuntime = createMockRuntime();
+        mockRuntime.EventsOn = vi.fn((eventName, cb) => {
+            listeners.set(eventName, cb);
+            return () => listeners.delete(eventName);
+        });
+        setRuntimeOverride(mockRuntime);
+
+        const mockBackend = createMockBackend();
+        mockBackend.GetSettings = vi.fn().mockResolvedValue(syncedAdded);
+        setBackendOverride(mockBackend);
+
+        const wrapper = mount(App, {
+            global: {
+                plugins: [i18n],
+            },
+        });
+        await flushPromises();
+        expect(wrapper.text()).toContain('AddedTag');
+
+        listeners.get('settings:updated')?.({
+            ...syncedAdded,
+            plcLinks: [syncedAdded.plcLinks[0]],
+            tags: [syncedAdded.tags[0]],
+        });
+        await flushPromises();
+
+        expect(state.settings.plcLinks).toHaveLength(1);
+        expect(state.settings.tags.map((tag) => tag.id)).toEqual(['keep-tag']);
+        expect(wrapper.text()).not.toContain('AddedTag');
+
+        wrapper.unmount();
     });
 });
