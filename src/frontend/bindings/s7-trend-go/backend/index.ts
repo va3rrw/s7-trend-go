@@ -17,5 +17,6 @@ export type {
     SamplePoint,
     SamplingStateEvent,
     TagSettings,
+    WebServerStatus,
     YAxisSettings
 } from "./models.js";

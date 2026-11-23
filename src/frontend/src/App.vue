@@ -1,5 +1,9 @@
 <template>
-    <div id="app" data-file-drop-target>
+    <div
+        id="app"
+        data-file-drop-target
+        @dragover="onBrowserDragOver"
+        @drop="onBrowserDrop">
         <!-- Menu Bar -->
         <AppMenuBar
             :cursors-enabled="cursorsEnabled"
@@ -10,6 +14,8 @@
             @open-y-axes="yAxesOpen = true"
             @toggle-cursors="toggleCursors"
             @export-csv="menuExport(t)"
+            @toggle-web-server="menuToggleWebServer(t)"
+            @set-web-server-port="menuWebServerPort(t, showPrompt, showMessage)"
             @set-timer="menuTimer(t, showPrompt, showMessage)"
             @start-sampling="onStartSampling"
             @pause-sampling="onPauseSampling"
@@ -165,6 +171,7 @@ import {
     state,
     backend,
     wailsRuntime,
+    isWebServerClient,
     updateTagValue,
     markPlcForTag,
     getTag,
@@ -207,6 +214,8 @@ import {
     menuClear,
     menuExport,
     menuOpenStorageFolder,
+    menuToggleWebServer,
+    menuWebServerPort,
 } from './utils/menuActions';
 import { handleKeydown } from './utils/shortcuts';
 
@@ -650,6 +659,31 @@ let unlistenRequestExit: (() => void) | null = null;
 let unlistenSamplingState: (() => void) | null = null;
 let unlistenSettingsLoaded: (() => void) | null = null;
 let unlistenSettingsLoadError: (() => void) | null = null;
+let unlistenWebServerState: (() => void) | null = null;
+
+function onBrowserDragOver(e: DragEvent) {
+    if (!isWebServerClient()) return;
+    e.preventDefault();
+}
+
+async function onBrowserDrop(e: DragEvent) {
+    if (!isWebServerClient()) return;
+    e.preventDefault();
+    const file = e.dataTransfer?.files?.[0];
+    if (!file || !file.name.toLowerCase().endsWith('.json')) return;
+    try {
+        const raw = await file.text();
+        const loaded = await backend()?.ImportSettingsJSON?.(raw);
+        if (loaded) {
+            applyLoadedSettings(loaded);
+            liveValues.value = {};
+            resetActualSampling();
+            state.statusMessage = t('status.loaded_settings');
+        }
+    } catch (err) {
+        state.statusMessage = t('status.error_loading_settings', [err]);
+    }
+}
 
 onMounted(async () => {
     try {
@@ -673,12 +707,26 @@ onMounted(async () => {
         if (initialSettings && initialSettings.plcLinks?.length) {
             state.settings = initialSettings;
         }
+        const polling = await api?.IsPolling?.();
+        if (typeof polling === 'boolean') {
+            state.isSampling = polling;
+            if (polling) {
+                state.statusMessage = t('status.polling_started');
+            }
+        }
+        const webStatus = await api?.GetWebServerStatus?.();
+        if (webStatus) {
+            state.webServer = webStatus;
+        }
     } catch (e) {
         console.error('Error fetching initial settings', e);
     }
 
     // Wails stream & event listeners
     const rt = wailsRuntime();
+    if (isWebServerClient()) {
+        rt?.WindowSetTitle?.('S7 Trend Go (Web)');
+    }
     if (rt?.OpenJSONStream) {
         pollingStream = rt.OpenJSONStream('polling');
         pollingStream.onmessage = (ev) => {
@@ -710,6 +758,7 @@ onMounted(async () => {
 
         unlistenSamplingState = rt.EventsOn('app:sampling-state', (evData: any) => {
             const nextSampling = Boolean(evData?.isSampling);
+            if (state.isSampling === nextSampling) return;
             cursorsEnabled.value = false;
             state.isSampling = nextSampling;
             state.isPaused = false;
@@ -718,6 +767,12 @@ onMounted(async () => {
             state.statusMessage = nextSampling
                 ? t('status.polling_started')
                 : t('status.polling_stopped');
+        });
+
+        unlistenWebServerState = rt.EventsOn('app:web-server-state', (wsData: any) => {
+            if (wsData) {
+                state.webServer = wsData;
+            }
         });
 
         unlistenSettingsLoaded = rt.EventsOn('settings:loaded', (loaded: any) => {
@@ -784,6 +839,7 @@ onBeforeUnmount(() => {
     for (const [unlisten, eventName] of [
         [unlistenRequestExit, 'app:request-exit'],
         [unlistenSamplingState, 'app:sampling-state'],
+        [unlistenWebServerState, 'app:web-server-state'],
         [unlistenSettingsLoaded, 'settings:loaded'],
         [unlistenSettingsLoadError, 'settings:load-error'],
         [unlistenPollUpdate, 'poll_update'],
@@ -797,6 +853,7 @@ onBeforeUnmount(() => {
     }
     unlistenRequestExit = null;
     unlistenSamplingState = null;
+    unlistenWebServerState = null;
     unlistenSettingsLoaded = null;
     unlistenSettingsLoadError = null;
     unlistenPollUpdate = null;

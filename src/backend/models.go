@@ -157,6 +157,28 @@ type SamplingStateEvent struct {
 	IsSampling bool `json:"isSampling"`
 }
 
+// WebServerStatus reports the embedded HTTP/WebSocket server state.
+type WebServerStatus struct {
+	Enabled          bool   `json:"enabled"`
+	Running          bool   `json:"running"`
+	Host             string `json:"host"`
+	Port             int    `json:"port"`
+	URL              string `json:"url"`
+	Error            string `json:"error,omitempty"`
+	ConnectedClients int    `json:"connectedClients"`
+}
+
+// ServerStatus summarizes runtime telemetry status for GET /api/status.
+type ServerStatus struct {
+	Version        string          `json:"version"`
+	IsPolling      bool            `json:"isPolling"`
+	ConnectedPlcs  int             `json:"connectedPlcs"`
+	TotalPlcs      int             `json:"totalPlcs"`
+	EnabledTags    int             `json:"enabledTags"`
+	PollIntervalMs int             `json:"pollIntervalMs"`
+	WebServer      WebServerStatus `json:"webServer"`
+}
+
 type SampleRecord struct {
 	Timestamp string  `json:"timestamp"`
 	TagName   string  `json:"tagName"`

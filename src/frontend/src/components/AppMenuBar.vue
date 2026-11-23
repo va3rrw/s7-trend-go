@@ -59,6 +59,27 @@
                     <span>{{ $t('menu.export_csv') }}</span>
                     <span class="menu-shortcut">Ctrl+E</span>
                 </a>
+                <template v-if="!webClient">
+                    <hr />
+                    <a
+                        href="#"
+                        @click.prevent="emit('toggleWebServer')">
+                        <span
+                            >{{ state.webServer.running ? '✓ ' : ''
+                            }}{{ $t('menu.web_server')
+                            }}{{
+                                state.webServer.running
+                                    ? ` (:${state.webServer.port})`
+                                    : ''
+                            }}</span
+                        >
+                    </a>
+                    <a
+                        href="#"
+                        @click.prevent="emit('setWebServerPort')">
+                        <span>{{ $t('menu.web_server_port') }}</span>
+                    </a>
+                </template>
             </div>
         </div>
         <div class="menu-item">
@@ -124,6 +145,7 @@
                 </a>
                 <hr />
                 <a
+                    v-if="!webClient"
                     href="#"
                     @click.prevent="emit('openStorageFolder')">
                     <span>{{ $t('menu.open_storage_folder') }}</span>
@@ -139,7 +161,10 @@
 </template>
 
 <script setup lang="ts">
-import { state } from '../store';
+import { computed } from 'vue';
+import { isWebServerClient, state } from '../store';
+
+const webClient = computed(() => isWebServerClient());
 
 defineProps<{
     cursorsEnabled: boolean;
@@ -162,5 +187,7 @@ const emit = defineEmits<{
     setLocale: [lang: string];
     openStorageFolder: [];
     openAbout: [];
+    toggleWebServer: [];
+    setWebServerPort: [];
 }>();
 </script>

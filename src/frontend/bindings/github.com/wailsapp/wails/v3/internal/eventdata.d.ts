@@ -14,6 +14,7 @@ declare module "@wailsio/runtime" {
         interface CustomEvents {
             "app:request-exit": void;
             "app:sampling-state": backend$0.SamplingStateEvent;
+            "app:web-server-state": backend$0.WebServerStatus;
             "settings:load-error": string;
             "settings:loaded": backend$0.AppSettings;
         }

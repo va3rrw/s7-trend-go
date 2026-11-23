@@ -14,11 +14,23 @@ type wailsHost struct {
 	window             *application.WebviewWindow
 	tray               *application.SystemTray
 	trayMenu           *application.Menu
+	restoreItem        *application.MenuItem
 	toggleSamplingItem *application.MenuItem
+	webServerItem      *application.MenuItem
 	notifier           *safeNotificationService
 	trayMu             sync.Mutex
+	isSampling         bool
+	connectedPlcs      int
+	totalPlcs          int
+	webRunning         bool
+	webAddr            string
 	lastTooltip        string
 	lastToggleLabel    string
+	lastWebLabel       string
+	lastWebChecked     bool
+	webItemInit        bool
+	lastRestoreEnabled bool
+	restoreItemInit    bool
 }
 
 var _ backend.DesktopHost = (*wailsHost)(nil)
@@ -30,11 +42,13 @@ func newWailsHost(app *application.App, window *application.WebviewWindow) *wail
 	}
 }
 
-func (h *wailsHost) attachTray(tray *application.SystemTray, menu *application.Menu, toggleItem *application.MenuItem) {
+func (h *wailsHost) attachTray(tray *application.SystemTray, menu *application.Menu, restoreItem, toggleItem, webServerItem *application.MenuItem) {
 	h.trayMu.Lock()
 	h.tray = tray
 	h.trayMenu = menu
+	h.restoreItem = restoreItem
 	h.toggleSamplingItem = toggleItem
+	h.webServerItem = webServerItem
 	h.trayMu.Unlock()
 }
 
@@ -42,29 +56,77 @@ func (h *wailsHost) attachNotifier(notifier *safeNotificationService) {
 	h.notifier = notifier
 }
 
-func (h *wailsHost) UpdateTrayStatus(isSampling bool, connectedPlcs, totalPlcs int) {
+func (h *wailsHost) updateTrayTooltipLocked() {
+	if h.tray == nil {
+		return
+	}
 	tooltip := "S7 Trend Go — Idle"
-	label := "Start Sampling"
-	if isSampling {
-		label = "Stop Sampling"
-		if totalPlcs > 0 {
-			tooltip = fmt.Sprintf("S7 Trend Go — Sampling (%d/%d PLCs)", connectedPlcs, totalPlcs)
+	if h.isSampling {
+		if h.totalPlcs > 0 {
+			tooltip = fmt.Sprintf("S7 Trend Go — Sampling (%d/%d PLCs)", h.connectedPlcs, h.totalPlcs)
 		} else {
 			tooltip = "S7 Trend Go — Sampling"
 		}
+	}
+	if h.webRunning && h.webAddr != "" {
+		tooltip += " | Web " + h.webAddr
+	}
+	if tooltip != h.lastTooltip {
+		h.tray.SetTooltip(tooltip)
+		h.lastTooltip = tooltip
+	}
+}
+
+func (h *wailsHost) UpdateTrayStatus(isSampling bool, connectedPlcs, totalPlcs int) {
+	label := "Start Sampling"
+	if isSampling {
+		label = "Stop Sampling"
 	}
 
 	h.trayMu.Lock()
 	defer h.trayMu.Unlock()
 
-	if h.tray != nil && tooltip != h.lastTooltip {
-		h.tray.SetTooltip(tooltip)
-		h.lastTooltip = tooltip
-	}
+	h.isSampling = isSampling
+	h.connectedPlcs = connectedPlcs
+	h.totalPlcs = totalPlcs
+	h.updateTrayTooltipLocked()
+
 	if h.toggleSamplingItem != nil && h.trayMenu != nil && label != h.lastToggleLabel {
 		h.toggleSamplingItem.SetLabel(label)
 		h.trayMenu.Update()
 		h.lastToggleLabel = label
+	}
+}
+
+func (h *wailsHost) UpdateTrayWebServer(running bool, addr string) {
+	label := "Web Server"
+	if running && addr != "" {
+		label = fmt.Sprintf("Web Server (%s)", addr)
+	}
+
+	h.trayMu.Lock()
+	defer h.trayMu.Unlock()
+
+	h.webRunning = running
+	h.webAddr = addr
+	h.updateTrayTooltipLocked()
+
+	if h.webServerItem != nil && h.trayMenu != nil {
+		dirty := false
+		if !h.webItemInit || running != h.lastWebChecked {
+			h.webServerItem.SetChecked(running)
+			h.lastWebChecked = running
+			dirty = true
+		}
+		if label != h.lastWebLabel {
+			h.webServerItem.SetLabel(label)
+			h.lastWebLabel = label
+			dirty = true
+		}
+		h.webItemInit = true
+		if dirty {
+			h.trayMenu.Update()
+		}
 	}
 }
 
@@ -86,6 +148,29 @@ func (h *wailsHost) Quit() {
 	}
 }
 
+func (h *wailsHost) setRestoreEnabled(enabled bool) {
+	h.trayMu.Lock()
+	defer h.trayMu.Unlock()
+
+	if h.restoreItem == nil || h.trayMenu == nil {
+		return
+	}
+	if !h.restoreItemInit || enabled != h.lastRestoreEnabled {
+		h.restoreItem.SetEnabled(enabled)
+		h.lastRestoreEnabled = enabled
+		h.restoreItemInit = true
+		h.trayMenu.Update()
+	}
+}
+
+func (h *wailsHost) syncTrayRestoreState() {
+	if h.window == nil {
+		return
+	}
+	canRestore := !h.window.IsVisible() || h.window.IsMinimised()
+	h.setRestoreEnabled(canRestore)
+}
+
 func (h *wailsHost) ShowWindow() {
 	if h.window == nil {
 		return
@@ -95,11 +180,13 @@ func (h *wailsHost) ShowWindow() {
 		h.window.UnMinimise()
 	}
 	h.window.Focus()
+	h.setRestoreEnabled(false)
 }
 
 func (h *wailsHost) HideWindow() {
 	if h.window != nil {
 		h.window.Hide()
+		h.setRestoreEnabled(true)
 	}
 }
 

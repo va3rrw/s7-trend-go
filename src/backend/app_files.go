@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,6 +26,9 @@ type AppState struct {
 	WindowY           int    `json:"windowY,omitempty"`
 	WindowPositionSet bool   `json:"windowPositionSet,omitempty"`
 	TreePanelWidth    int    `json:"treePanelWidth,omitempty"`
+	WebServerEnabled  bool   `json:"webServerEnabled,omitempty"`
+	WebServerHost     string `json:"webServerHost,omitempty"`
+	WebServerPort     int    `json:"webServerPort,omitempty"`
 }
 
 const (
@@ -57,6 +61,16 @@ func (a *App) loadAppState() {
 		a.treePanelWidth = state.TreePanelWidth
 	}
 	a.mu.Unlock()
+
+	a.webMu.Lock()
+	a.webServerEnabled = state.WebServerEnabled
+	if trimmedHost := strings.TrimSpace(state.WebServerHost); trimmedHost != "" {
+		a.webServerHost = trimmedHost
+	}
+	if state.WebServerPort >= minWebServerPort && state.WebServerPort <= maxWebServerPort {
+		a.webServerPort = state.WebServerPort
+	}
+	a.webMu.Unlock()
 	if state.LastSettingsFile != "" {
 		if _, err := os.Stat(state.LastSettingsFile); err == nil {
 			settingsData, err := os.ReadFile(state.LastSettingsFile)
@@ -88,6 +102,13 @@ func (a *App) saveAppState(lastFile string) {
 		TreePanelWidth:    a.treePanelWidth,
 	}
 	a.mu.RUnlock()
+
+	a.webMu.Lock()
+	state.WebServerEnabled = a.webServerEnabled
+	state.WebServerHost = a.webServerHost
+	state.WebServerPort = a.webServerPort
+	a.webMu.Unlock()
+
 	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return
@@ -260,20 +281,27 @@ func (a *App) LoadSettingsFile(title string) (*AppSettings, error) {
 	return a.loadSettingsFromFilePath(filePath)
 }
 
+func parseSettingsJSON(data []byte) (AppSettings, error) {
+	trimmed := bytes.TrimSpace(data)
+	if !bytes.HasPrefix(trimmed, []byte("{")) {
+		return AppSettings{}, fmt.Errorf("settings file must contain a JSON object")
+	}
+	var settings AppSettings
+	if err := json.Unmarshal(trimmed, &settings); err != nil {
+		return AppSettings{}, err
+	}
+	return normalizeSettings(settings), nil
+}
+
 func (a *App) loadSettingsFromFilePath(filePath string) (*AppSettings, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-	trimmed := bytes.TrimSpace(data)
-	if !bytes.HasPrefix(trimmed, []byte("{")) {
-		return nil, fmt.Errorf("settings file must contain a JSON object")
-	}
-	var settings AppSettings
-	if err := json.Unmarshal(trimmed, &settings); err != nil {
+	settings, err := parseSettingsJSON(data)
+	if err != nil {
 		return nil, err
 	}
-	settings = normalizeSettings(settings)
 
 	a.mu.Lock()
 	a.settings = settings
@@ -282,6 +310,34 @@ func (a *App) loadSettingsFromFilePath(filePath string) (*AppSettings, error) {
 	a.mu.Unlock()
 
 	a.saveAppState(filePath)
+	return &settings, nil
+}
+
+// ImportSettingsJSON parses and applies raw JSON settings uploaded from a web
+// client, restarts active polling if running, and broadcasts the update.
+func (a *App) ImportSettingsJSON(rawJSON string) (*AppSettings, error) {
+	settings, err := parseSettingsJSON([]byte(rawJSON))
+	if err != nil {
+		return nil, err
+	}
+
+	a.mu.Lock()
+	a.settings = settings
+	a.savedSettingsJSON = a.serializeSettingsLocked()
+	lastPath := a.lastSettingsPath
+	a.mu.Unlock()
+
+	if lastPath != "" {
+		a.saveAppState(lastPath)
+	}
+
+	if a.IsPolling() {
+		a.StartPolling(settings)
+	} else {
+		a.refreshTrayStatus()
+	}
+
+	a.emitAppEvent("settings:loaded", settings)
 	return &settings, nil
 }
 
@@ -327,15 +383,19 @@ func (a *App) ExportCSV(title string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	if err := WriteCSV(a, file); err != nil {
+		_ = file.Close()
+		return err
+	}
+	return file.Close()
+}
+
+// WriteCSV streams all recorded SQLite samples formatted as CSV to w.
+func WriteCSV(a *App, w io.Writer) error {
 	a.Flush()
 
-	bufWriter := bufio.NewWriterSize(file, 64*1024)
+	bufWriter := bufio.NewWriterSize(w, 64*1024)
 	writer := csv.NewWriter(bufWriter)
-	defer func() {
-		writer.Flush()
-		bufWriter.Flush()
-	}()
 
 	if err := writer.Write([]string{"Timestamp", "Tag", "Address", "Value"}); err != nil {
 		return err
@@ -351,7 +411,7 @@ func (a *App) ExportCSV(title string) error {
 	if a.history == nil {
 		return fmt.Errorf("history database is not available")
 	}
-	return a.history.IterateAll(func(sample storedSample) error {
+	if err := a.history.IterateAll(func(sample storedSample) error {
 		tag, exists := tagMap[sample.TagID]
 		tagName := sample.TagID
 		tagAddr := ""
@@ -365,5 +425,13 @@ func (a *App) ExportCSV(title string) error {
 			tagAddr,
 			strconv.FormatFloat(sample.Value, 'f', -1, 64),
 		})
-	})
+	}); err != nil {
+		return err
+	}
+
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return err
+	}
+	return bufWriter.Flush()
 }

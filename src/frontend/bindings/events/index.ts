@@ -19,6 +19,11 @@ export const AppRequestExit = "app:request-exit";
 export const AppSamplingState = "app:sampling-state";
 
 /**
+ * Name of the custom event "app:web-server-state".
+ */
+export const AppWebServerState = "app:web-server-state";
+
+/**
  * Name of the custom event "settings:load-error".
  */
 export const SettingsLoadError = "settings:load-error";

@@ -1,4 +1,4 @@
-import { state, backend, resetStats } from '../store';
+import { state, backend, isWebServerClient, resetStats } from '../store';
 import type { AppSettings } from '../types';
 import { saveSettingsAndRestart } from './sampling';
 
@@ -39,8 +39,49 @@ export function applyLoadedSettings(loaded: AppSettings): void {
     }
 }
 
+async function pickJsonFileText(): Promise<string | null> {
+    return new Promise((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json,application/json';
+        let settled = false;
+        const finish = (val: string | null) => {
+            if (settled) return;
+            settled = true;
+            input.remove();
+            resolve(val);
+        };
+        input.addEventListener('change', async () => {
+            const file = input.files?.[0];
+            if (!file) {
+                finish(null);
+                return;
+            }
+            try {
+                finish(await file.text());
+            } catch {
+                finish(null);
+            }
+        });
+        input.addEventListener('cancel', () => finish(null));
+        input.style.display = 'none';
+        document.body.appendChild(input);
+        input.click();
+    });
+}
+
 export async function menuLoadSettings(t: TranslateFn): Promise<void> {
     try {
+        if (isWebServerClient()) {
+            const raw = await pickJsonFileText();
+            if (!raw) return;
+            const loaded = await backend()?.ImportSettingsJSON?.(raw);
+            if (loaded) {
+                applyLoadedSettings(loaded);
+                state.statusMessage = t('status.loaded_settings');
+            }
+            return;
+        }
         const loaded = await backend()?.LoadSettingsFile(
             t('menu.load_settings'),
         );
@@ -56,6 +97,20 @@ export async function menuLoadSettings(t: TranslateFn): Promise<void> {
 
 export async function menuSaveSettings(t: TranslateFn): Promise<void> {
     try {
+        if (isWebServerClient()) {
+            const json = JSON.stringify(state.settings, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 's7-trend-settings.json';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+            state.statusMessage = t('status.saved_settings');
+            return;
+        }
         await backend()?.SaveSettingsFile(
             state.settings,
             t('menu.save_settings'),
@@ -159,6 +214,16 @@ export async function menuClear(
 
 export async function menuExport(t: TranslateFn): Promise<void> {
     try {
+        if (isWebServerClient()) {
+            const link = document.createElement('a');
+            link.href = '/api/export/csv';
+            link.download = 'trend.csv';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            state.statusMessage = t('status.exported_data');
+            return;
+        }
         await backend()?.ExportCSV(t('menu.export_csv'));
         state.statusMessage = t('status.exported_data');
     } catch (err) {
@@ -172,5 +237,56 @@ export async function menuOpenStorageFolder(t: TranslateFn): Promise<void> {
         state.statusMessage = t('status.storage_folder_opened');
     } catch (err) {
         state.statusMessage = t('status.error_opening_storage_folder', [err]);
+    }
+}
+
+export async function menuToggleWebServer(t: TranslateFn): Promise<void> {
+    try {
+        const status = await backend()?.ToggleWebServer?.();
+        if (!status) return;
+        state.webServer = status;
+        state.statusMessage = status.running
+            ? t('status.web_server_started', [status.url || `:${status.port}`])
+            : t('status.web_server_stopped');
+    } catch (err) {
+        const refreshed = await backend()?.GetWebServerStatus?.().catch(() => null);
+        if (refreshed) {
+            state.webServer = refreshed;
+        }
+        state.statusMessage = t('status.web_server_error', [err]);
+    }
+}
+
+export async function menuWebServerPort(
+    t: TranslateFn,
+    showPrompt: PromptFn,
+    showMessage: MessageFn,
+): Promise<void> {
+    const currentPort = state.webServer.port || 8080;
+    const raw = await showPrompt(
+        t('menu.web_server_port'),
+        t('prompt.web_server_port'),
+        String(currentPort),
+    );
+    if (raw === null) return;
+    const trimmed = raw.trim();
+    const port = Number.parseInt(trimmed, 10);
+    if (!Number.isFinite(port) || String(port) !== trimmed || port < 1024 || port > 65535) {
+        await showMessage(t('menu.web_server_port'), t('prompt.invalid_port'));
+        return;
+    }
+    try {
+        const status = await backend()?.SetWebServerPort?.(port);
+        if (!status) return;
+        state.webServer = status;
+        state.statusMessage = status.running
+            ? t('status.web_server_started', [status.url || `:${status.port}`])
+            : t('status.web_server_port_set', [status.port]);
+    } catch (err) {
+        const refreshed = await backend()?.GetWebServerStatus?.().catch(() => null);
+        if (refreshed) {
+            state.webServer = refreshed;
+        }
+        state.statusMessage = t('status.web_server_error', [err]);
     }
 }

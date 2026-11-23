@@ -25,6 +25,7 @@ func init() {
 	application.RegisterEvent[backend.AppSettings]("settings:loaded")
 	application.RegisterEvent[string]("settings:load-error")
 	application.RegisterEvent[backend.SamplingStateEvent]("app:sampling-state")
+	application.RegisterEvent[backend.WebServerStatus]("app:web-server-state")
 }
 
 func main() {
@@ -137,36 +138,61 @@ func main() {
 	systemTray.SetTooltip("S7 Trend Go — Idle")
 
 	trayMenu := wailsApp.NewMenu()
-	trayMenu.Add("Restore").OnClick(func(_ *application.Context) {
+	restoreItem := trayMenu.Add("Restore")
+	restoreItem.SetEnabled(false)
+	restoreItem.OnClick(func(_ *application.Context) {
 		backend.RestoreWindow(appService)
 	})
 	toggleSamplingItem := trayMenu.Add("Start Sampling")
 	toggleSamplingItem.OnClick(func(_ *application.Context) {
 		backend.ToggleSamplingFromTray(appService)
 	})
+	webServerItem := trayMenu.AddCheckbox("Web Server", false)
+	webServerItem.OnClick(func(_ *application.Context) {
+		backend.ToggleWebServerFromTray(appService)
+	})
 	trayMenu.AddSeparator()
 	trayMenu.Add("Exit").OnClick(func(_ *application.Context) {
 		backend.RequestExitFromTray(appService)
 	})
 	systemTray.SetMenu(trayMenu)
+
+	host := newWailsHost(wailsApp, mainWindow)
+	host.attachTray(systemTray, trayMenu, restoreItem, toggleSamplingItem, webServerItem)
+	host.setRestoreEnabled(false)
+	host.attachNotifier(notifier)
 	systemTray.OnClick(func() {
 		backend.RestoreWindow(appService)
 	})
 	systemTray.OnDoubleClick(func() {
 		backend.RestoreWindow(appService)
 	})
-
-	host := newWailsHost(wailsApp, mainWindow)
-	host.attachTray(systemTray, trayMenu, toggleSamplingItem)
-	host.attachNotifier(notifier)
+	systemTray.OnRightClick(func() {
+		host.syncTrayRestoreState()
+		systemTray.OpenMenu()
+	})
+	backend.SetWebAssets(appService, assets)
 	backend.AttachHost(appService, host)
 	backend.SetTrayEnabled(appService, true)
+	backend.StartWebServerIfEnabled(appService)
 
 	mainWindow.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 		if backend.HandleWindowClosing(appService) {
 			e.Cancel()
 		}
 	})
+
+	for _, evType := range []events.WindowEventType{
+		events.Common.WindowShow,
+		events.Common.WindowHide,
+		events.Common.WindowMinimise,
+		events.Common.WindowUnMinimise,
+		events.Common.WindowRestore,
+	} {
+		mainWindow.OnWindowEvent(evType, func(_ *application.WindowEvent) {
+			host.syncTrayRestoreState()
+		})
+	}
 
 	mainWindow.OnWindowEvent(events.Common.WindowFilesDropped, func(event *application.WindowEvent) {
 		files := event.Context().DroppedFiles()

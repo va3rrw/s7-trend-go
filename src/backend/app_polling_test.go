@@ -1,13 +1,17 @@
 package backend
 
 import (
+	"context"
+	"encoding/binary"
 	"errors"
+	"math"
 	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/robinson/gos7"
 )
 
 func TestApp_StartStopPolling_EmptyTags(t *testing.T) {
@@ -370,4 +374,180 @@ func TestApp_SubscribeTelemetryConcurrentRace(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestApp_PollingConsumerBatchesHighFrequencySamples(t *testing.T) {
+	app := NewAppWithHistoryPath(filepath.Join(t.TempDir(), "history.db"))
+	defer func() { _ = app.ServiceShutdown() }()
+
+	fastReal := TagSettings{
+		Id:                 uuid.New(),
+		Name:               "FastSpike",
+		PlcLink:            "PLC1",
+		Address:            "DB1.DBD0",
+		DataType:           DataTypeReal,
+		Enabled:            true,
+		SamplingIntervalMs: 0,
+	}
+	fastBool := TagSettings{
+		Id:                 uuid.New(),
+		Name:               "FastPulse",
+		PlcLink:            "PLC1",
+		Address:            "DB1.DBX4.0",
+		DataType:           DataTypeBool,
+		Enabled:            true,
+		SamplingIntervalMs: 0,
+	}
+	slowReal := TagSettings{
+		Id:                 uuid.New(),
+		Name:               "SlowLevel",
+		PlcLink:            "PLC1",
+		Address:            "DB1.DBD8",
+		DataType:           DataTypeReal,
+		Enabled:            true,
+		SamplingIntervalMs: 500,
+	}
+
+	settings := CreateDefaultSettings()
+	settings.PollIntervalMs = 10
+	settings.Tags = []TagSettings{fastReal, fastBool, slowReal}
+	app.SaveSettings(settings)
+
+	var pTags []parsedTag
+	for _, tag := range settings.Tags {
+		spec, err := ParseS7Address(tag.Address, tag.DataType)
+		if err != nil {
+			t.Fatalf("ParseS7Address(%s) failed: %v", tag.Address, err)
+		}
+		pTags = append(pTags, parsedTag{Tag: tag, Spec: spec})
+	}
+
+	encodeReal := func(v float32) []byte {
+		b := make([]byte, 4)
+		binary.BigEndian.PutUint32(b, math.Float32bits(v))
+		return b
+	}
+	encodeBool := func(v bool) []byte {
+		if v {
+			return []byte{1}
+		}
+		return []byte{0}
+	}
+
+	t0 := time.Date(2026, 7, 1, 10, 0, 0, 0, time.UTC)
+	dataChan := make(chan networkResult, 8)
+	samples := []struct {
+		at       time.Time
+		durMs    int
+		fast     float32
+		pulse    bool
+		slow     float32
+	}{
+		{t0, 4, 10, false, 100},
+		// +9ms simulates 1ms ticker jitter on a 10ms poll cadence
+		{t0.Add(9 * time.Millisecond), 3, 99.5, true, 200},
+		{t0.Add(20 * time.Millisecond), 5, 12, false, 300},
+	}
+	for _, s := range samples {
+		dataChan <- networkResult{
+			DurationMs: s.durMs,
+			ReadAt:     s.at,
+			Items: []gos7.S7DataItem{
+				{Data: encodeReal(s.fast)},
+				{Data: encodeBool(s.pulse)},
+				{Data: encodeReal(s.slow)},
+			},
+		}
+	}
+	close(dataChan)
+
+	ch, unsub := app.SubscribeTelemetry(8)
+	defer unsub()
+
+	app.runLinkConsumer(context.Background(), "PLC1", pTags, 10, dataChan)
+
+	var frame TelemetryFrame
+	select {
+	case frame = <-ch:
+	default:
+		t.Fatal("expected single flushed TelemetryFrame when dataChan closes")
+	}
+	select {
+	case extra := <-ch:
+		t.Fatalf("expected all 3 reads batched into 1 frame, got extra frame: %+v", extra)
+	default:
+	}
+
+	if len(frame.Updates) != 9 {
+		t.Fatalf("expected 9 updates (3 polls x 3 tags), got %d", len(frame.Updates))
+	}
+	if len(frame.Timings) != 1 || frame.Timings[0].PlcLink != "PLC1" || frame.Timings[0].ActualIntervalMs != 5 {
+		t.Fatalf("expected single consolidated timing ActualIntervalMs=5, got %+v", frame.Timings)
+	}
+
+	var fastValues, boolValues []float64
+	for _, u := range frame.Updates {
+		if u.Quality != "Good" || u.NumericValue == nil {
+			t.Fatalf("unexpected non-good update: %+v", u)
+		}
+		switch u.TagId {
+		case fastReal.Id:
+			fastValues = append(fastValues, *u.NumericValue)
+		case fastBool.Id:
+			boolValues = append(boolValues, *u.NumericValue)
+		}
+	}
+	if len(fastValues) != 3 || fastValues[0] != 10 || fastValues[1] != 99.5 || fastValues[2] != 12 {
+		t.Fatalf("expected FastSpike sequence [10 99.5 12], got %v", fastValues)
+	}
+	if len(boolValues) != 3 || boolValues[0] != 0 || boolValues[1] != 1 || boolValues[2] != 0 {
+		t.Fatalf("expected FastPulse sequence [0 1 0], got %v", boolValues)
+	}
+
+	hist, err := app.GetHistoryRange(
+		context.Background(),
+		[]string{fastReal.Id.String(), fastBool.Id.String(), slowReal.Id.String()},
+		t0.UnixMilli()-100,
+		t0.UnixMilli()+1000,
+		0,
+	)
+	if err != nil {
+		t.Fatalf("GetHistoryRange failed: %v", err)
+	}
+	if pts := hist[fastReal.Id.String()]; len(pts) != 3 || pts[1].Value != 99.5 {
+		t.Fatalf("expected 3 history points preserving 99.5 spike at +9ms, got %+v", pts)
+	}
+	if pts := hist[fastBool.Id.String()]; len(pts) != 3 || pts[1].Value != 1 || pts[2].Value != 0 {
+		t.Fatalf("expected 3 history points preserving bool pulse [0 1 0], got %+v", pts)
+	}
+	if pts := hist[slowReal.Id.String()]; len(pts) != 1 || pts[0].Value != 100 {
+		t.Fatalf("expected 500ms slow tag to record 1 sample in 20ms window, got %+v", pts)
+	}
+
+	// Verify consecutive errors within one UI batch coalesce into 1 Bad update per tag
+	errChan := make(chan networkResult, 4)
+	for i := 0; i < 3; i++ {
+		errChan <- networkResult{
+			Err:    errors.New("timeout"),
+			ReadAt: t0.Add(time.Duration(30+i*10) * time.Millisecond),
+		}
+	}
+	close(errChan)
+
+	app.runLinkConsumer(context.Background(), "PLC1", pTags, 10, errChan)
+
+	var errFrame TelemetryFrame
+	select {
+	case errFrame = <-ch:
+	default:
+		t.Fatal("expected single flushed error TelemetryFrame")
+	}
+	if len(errFrame.Updates) != 3 {
+		t.Fatalf("expected 3 coalesced Bad updates (1 per tag), got %d", len(errFrame.Updates))
+	}
+	for _, u := range errFrame.Updates {
+		if u.Quality != "Bad" || u.Error != "timeout" {
+			t.Fatalf("expected Bad/timeout update, got %+v", u)
+		}
+	}
 }

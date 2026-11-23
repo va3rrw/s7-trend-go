@@ -1,5 +1,6 @@
 import { beforeEach, vi } from 'vitest';
 import {
+    state,
     setBackendOverride,
     setRuntimeOverride,
     type BackendApi,
@@ -85,7 +86,17 @@ export function createMockBackend(): BackendApi {
         GetTreePanelWidth: vi.fn().mockResolvedValue(250),
         GetSystemLanguage: vi.fn().mockResolvedValue('en'),
         GetVersion: vi.fn().mockResolvedValue('1.0.0'),
+        GetWebServerStatus: vi.fn().mockResolvedValue({
+            enabled: false,
+            running: false,
+            host: '0.0.0.0',
+            port: 8080,
+            url: '',
+            connectedClients: 0,
+        }),
         HasSettingsChanged: vi.fn().mockResolvedValue(false),
+        ImportSettingsJSON: vi.fn().mockResolvedValue(defaultSettings()),
+        IsPolling: vi.fn().mockResolvedValue(false),
         LoadSettingsFile: vi.fn().mockResolvedValue(defaultSettings()),
         OpenStorageFolder: vi.fn().mockResolvedValue(undefined),
         QuitApp: vi.fn().mockResolvedValue(undefined),
@@ -94,9 +105,41 @@ export function createMockBackend(): BackendApi {
         SaveSettings: vi.fn().mockResolvedValue(undefined),
         SaveSettingsFile: vi.fn().mockResolvedValue(undefined),
         SetTreePanelWidth: vi.fn().mockResolvedValue(undefined),
+        SetWebServerPort: vi.fn().mockResolvedValue({
+            enabled: false,
+            running: false,
+            host: '0.0.0.0',
+            port: 8080,
+            url: '',
+            connectedClients: 0,
+        }),
         StartPolling: vi.fn().mockResolvedValue(undefined),
+        StartWebServer: vi.fn().mockResolvedValue({
+            enabled: true,
+            running: true,
+            host: '0.0.0.0',
+            port: 8080,
+            url: 'http://127.0.0.1:8080',
+            connectedClients: 0,
+        }),
         StopPolling: vi.fn().mockResolvedValue(undefined),
+        StopWebServer: vi.fn().mockResolvedValue({
+            enabled: false,
+            running: false,
+            host: '0.0.0.0',
+            port: 8080,
+            url: '',
+            connectedClients: 0,
+        }),
         TestConnection: vi.fn().mockResolvedValue(undefined),
+        ToggleWebServer: vi.fn().mockResolvedValue({
+            enabled: true,
+            running: true,
+            host: '0.0.0.0',
+            port: 8080,
+            url: 'http://127.0.0.1:8080',
+            connectedClients: 0,
+        }),
     };
 }
 
@@ -104,6 +147,15 @@ setRuntimeOverride(createMockRuntime());
 setBackendOverride(createMockBackend());
 
 beforeEach(() => {
+    delete (window as any).__S7_WEB_SERVER__;
+    state.webServer = {
+        enabled: false,
+        running: false,
+        host: '0.0.0.0',
+        port: 8080,
+        url: '',
+        connectedClients: 0,
+    };
     setRuntimeOverride(createMockRuntime());
     setBackendOverride(createMockBackend());
     vi.clearAllMocks();

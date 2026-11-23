@@ -19,6 +19,8 @@
     "samples_interpolation": "采样插值 …",
     "clear_records": "清除记录 …",
     "open_storage_folder": "打开存储文件夹",
+    "web_server": "Web 服务器",
+    "web_server_port": "Web 服务器端口 …",
     "about": "关于 S7 Trend Go",
     "plcs": "PLC",
     "plc_config": "PLC 配置",
@@ -153,9 +155,15 @@
     "window": "窗口:",
     "connected_to": "已连接到 {0} ({1})",
     "test_connection_failed": "测试连接失败: {0}",
-    "connection_failed": "连接失败: {0}"
+    "connection_failed": "连接失败: {0}",
+    "web_server_started": "Web 服务器已在 {0} 启动",
+    "web_server_stopped": "Web 服务器已停止",
+    "web_server_port_set": "Web 服务器端口已设置为 {0}",
+    "web_server_error": "Web 服务器出错: {0}"
   },
   "prompt": {
+    "web_server_port": "TCP 端口 (1024-65535):",
+    "invalid_port": "请输入 1024 到 65535 之间的有效 TCP 端口。",
     "sampling_interval": "采样间隔",
     "ms_range": "毫秒 (10-60000):",
     "trend_window": "曲线窗口",

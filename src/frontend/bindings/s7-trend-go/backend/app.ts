@@ -94,10 +94,25 @@ export function GetVersion(): $CancellablePromise<string> {
 }
 
 /**
+ * GetWebServerStatus returns the current status of the embedded HTTP/WebSocket server.
+ */
+export function GetWebServerStatus(): $CancellablePromise<$models.WebServerStatus> {
+    return $Call.ByID(1623615101);
+}
+
+/**
  * HasSettingsChanged returns true if current in-memory settings differ from last saved baseline
  */
 export function HasSettingsChanged(): $CancellablePromise<boolean> {
     return $Call.ByID(3422252181);
+}
+
+/**
+ * ImportSettingsJSON parses and applies raw JSON settings uploaded from a web
+ * client, restarts active polling if running, and broadcasts the update.
+ */
+export function ImportSettingsJSON(rawJSON: string): $CancellablePromise<$models.AppSettings | null> {
+    return $Call.ByID(2791773796, rawJSON);
 }
 
 /**
@@ -161,10 +176,25 @@ export function SetTreePanelWidth(width: number): $CancellablePromise<void> {
 }
 
 /**
+ * SetWebServerPort updates the configured web server TCP port and restarts the
+ * embedded server cleanly if it is currently running.
+ */
+export function SetWebServerPort(port: number): $CancellablePromise<$models.WebServerStatus> {
+    return $Call.ByID(3942471944, port);
+}
+
+/**
  * StartPolling starts polling loop according to current AppSettings
  */
 export function StartPolling(settings: $models.AppSettings): $CancellablePromise<void> {
     return $Call.ByID(4209995645, settings);
+}
+
+/**
+ * StartWebServer starts (or restarts on a new address) the embedded HTTP/WebSocket server.
+ */
+export function StartWebServer(host: string, port: number): $CancellablePromise<$models.WebServerStatus> {
+    return $Call.ByID(3524302647, host, port);
 }
 
 export function StopPolling(): $CancellablePromise<void> {
@@ -172,8 +202,22 @@ export function StopPolling(): $CancellablePromise<void> {
 }
 
 /**
+ * StopWebServer stops the embedded HTTP/WebSocket server and disables auto-start.
+ */
+export function StopWebServer(): $CancellablePromise<$models.WebServerStatus> {
+    return $Call.ByID(1006334647);
+}
+
+/**
  * TestConnection tests connecting to a single PLC link
  */
 export function TestConnection(link: $models.PlcLinkSettings): $CancellablePromise<void> {
     return $Call.ByID(2229428126, link);
+}
+
+/**
+ * ToggleWebServer toggles the embedded HTTP/WebSocket server on or off.
+ */
+export function ToggleWebServer(): $CancellablePromise<$models.WebServerStatus> {
+    return $Call.ByID(2404573383);
 }

@@ -19,6 +19,8 @@
     "samples_interpolation": "Samples interpolation",
     "clear_records": "Clear records",
     "open_storage_folder": "Open storage folder",
+    "web_server": "Web Server",
+    "web_server_port": "Web server port ...",
     "about": "About S7 Trend Go",
     "plcs": "PLCs",
     "plc_config": "PLC configuration",
@@ -153,9 +155,15 @@
     "window": "Window:",
     "connected_to": "Connected to {0} ({1})",
     "test_connection_failed": "Test connection failed: {0}",
-    "connection_failed": "Connection failed: {0}"
+    "connection_failed": "Connection failed: {0}",
+    "web_server_started": "Web server listening at {0}",
+    "web_server_stopped": "Web server stopped",
+    "web_server_port_set": "Web server port set to {0}",
+    "web_server_error": "Web server error: {0}"
   },
   "prompt": {
+    "web_server_port": "TCP Port (1024-65535):",
+    "invalid_port": "Enter a valid TCP port from 1024 to 65535.",
     "sampling_interval": "Sampling interval",
     "ms_range": "Milliseconds (10-60000):",
     "trend_window": "Trend window",

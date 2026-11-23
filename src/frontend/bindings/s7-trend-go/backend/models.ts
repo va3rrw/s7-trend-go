@@ -80,6 +80,19 @@ export interface TagSettings {
     "samplingIntervalMs": number;
 }
 
+/**
+ * WebServerStatus reports the embedded HTTP/WebSocket server state.
+ */
+export interface WebServerStatus {
+    "enabled": boolean;
+    "running": boolean;
+    "host": string;
+    "port": number;
+    "url": string;
+    "error"?: string;
+    "connectedClients": number;
+}
+
 export interface YAxisSettings {
     "name": string;
     "minimum": number;

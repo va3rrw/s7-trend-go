@@ -1,5 +1,7 @@
 package backend
 
+import "io/fs"
+
 // DesktopHost abstracts desktop runtime capabilities needed by App so package
 // backend stays free of GUI framework dependencies and can be tested directly.
 type DesktopHost interface {
@@ -12,6 +14,7 @@ type DesktopHost interface {
 	OpenFileDialog(title, defaultDir, filterName, filterPattern string) (string, error)
 	SaveFileDialog(title, defaultDir, defaultFilename, filterName, filterPattern string) (string, error)
 	UpdateTrayStatus(isSampling bool, connectedPlcs, totalPlcs int)
+	UpdateTrayWebServer(running bool, addr string)
 	Notify(title, body string)
 }
 
@@ -21,6 +24,7 @@ func AttachHost(a *App, host DesktopHost) {
 	a.host = host
 	a.mu.Unlock()
 	a.refreshTrayStatus()
+	a.refreshTrayWebServer()
 }
 
 // SetTrayEnabled configures whether closing the window hides to tray instead of exiting.
@@ -99,32 +103,22 @@ func RequestExitFromTray(a *App) {
 }
 
 // ToggleSamplingFromTray toggles live PLC polling from the native system tray
-// menu and notifies the frontend so reactive controls stay synchronized.
+// menu and relies on StartPolling/StopPolling to emit state transitions.
 func ToggleSamplingFromTray(a *App) {
-	var nextSampling bool
 	if a.IsPolling() {
 		a.StopPolling()
-		nextSampling = false
-	} else {
-		a.StartPolling(a.GetSettings())
-		nextSampling = true
+		return
 	}
-
-	if host := a.getHost(); host != nil {
-		host.EmitEvent("app:sampling-state", SamplingStateEvent{IsSampling: nextSampling})
-	}
+	a.StartPolling(a.GetSettings())
 }
 
 // LoadSettingsFromPath loads settings from a filesystem path (such as a
 // dropped .json file or second-instance CLI argument), restarts active polling
-// if needed, and notifies the frontend.
+// if needed, and notifies both desktop and remote web clients.
 func LoadSettingsFromPath(a *App, filePath string) error {
 	settings, err := a.loadSettingsFromFilePath(filePath)
-	host := a.getHost()
 	if err != nil {
-		if host != nil {
-			host.EmitEvent("settings:load-error", err.Error())
-		}
+		a.emitAppEvent("settings:load-error", err.Error())
 		return err
 	}
 
@@ -134,15 +128,68 @@ func LoadSettingsFromPath(a *App, filePath string) error {
 		a.refreshTrayStatus()
 	}
 
-	if host != nil {
-		host.EmitEvent("settings:loaded", *settings)
-	}
+	a.emitAppEvent("settings:loaded", *settings)
 	return nil
 }
 
-// NotifySettingsLoadError emits a settings load error message to the frontend.
+// NotifySettingsLoadError emits a settings load error message to clients.
 func NotifySettingsLoadError(a *App, message string) {
-	if host := a.getHost(); host != nil {
-		host.EmitEvent("settings:load-error", message)
+	a.emitAppEvent("settings:load-error", message)
+}
+
+// SetWebAssets configures the embedded frontend asset filesystem served when Web
+// Server mode is toggled on.
+func SetWebAssets(a *App, fsys fs.FS) {
+	a.webMu.Lock()
+	a.webAssets = fsys
+	a.webMu.Unlock()
+}
+
+// StartWebServerIfEnabled starts the embedded web server if it was left enabled
+// in the saved application state.
+func StartWebServerIfEnabled(a *App) {
+	a.webMu.Lock()
+	enabled := a.webServerEnabled
+	host := a.webServerHost
+	port := a.webServerPort
+	a.webMu.Unlock()
+
+	if !enabled {
+		a.refreshTrayWebServer()
+		return
+	}
+	if _, err := a.StartWebServer(host, port); err != nil {
+		if desktop := a.getHost(); desktop != nil {
+			desktop.Notify("Web Server Error", err.Error())
+		}
+	}
+}
+
+// ToggleWebServerFromTray toggles the embedded HTTP/WebSocket server from the
+// native system tray menu.
+func ToggleWebServerFromTray(a *App) {
+	if _, err := a.ToggleWebServer(); err != nil {
+		if host := a.getHost(); host != nil {
+			host.Notify("Web Server Error", err.Error())
+		}
+	}
+}
+
+// StatusSnapshot returns a point-in-time status summary for GET /api/status.
+func StatusSnapshot(a *App) ServerStatus {
+	a.mu.RLock()
+	isPolling := a.isPolling
+	pollMs := a.settings.PollIntervalMs
+	connectedPlcs, totalPlcs, enabledTags := a.plcConnectionCountsLocked()
+	a.mu.RUnlock()
+
+	return ServerStatus{
+		Version:        AppVersion,
+		IsPolling:      isPolling,
+		ConnectedPlcs:  connectedPlcs,
+		TotalPlcs:      totalPlcs,
+		EnabledTags:    enabledTags,
+		PollIntervalMs: pollMs,
+		WebServer:      a.GetWebServerStatus(),
 	}
 }

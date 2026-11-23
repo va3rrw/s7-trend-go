@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type trayStatusUpdate struct {
@@ -24,11 +27,17 @@ type toastNotification struct {
 	body  string
 }
 
+type webServerTrayUpdate struct {
+	running bool
+	addr    string
+}
+
 type mockDesktopHost struct {
 	mu              sync.Mutex
 	emittedEvents   []string
 	emittedPayloads []any
 	trayUpdates     []trayStatusUpdate
+	webUpdates      []webServerTrayUpdate
 	notifications   []toastNotification
 	quitCalled      bool
 	showCalled      bool
@@ -83,6 +92,14 @@ func (m *mockDesktopHost) UpdateTrayStatus(isSampling bool, connectedPlcs, total
 		isSampling:    isSampling,
 		connectedPlcs: connectedPlcs,
 		totalPlcs:     totalPlcs,
+	})
+}
+func (m *mockDesktopHost) UpdateTrayWebServer(running bool, addr string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.webUpdates = append(m.webUpdates, webServerTrayUpdate{
+		running: running,
+		addr:    addr,
 	})
 }
 func (m *mockDesktopHost) Notify(title, body string) {
@@ -533,13 +550,85 @@ func TestApp_LoadSettingsFromPathAndFindArg(t *testing.T) {
 
 	host.mu.Lock()
 	defer host.mu.Unlock()
-	if len(host.emittedEvents) < 2 {
+	var sawLoaded, sawLoadError bool
+	for _, ev := range host.emittedEvents {
+		switch ev {
+		case "settings:loaded":
+			sawLoaded = true
+		case "settings:load-error":
+			sawLoadError = true
+		}
+	}
+	if !sawLoaded || !sawLoadError {
 		t.Fatalf("expected settings:loaded and settings:load-error events, got %v", host.emittedEvents)
 	}
-	if host.emittedEvents[len(host.emittedEvents)-2] != "settings:loaded" {
-		t.Errorf("expected settings:loaded event, got %v", host.emittedEvents)
+}
+
+func TestApp_ImportSettingsJSON_WriteCSV_StatusSnapshot_AndTransitions(t *testing.T) {
+	isolateConfigDir(t)
+	app := NewAppWithHistoryPath(filepath.Join(t.TempDir(), "history.db"))
+	defer func() { _ = app.ServiceShutdown() }()
+
+	host := &mockDesktopHost{}
+	AttachHost(app, host)
+
+	// Calling StopPolling when already idle must not emit duplicate transition event
+	app.StopPolling()
+	host.mu.Lock()
+	for _, ev := range host.emittedEvents {
+		if ev == "app:sampling-state" {
+			host.mu.Unlock()
+			t.Fatalf("did not expect app:sampling-state when stopping idle app, got %v", host.emittedEvents)
+		}
 	}
-	if host.emittedEvents[len(host.emittedEvents)-1] != "settings:load-error" {
-		t.Errorf("expected settings:load-error event, got %v", host.emittedEvents)
+	host.mu.Unlock()
+
+	if _, err := app.ImportSettingsJSON(`[1,2,3]`); err == nil {
+		t.Fatal("expected error for non-object JSON in ImportSettingsJSON")
+	}
+
+	tagID := uuid.New()
+	custom := CreateDefaultSettings()
+	custom.PollIntervalMs = 300
+	custom.Tags = []TagSettings{
+		{
+			Id:       tagID,
+			Name:     "Flow",
+			PlcLink:  "PLC1",
+			Address:  "DB2.DBD4",
+			DataType: DataTypeReal,
+			YAxis:    "Y-Axis 1",
+			Color:    "#00ff00",
+			Enabled:  true,
+		},
+	}
+	raw, err := json.Marshal(custom)
+	if err != nil {
+		t.Fatalf("marshal settings failed: %v", err)
+	}
+
+	applied, err := app.ImportSettingsJSON(string(raw))
+	if err != nil {
+		t.Fatalf("ImportSettingsJSON failed: %v", err)
+	}
+	if applied.PollIntervalMs != 300 || len(applied.Tags) != 1 || applied.Tags[0].Name != "Flow" {
+		t.Fatalf("unexpected ImportSettingsJSON result: %+v", applied)
+	}
+
+	ts := time.Date(2026, 6, 1, 8, 30, 0, 0, time.UTC).UnixMilli()
+	app.RecordSample(tagID.String(), ts, 18.75)
+
+	var csvBuf bytes.Buffer
+	if err := WriteCSV(app, &csvBuf); err != nil {
+		t.Fatalf("WriteCSV failed: %v", err)
+	}
+	csvStr := csvBuf.String()
+	if !strings.Contains(csvStr, "Timestamp,Tag,Address,Value") || !strings.Contains(csvStr, "Flow,DB2.DBD4,18.75") {
+		t.Fatalf("unexpected CSV output:\n%s", csvStr)
+	}
+
+	snap := StatusSnapshot(app)
+	if snap.Version != AppVersion || snap.IsPolling || snap.TotalPlcs != 1 || snap.EnabledTags != 1 || snap.PollIntervalMs != 300 {
+		t.Fatalf("unexpected StatusSnapshot: %+v", snap)
 	}
 }

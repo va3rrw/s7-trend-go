@@ -4,7 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
+	"net"
+	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jeandeaual/go-locale"
@@ -61,6 +65,23 @@ type App struct {
 	telemetryMu   sync.RWMutex
 	telemetrySubs map[uint64]chan TelemetryFrame
 	telemetrySeq  uint64
+
+	eventMu   sync.RWMutex
+	eventSubs map[uint64]chan AppEvent
+	eventSeq  uint64
+
+	webOpMu          sync.Mutex
+	webMu            sync.Mutex
+	webAssets        fs.FS
+	webServerEnabled bool
+	webServerHost    string
+	webServerPort    int
+	webServer        *http.Server
+	webListener      net.Listener
+	webRunning       bool
+	webLastErr       string
+	webConnCancel    context.CancelFunc
+	webClients       atomic.Int64
 }
 
 func NewApp() *App {
@@ -84,6 +105,9 @@ func newApp(historyPath string) *App {
 		lastBoolValue:  make(map[string]float64),
 		treePanelWidth: defaultTreePanelWidth,
 		telemetrySubs:  make(map[uint64]chan TelemetryFrame),
+		eventSubs:      make(map[uint64]chan AppEvent),
+		webServerHost:  defaultWebServerHost,
+		webServerPort:  defaultWebServerPort,
 	}
 	app.savedSettingsJSON = app.serializeSettingsLocked()
 	app.loadAppState()
@@ -137,19 +161,14 @@ func (a *App) IsPolling() bool {
 	return a.isPolling
 }
 
-// refreshTrayStatus pushes current polling state and connected PLC counts to the attached host.
-func (a *App) refreshTrayStatus() {
-	a.mu.RLock()
-	host := a.host
-	if host == nil {
-		a.mu.RUnlock()
-		return
-	}
-	isPolling := a.isPolling
+func (a *App) plcConnectionCountsLocked() (connectedPlcs, totalPlcs, enabledTags int) {
 	activeLinks := make(map[string]struct{})
 	for _, tag := range a.settings.Tags {
-		if tag.Enabled && tag.PlcLink != "" {
-			activeLinks[tag.PlcLink] = struct{}{}
+		if tag.Enabled {
+			enabledTags++
+			if tag.PlcLink != "" {
+				activeLinks[tag.PlcLink] = struct{}{}
+			}
 		}
 	}
 	if len(activeLinks) == 0 {
@@ -159,7 +178,6 @@ func (a *App) refreshTrayStatus() {
 			}
 		}
 	}
-	connectedPlcs := 0
 	for linkName := range activeLinks {
 		if conn, ok := a.plcs[linkName]; ok && conn != nil {
 			conn.mu.Lock()
@@ -169,17 +187,31 @@ func (a *App) refreshTrayStatus() {
 			conn.mu.Unlock()
 		}
 	}
-	totalPlcs := len(activeLinks)
+	return connectedPlcs, len(activeLinks), enabledTags
+}
+
+// refreshTrayStatus pushes current polling state and connected PLC counts to the attached host.
+func (a *App) refreshTrayStatus() {
+	a.mu.RLock()
+	host := a.host
+	if host == nil {
+		a.mu.RUnlock()
+		return
+	}
+	isPolling := a.isPolling
+	connectedPlcs, totalPlcs, _ := a.plcConnectionCountsLocked()
 	a.mu.RUnlock()
 
 	host.UpdateTrayStatus(isPolling, connectedPlcs, totalPlcs)
 }
 
-// ServiceShutdown cleans up polling loops, PLC connections, stream subscribers, and SQLite history on Wails shutdown.
+// ServiceShutdown cleans up web server, polling loops, PLC connections, subscribers, and SQLite history on Wails shutdown.
 func (a *App) ServiceShutdown() error {
+	a.shutdownWebServer()
 	a.StopPolling()
 	a.DisconnectAll()
 	a.closeAllTelemetrySubscribers()
+	a.closeAllEventSubscribers()
 	if a.history != nil {
 		_ = a.history.Close()
 	}
@@ -360,6 +392,41 @@ func (a *App) RecordSample(tagId string, timestampMs int64, value float64) {
 
 	_ = a.history.Insert(storedSample{
 		TagID:     tagId,
+		Timestamp: timestampMs,
+		Value:     value,
+	})
+}
+
+// recordPolledSample persists an acquired PLC sample. Bool tags store initial
+// values and transitions; tags with an explicit Storage interval > 0 enforce
+// that minimum gap; tags configured to follow the global poll interval (0)
+// record every read without rejecting 1-2ms ticker/network jitter.
+func (a *App) recordPolledSample(tag TagSettings, timestampMs int64, value float64) {
+	if a.history == nil {
+		return
+	}
+
+	tagID := tag.Id.String()
+	a.sampleMu.Lock()
+	if tag.DataType == DataTypeBool {
+		if last, exists := a.lastBoolValue[tagID]; exists && last == value {
+			a.sampleMu.Unlock()
+			return
+		}
+		a.lastBoolValue[tagID] = value
+	} else if tag.SamplingIntervalMs > 0 {
+		if last, exists := a.lastSampleAt[tagID]; exists && timestampMs < last+int64(tag.SamplingIntervalMs) {
+			a.sampleMu.Unlock()
+			return
+		}
+		a.lastSampleAt[tagID] = timestampMs
+	} else {
+		a.lastSampleAt[tagID] = timestampMs
+	}
+	a.sampleMu.Unlock()
+
+	_ = a.history.Insert(storedSample{
+		TagID:     tagID,
 		Timestamp: timestampMs,
 		Value:     value,
 	})
