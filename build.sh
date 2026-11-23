@@ -21,33 +21,30 @@ EXE_BASENAME="s7-trend-go-v${VER}"
 EXE_NAME="${EXE_BASENAME}.exe"
 
 # ── Render Wails v3 & Windows build metadata from tracked templates ─
-if command -v python3 >/dev/null 2>&1; then
-  python3 - "$ROOT/src/build" "$VER" <<'PY'
-import pathlib, sys
-
-build_dir = pathlib.Path(sys.argv[1])
-ver = sys.argv[2]
-
-for rel in ("config.yml", "windows/info.json", "windows/wails.exe.manifest"):
-    content = (build_dir / f"{rel}.tmpl").read_text(encoding="utf-8").replace("@VERSION@", ver)
-    with open(build_dir / rel, "w", encoding="utf-8", newline="\n") as f:
-        f.write(content)
-PY
-else
-  sed "s/@VERSION@/$VER/g" "$ROOT/src/build/config.yml.tmpl" > "$ROOT/src/build/config.yml"
-  sed "s/@VERSION@/$VER/g" "$ROOT/src/build/windows/info.json.tmpl" > "$ROOT/src/build/windows/info.json"
-  sed "s/@VERSION@/$VER/g" "$ROOT/src/build/windows/wails.exe.manifest.tmpl" > "$ROOT/src/build/windows/wails.exe.manifest"
-fi
+sed "s/@VERSION@/$VER/g" "$ROOT/src/build/config.yml.tmpl" > "$ROOT/src/build/config.yml"
+sed "s/@VERSION@/$VER/g" "$ROOT/src/build/windows/info.json.tmpl" > "$ROOT/src/build/windows/info.json"
+sed "s/@VERSION@/$VER/g" "$ROOT/src/build/windows/wails.exe.manifest.tmpl" > "$ROOT/src/build/windows/wails.exe.manifest"
 
 # ── Locate wails3 binary ────────────────────────────────────────────
+GOPATH_DIR="$(go env GOPATH 2>/dev/null || true)"
+if [[ -n "$GOPATH_DIR" ]] && command -v cygpath >/dev/null 2>&1; then
+  GOPATH_DIR="$(cygpath -u "$GOPATH_DIR")"
+fi
+
 if [[ -n "${WAILS3_BIN:-}" && -x "$WAILS3_BIN" ]]; then
   : # Using user-provided WAILS3_BIN
 elif [[ -n "${WAILS_BIN:-}" && -x "$WAILS_BIN" ]]; then
   WAILS3_BIN="$WAILS_BIN"
 elif command -v wails3 >/dev/null 2>&1; then
   WAILS3_BIN="$(command -v wails3)"
-elif [[ -x "$(go env GOPATH 2>/dev/null)/bin/wails3" ]]; then
-  WAILS3_BIN="$(go env GOPATH)/bin/wails3"
+elif command -v wails3.exe >/dev/null 2>&1; then
+  WAILS3_BIN="$(command -v wails3.exe)"
+elif [[ -n "$GOPATH_DIR" && -x "$GOPATH_DIR/bin/wails3.exe" ]]; then
+  WAILS3_BIN="$GOPATH_DIR/bin/wails3.exe"
+elif [[ -n "$GOPATH_DIR" && -x "$GOPATH_DIR/bin/wails3" ]]; then
+  WAILS3_BIN="$GOPATH_DIR/bin/wails3"
+elif [[ -x "$HOME/go/bin/wails3.exe" ]]; then
+  WAILS3_BIN="$HOME/go/bin/wails3.exe"
 elif [[ -x "$HOME/go/bin/wails3" ]]; then
   WAILS3_BIN="$HOME/go/bin/wails3"
 elif [[ -x "/usr/local/bin/wails3" ]]; then
@@ -88,7 +85,14 @@ echo "Running frontend tests..."
 )
 
 echo "Running Go tests..."
-(cd "$ROOT/src" && go test -race ./backend/...)
+(
+  cd "$ROOT/src"
+  if command -v gcc >/dev/null 2>&1; then
+    go test -race ./backend/...
+  else
+    CGO_ENABLED=0 go test ./backend/...
+  fi
+)
 
 # ── Build Windows executable ────────────────────────────────────────
 echo "Building Windows executable ($EXE_NAME)..."

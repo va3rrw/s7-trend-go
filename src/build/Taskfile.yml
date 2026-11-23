@@ -165,7 +165,8 @@ tasks:
           sed "s/@VERSION@/$VER/g" windows/info.json.tmpl > windows/info.json
           sed "s/@VERSION@/$VER/g" windows/wails.exe.manifest.tmpl > windows/wails.exe.manifest
         platforms: [linux, darwin]
-      - cmd: powershell -NoProfile -Command "$ver = (Get-Content -Raw '..\..\VERSION').Trim(); @{'config.yml.tmpl'='config.yml'; 'windows\info.json.tmpl'='windows\info.json'; 'windows\wails.exe.manifest.tmpl'='windows\wails.exe.manifest'}.GetEnumerator() | ForEach-Object { (Get-Content -Raw $_.Key).Replace('@VERSION@', $ver) | Set-Content -NoNewline $_.Value }"
+      - cmd: |
+          powershell -NoProfile -Command '$ver = [IO.File]::ReadAllText("..\..\VERSION").Trim(); $enc = New-Object Text.UTF8Encoding($false); foreach ($f in @("config.yml","windows\info.json","windows\wails.exe.manifest")) { $txt = [IO.File]::ReadAllText("$f.tmpl").Replace("@VERSION@", $ver); [IO.File]::WriteAllText($f, $txt, $enc) }'
         platforms: [windows]
 
   dev:frontend:
