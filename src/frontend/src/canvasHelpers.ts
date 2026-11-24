@@ -391,7 +391,8 @@ export function drawBooleanBand(
                 ctx.stroke();
             }
 
-            // Data high state blocks
+            // Data high state blocks (merge consecutive HIGH samples into contiguous runs
+            // to avoid sub-pixel anti-aliasing seams between adjacent fillRect calls)
             const points = history.get(tag.id) ?? [];
             ctx.fillStyle = tag.color || CHART_THEME.defaultSeries;
             ctx.setLineDash([]);
@@ -399,18 +400,10 @@ export function drawBooleanBand(
             const barTop = topY + CHART_LAYOUT.boolBarPaddingY;
             const barHeight = CHART_LAYOUT.boolBarHeight;
 
-            points.forEach((point, pIndex) => {
-                const next = points[pIndex + 1]?.timestamp ?? end;
-                if (
-                    point.value <= 0.5 ||
-                    next <= start ||
-                    point.timestamp >= end
-                ) {
-                    return;
-                }
-
-                const clampedStart = Math.max(point.timestamp, start);
-                const clampedEnd = Math.min(next, end);
+            const drawHighRun = (runStart: number, runEnd: number) => {
+                if (runEnd <= start || runStart >= end) return;
+                const clampedStart = Math.max(runStart, start);
+                const clampedEnd = Math.min(runEnd, end);
 
                 const x1 =
                     layout.left +
@@ -418,10 +411,31 @@ export function drawBooleanBand(
                 const x2 =
                     layout.left +
                     ((clampedEnd - start) / span) * layout.width;
-                const blockWidth = Math.max(1, x2 - x1);
+                const rx1 =
+                    clampedStart === start ? Math.floor(x1) : Math.round(x1);
+                const rx2 =
+                    clampedEnd === end
+                        ? Math.ceil(x2)
+                        : Math.max(rx1 + 1, Math.round(x2));
 
-                ctx.fillRect(x1, barTop, blockWidth, barHeight);
-            });
+                ctx.fillRect(rx1, barTop, Math.max(1, rx2 - rx1), barHeight);
+            };
+
+            let highRunStart: number | null = null;
+            for (let pIndex = 0; pIndex < points.length; pIndex++) {
+                const point = points[pIndex];
+                if (point.value > 0.5) {
+                    if (highRunStart === null) {
+                        highRunStart = point.timestamp;
+                    }
+                } else if (highRunStart !== null) {
+                    drawHighRun(highRunStart, point.timestamp);
+                    highRunStart = null;
+                }
+            }
+            if (highRunStart !== null) {
+                drawHighRun(highRunStart, end);
+            }
 
             ctx.restore();
         }

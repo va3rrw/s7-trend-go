@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TrendChart } from '../src/chart';
+import { CHART_LAYOUT } from '../src/chartConstants';
 import { backend } from '../src/store';
 
 describe('TrendChart', () => {
@@ -912,6 +913,56 @@ describe('TrendChart', () => {
         } finally {
             vi.useRealTimers();
         }
+    });
+
+    it('renders continuous boolean bar across window left edge when HIGH precedes start', () => {
+        const boolCanvas = document.createElement('canvas');
+        const timeCanvas = document.createElement('canvas');
+        Object.defineProperty(canvas, 'clientWidth', { value: 700, configurable: true });
+
+        const origGetContext = boolCanvas.getContext.bind(boolCanvas);
+        let capturedCtx: any = null;
+        vi.spyOn(boolCanvas, 'getContext').mockImplementation((id: string, ...rest: any[]) => {
+            const ctx = (origGetContext as any)(id, ...rest);
+            if (id === '2d') capturedCtx = ctx;
+            return ctx;
+        });
+
+        const trend = new TrendChart(canvas, boolCanvas, timeCanvas);
+        const boolTag = {
+            id: 'bool-edge',
+            name: 'Motor_Running',
+            color: '#86EFAC',
+            dataType: 'Bool',
+            yAxis: '',
+            enabled: true,
+        };
+        trend.setTags([boolTag], []);
+
+        // HIGH state recorded at 100_000ms (precedes 60s window start = 140_000ms when latest = 200_000ms)
+        trend.addDataPoint('bool-edge', new Date(100000).toISOString(), 1);
+        trend.addDataPoint('bool-edge', new Date(160000).toISOString(), 1);
+        trend.addDataPoint('bool-edge', new Date(180000).toISOString(), 1);
+        // Another tag drives latest timestamp to 200_000ms (window [140_000, 200_000])
+        trend.addDataPoint('other', new Date(200000).toISOString(), 5);
+
+        (trend as any).chart.chartArea = { left: 100, right: 700, width: 600, top: 0, bottom: 200 };
+        vi.spyOn((trend as any).chart, 'update').mockImplementation(() => {});
+        (trend as any).doRender();
+
+        expect(capturedCtx).not.toBeNull();
+        const barCalls = capturedCtx.fillRect.mock.calls.filter(
+            (args: any[]) => args[1] === CHART_LAYOUT.boolBarPaddingY,
+        );
+        expect(barCalls).toHaveLength(1);
+        expect(barCalls[0]).toEqual([
+            100,
+            CHART_LAYOUT.boolBarPaddingY,
+            600,
+            CHART_LAYOUT.boolBarHeight,
+        ]);
+
+        trend.destroy();
     });
 });
 

@@ -231,7 +231,7 @@
 import { ref, watch, computed } from 'vue';
 import type { PlcLinkSettings, TagSettings, YAxisSettings } from '../types';
 import { PALETTE, newId, MIN_PLC_LINKS, MAX_PLC_LINKS, MAX_TAGS_PER_PLC_LINK } from '../types';
-import { state, backend, showMessage } from '../store';
+import { state, backend, showMessage, resetStats } from '../store';
 import { useI18n } from 'vue-i18n';
 import AppDialog from './AppDialog.vue';
 import TagEditorDialog from './TagEditorDialog.vue';
@@ -531,6 +531,18 @@ async function saveToFile() {
 }
 
 function save() {
+    const nextById = new Map(tags.value.map((tag) => [tag.id, tag]));
+    for (const prev of state.settings.tags) {
+        const next = nextById.get(prev.id);
+        if (
+            !next ||
+            prev.plcLink !== next.plcLink ||
+            prev.address !== next.address ||
+            prev.dataType !== next.dataType
+        ) {
+            resetStats(prev.id);
+        }
+    }
     state.settings.plcLinks = links.value.map((p) => ({ ...p }));
     state.settings.tags = tags.value.map((t) => ({ ...t }));
     emit('save');

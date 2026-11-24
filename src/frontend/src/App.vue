@@ -173,6 +173,7 @@ import {
     wailsRuntime,
     isWebServerClient,
     updateTagValue,
+    resetStats,
     markPlcForTag,
     getTag,
     uiState,
@@ -374,11 +375,18 @@ function onRowDblClick(tag: TagSettings) {
 }
 
 function openTagEditor(tag: TagSettings, isNew: boolean) {
+    if (isNew) {
+        dblEditIndex.value = -1;
+        dblEditTag.value = { ...tag };
+        pendingNewTagId.value = tag.id;
+        dblEditOpen.value = true;
+        return;
+    }
     const idx = state.settings.tags.findIndex((t) => t.id === tag.id);
     if (idx < 0) return;
     dblEditIndex.value = idx;
     dblEditTag.value = { ...tag };
-    pendingNewTagId.value = isNew ? tag.id : null;
+    pendingNewTagId.value = null;
     dblEditOpen.value = true;
 }
 
@@ -395,19 +403,33 @@ function clearTreeFocus() {
 }
 
 function onDblEditSave(updatedTag: TagSettings) {
-    let targetIndex = state.settings.tags.findIndex(
-        (tag) => tag.id === updatedTag.id,
-    );
-    if (
-        targetIndex < 0 &&
-        dblEditIndex.value >= 0 &&
-        dblEditIndex.value < state.settings.tags.length
-    ) {
-        targetIndex = dblEditIndex.value;
-    }
-    if (targetIndex >= 0) {
-        state.settings.tags[targetIndex] = updatedTag;
+    if (pendingNewTagId.value) {
+        state.settings.tags.push(updatedTag);
         onSettingsChanged();
+    } else {
+        let targetIndex = state.settings.tags.findIndex(
+            (tag) => tag.id === updatedTag.id,
+        );
+        if (
+            targetIndex < 0 &&
+            dblEditIndex.value >= 0 &&
+            dblEditIndex.value < state.settings.tags.length
+        ) {
+            targetIndex = dblEditIndex.value;
+        }
+        if (targetIndex >= 0) {
+            const prev = state.settings.tags[targetIndex];
+            const sourceChanged =
+                prev.plcLink !== updatedTag.plcLink ||
+                prev.address !== updatedTag.address ||
+                prev.dataType !== updatedTag.dataType;
+            state.settings.tags[targetIndex] = updatedTag;
+            if (sourceChanged) {
+                resetStats(updatedTag.id);
+                clearLiveValue(updatedTag.id);
+            }
+            onSettingsChanged();
+        }
     }
     pendingNewTagId.value = null;
     dblEditOpen.value = false;
@@ -417,15 +439,6 @@ function onDblEditSave(updatedTag: TagSettings) {
 }
 
 function onDblEditClose() {
-    if (pendingNewTagId.value) {
-        const index = state.settings.tags.findIndex(
-            (tag) => tag.id === pendingNewTagId.value,
-        );
-        if (index >= 0) {
-            state.settings.tags.splice(index, 1);
-            onSettingsChanged();
-        }
-    }
     pendingNewTagId.value = null;
     dblEditOpen.value = false;
     dblEditTag.value = null;
@@ -510,6 +523,15 @@ function setLiveValue(tagId: string, valStr: string) {
             liveValues.value = { ...liveValues.value, ...pendingLiveValues };
             pendingLiveValues = {};
         });
+    }
+}
+
+function clearLiveValue(tagId: string) {
+    delete pendingLiveValues[tagId];
+    if (tagId in liveValues.value) {
+        const next = { ...liveValues.value };
+        delete next[tagId];
+        liveValues.value = next;
     }
 }
 

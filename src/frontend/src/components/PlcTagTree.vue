@@ -245,11 +245,9 @@ function addTag(plc: PlcLinkSettings) {
               enabled: true,
               samplingIntervalMs: 0,
           };
-    props.tags.push(tag);
     selectedPlcName.value = plc.name;
     selectedTagId.value = tag.id;
     expandedPlcs.value = new Set([...expandedPlcs.value, plc.name]);
-    emit('settingsChange');
     emit('editTag', tag, true);
 }
 

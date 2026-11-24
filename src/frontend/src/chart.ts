@@ -774,6 +774,34 @@ export class TrendChart {
         return fetchedSlice.concat(liveSlice);
     }
 
+    private boolPointsForTag(id: string, start: number, end: number): Point[] {
+        const inWindow = this.pointsForTag(id, start, end);
+        if (inWindow.length > 0 && inWindow[0].timestamp <= start) {
+            return inWindow;
+        }
+
+        const live = this.history.get(id) ?? [];
+        const fetched = this.fetchedHistory?.data.get(id) ?? [];
+        let effectiveFetched = fetched;
+        if (live.length > 0 && fetched.length > 0) {
+            const earliestLive = live[0].timestamp;
+            const splitIdx = findFirstIndex(fetched, earliestLive);
+            effectiveFetched = fetched.slice(0, splitIdx);
+        }
+
+        const beforeIdxLive = findLastIndex(live, start - 1);
+        let preceding: Point | undefined =
+            beforeIdxLive >= 0 ? live[beforeIdxLive] : undefined;
+        if (!preceding && effectiveFetched.length > 0) {
+            const beforeIdxFetched = findLastIndex(effectiveFetched, start - 1);
+            if (beforeIdxFetched >= 0) {
+                preceding = effectiveFetched[beforeIdxFetched];
+            }
+        }
+
+        return preceding ? [preceding, ...inWindow] : inWindow;
+    }
+
     public getMeasurements(): CursorMeasurement | null {
         if (
             !this.cursorsEnabled ||
@@ -1123,7 +1151,7 @@ export class TrendChart {
         if (!ctx) return;
 
         const combinedHistory = {
-            get: (id: string) => this.pointsForTag(id, start, end),
+            get: (id: string) => this.boolPointsForTag(id, start, end),
         } as Map<string, Point[]>;
         drawBooleanBand(ctx, {
             start,

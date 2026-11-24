@@ -121,10 +121,24 @@ export function applySyncedSettings(updated: AppSettings): boolean {
         return false;
     }
 
+    const prevById = new Map(
+        state.settings.tags.map((tag) => [tag.id, tag]),
+    );
     const keepTagIds = new Set(next.tags.map((tag) => tag.id));
     for (const tagId of Object.keys(state.sampledRange)) {
         if (!keepTagIds.has(tagId)) {
             delete state.sampledRange[tagId];
+        }
+    }
+    for (const tag of next.tags) {
+        const prev = prevById.get(tag.id);
+        if (
+            prev &&
+            (prev.plcLink !== tag.plcLink ||
+                prev.address !== tag.address ||
+                prev.dataType !== tag.dataType)
+        ) {
+            delete state.sampledRange[tag.id];
         }
     }
 
